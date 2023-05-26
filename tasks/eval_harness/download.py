@@ -1,4 +1,4 @@
-# This code is originally from https://github.com/bigscience-workshop/Megatron-DeepSpeed
+# This code is originally from https://github.com/bigscience-workshop/AscendSpeed
 # under the license https://huggingface.co/spaces/bigscience/license
 
 # Downloads the specified taks in the evaluation harness
