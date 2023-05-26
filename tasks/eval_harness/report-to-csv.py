@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# This code is originally from https://github.com/bigscience-workshop/Megatron-DeepSpeed
+# This code is originally from https://github.com/bigscience-workshop/AscendSpeed
 # under the license https://huggingface.co/spaces/bigscience/license
 
 # this script converts results.json:
