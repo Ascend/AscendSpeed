@@ -30,6 +30,8 @@ from torch import distributed as dist
 import deepspeed
 from deepspeed.moe.layer import MoE
 from deepspeed.accelerator import get_accelerator
+from ..enums import PositionEmbeddingType
+
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
 torch._C._jit_set_profiling_executor(False)
@@ -123,6 +125,7 @@ class ParallelAttention(MegatronModule):
         args = get_args()
         self.fp16 = args.fp16
         self.bf16 = args.bf16
+        self.position_embedding_type = args.position_embedding_type
 
         self.apply_query_key_layer_scaling = args.apply_query_key_layer_scaling
         self.attention_softmax_in_fp32 = args.attention_softmax_in_fp32
@@ -463,7 +466,19 @@ class ParallelTransformerLayer(MegatronModule):
                             eval_capacity_factor=args.moe_eval_capacity_factor,
                             min_capacity=args.moe_min_capacity,
                             drop_tokens=args.moe_token_dropping, use_tutel=args.use_tutel,
-                            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism) 
+                            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism)
+
+        # Alibi
+        # if args.position_embedding_type == PositionEmbeddingType.alibi:
+        #     self.alibi = self._build_alibi_tensor(args.seq_length, args.num_attention_heads,
+        #                                           args.micro_batch_size).to(torch.cuda.current_device())
+        #     if args.params_dtype == torch.float16:
+        #         self.alibi = self.alibi.to(torch.float16)
+        #     elif args.params_dtype == torch.bfloat16:
+        #         self.alibi = self.alibi.to(torch.bfloat16)
+        # else:
+        #     self.alibi = None
+        self.alibi = None
 
     def forward(self, hidden_states, attention_mask=None,
                 encoder_output=None, enc_dec_attn_mask=None,
@@ -563,6 +578,36 @@ class ParallelTransformerLayer(MegatronModule):
             output = [output, presents]
 
         return output, moe_loss
+
+    @staticmethod
+    def _build_alibi_tensor(max_seq_len, num_attention_heads, batch_size):
+        # Based on https://github.com/ofirpress/attention_with_linear_biases/blob/a35aaca144e0eb6b789dfcb46784c4b8e31b7983/fairseq/models/transformer.py#L742
+        """Returns tensor shaped (batch_size * num_attention_heads, 1, max_seq_len)"""
+
+        def get_slopes(n):
+            def get_slopes_power_of_2(n):
+                start = (2 ** (-2 ** -(math.log2(n) - 3)))
+                ratio = start
+                return [start * ratio ** i for i in range(n)]
+
+            if math.log2(n).is_integer():
+                return get_slopes_power_of_2(n)
+            else:
+                closest_power_of_2 = 2 ** math.floor(math.log2(n))
+                return get_slopes_power_of_2(closest_power_of_2) + get_slopes(2 * closest_power_of_2)[0::2][
+                                                                   :n - closest_power_of_2]
+
+        slopes = torch.Tensor(get_slopes(num_attention_heads))
+        alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(max_seq_len).unsqueeze(0).unsqueeze(0).expand(
+            num_attention_heads, -1, -1)
+
+        # Select the part of the tensor that corresponds to our tensor parallel index.
+        tp_world_size = mpu.get_tensor_model_parallel_world_size()
+        tp_index = mpu.get_tensor_model_parallel_rank()
+        alibi = alibi.reshape((tp_world_size, -1, *alibi.shape[1:]))[tp_index]
+
+        alibi = alibi.repeat(batch_size, 1, 1)
+        return alibi
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline.

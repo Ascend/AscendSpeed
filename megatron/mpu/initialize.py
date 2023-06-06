@@ -372,3 +372,19 @@ def destroy_model_parallel():
     _PIPELINE_MODEL_PARALLEL_GROUP = None
     global _DATA_PARALLEL_GROUP
     _DATA_PARALLEL_GROUP = None
+
+
+def is_pipeline_stage_after_split(rank=None):
+    """Return True if pipeline stage executes decoder block for a model
+    with both encoder and decoder."""
+    if get_pipeline_model_parallel_world_size() == 1:
+        return True
+    if rank is None:
+        rank = get_pipeline_model_parallel_rank()
+    global _PIPELINE_MODEL_PARALLEL_SPLIT_RANK
+    if _PIPELINE_MODEL_PARALLEL_SPLIT_RANK is None:
+        return True
+    if rank >= _PIPELINE_MODEL_PARALLEL_SPLIT_RANK:
+        return True
+    return False
+
