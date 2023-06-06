@@ -15,6 +15,7 @@
 
 from contextlib import contextmanager
 import torch
+from torch.autograd.variable import Variable
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
 from megatron import get_args
@@ -38,42 +39,94 @@ def get_forward_backward_func():
         forward_backward_func = forward_backward_no_pipelining
     return forward_backward_func
 
+def custom_backward(output, grad_output):
+    '''Directly call C++ autograd engine.
 
-def forward_step(forward_step_func, data_iterator, model, input_tensor, losses_reduced):
+    To make the 'deallocate_output_tensor' (above) optimization work, the C++
+    autograd engine must be called directly, bypassing Pytorch's
+    torch.autograd.backward. Pytorch's 'backward' checks that the output and
+    grad have the same shape, while C++'s 'backward' does not.
+    '''
+
+    assert output.numel() == 1, \
+        "output should be pseudo-'freed' in schedule, to optimize memory"
+    assert isinstance(output, torch.Tensor), \
+        "output == '%s'." % type(output).__name__
+    assert isinstance(grad_output, (torch.Tensor, type(None))), \
+        "grad_output == '%s'." % type(grad_output).__name__
+
+    # Handle scalar output
+    if grad_output is None:
+        assert output.numel() == 1, "implicit grad requires scalar output."
+        grad_output = torch.ones_like(
+            output,
+            memory_format = torch.preserve_format,
+        )
+
+    # Call c++ engine [ see torch/csrc/autograd/python_engine.cpp ]
+    Variable._execution_engine.run_backward(
+        tensors = (output,),
+        grad_tensors = (grad_output,),
+        keep_graph = False,
+        create_graph = False,
+        inputs = tuple(),
+        allow_unreachable=True,
+        accumulate_grad=True,
+    )
+
+
+
+
+def forward_step(forward_step_func,
+                 data_iterator,
+                 model,
+                 input_tensor,
+                 forward_data_store,
+                 timers,
+                 collect_non_loss_data=False):
     """Forward step for passed-in model.
 
     If first stage, input tensor is obtained from data_iterator, otherwise
     passed-in input_tensor is used.
 
     Returns output tensor."""
-    timers = get_timers()
-
     args = get_args()
 
-    timers('forward-compute').start()
+    if timers is not None:
+        timers('forward-compute', log_level=2).start()
     unwrapped_model = unwrap_model(
         model, (torchDDP, LocalDDP, Float16Module))
-    if not args.deepspeed:
-        unwrapped_model.set_input_tensor(input_tensor)
-    else:
-        unwrapped_model.module.set_input_tensor(input_tensor)
 
-    # Note: it's recommended to NOT add any new argument to forward_step_func()
-    # because it is an abstract API used by many different models and tasks.
-    # Changing this API requires changing it in all models/tasks. Instead,
-    # it's recommended to use args to pass additional arguments.
+    unwrap_output_tensor = False
+    if not isinstance(input_tensor, list):
+        input_tensor = [input_tensor]
+        unwrap_output_tensor = True
+
+    unwrapped_model.set_input_tensor(input_tensor)
     output_tensor, loss_func = forward_step_func(data_iterator, model)
     if mpu.is_pipeline_last_stage():
-        output_tensor = loss_func(output_tensor)
-        loss, loss_reduced = output_tensor
-        if not args.no_pipeline_parallel:
+        if not collect_non_loss_data:
+            output_tensor = loss_func(output_tensor)
+            loss, loss_reduced = output_tensor
             output_tensor = loss / get_num_microbatches()
+            forward_data_store.append(loss_reduced)
         else:
-            output_tensor = loss
-        losses_reduced.append(loss_reduced)
-    timers('forward-compute').stop()
+            data = loss_func(output_tensor, non_loss_data=True)
+            forward_data_store.append(data)
 
-    return output_tensor
+    if timers is not None:
+        timers('forward-compute').stop()
+
+    # If T5 model (or other model with encoder and decoder)
+    # and in decoder stack, then send encoder_hidden_state
+    # downstream as well.
+    # remove for bloom
+    # if mpu.is_pipeline_stage_after_split() and \
+    #         args.model_type == ModelType.encoder_and_decoder:
+    #     return [output_tensor, input_tensor[-1]]
+    if unwrap_output_tensor:
+        return output_tensor
+    return [output_tensor]
 
 
 def backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad, model=None):

@@ -293,3 +293,73 @@ def _is_rank_0():
             return False
     else:
         return True
+
+def set_jit_fusion_options():
+    """Set PyTorch JIT layer fusion options."""
+    # flags required to enable jit fusion kernels
+    TORCH_MAJOR = int(torch.__version__.split('.')[0])
+    TORCH_MINOR = int(torch.__version__.split('.')[1])
+    if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR >= 10):
+        # nvfuser
+        torch._C._jit_set_profiling_executor(True)
+        torch._C._jit_set_profiling_mode(True)
+        torch._C._jit_override_can_fuse_on_cpu(False)
+        torch._C._jit_override_can_fuse_on_gpu(False)
+        torch._C._jit_set_texpr_fuser_enabled(False)
+        torch._C._jit_set_nvfuser_enabled(True)
+        torch._C._debug_set_autodiff_subgraph_inlining(False)
+    else:
+        # legacy pytorch fuser
+        torch._C._jit_set_profiling_mode(False)
+        torch._C._jit_set_profiling_executor(False)
+        torch._C._jit_override_can_fuse_on_cpu(True)
+        torch._C._jit_override_can_fuse_on_gpu(True)
+
+    _warmup_jit_function()
+
+
+def _warmup_jit_function():
+    """ Compilie JIT functions before the main training steps """
+    args = get_args()
+    if args.bf16:
+        dtype = torch.bfloat16
+    elif args.fp16:
+        dtype = torch.float16
+    else:
+        dtype = torch.float32
+
+    # Warmup fused bias+gelu
+    bias = torch.rand(args.ffn_hidden_size // args.tensor_model_parallel_size,
+                      dtype=dtype, device='cuda')
+    input = torch.rand((args.seq_length, args.micro_batch_size,
+                        args.ffn_hidden_size // args.tensor_model_parallel_size),
+                       dtype=dtype, device='cuda')
+    # Warmup JIT fusions with the input grad_enable state of both forward
+    # prop and recomputation
+    for bias_grad, input_grad in zip([True, True], [False, True]):
+        bias.requires_grad, input.requires_grad = bias_grad, input_grad
+        for _ in range(5):
+            output = bias_gelu(bias, input)
+    del bias, input, output
+
+    # Warmup fused bias+dropout+add
+    if args.sequence_parallel:
+        seq_length = args.seq_length // mpu.get_tensor_model_parallel_world_size()
+    else:
+        seq_length = args.seq_length
+    input = torch.rand((seq_length, args.micro_batch_size, args.hidden_size),
+                       dtype=dtype, device='cuda')
+    residual = torch.rand((seq_length, args.micro_batch_size, args.hidden_size),
+                          dtype=dtype, device='cuda')
+    bias = torch.rand((args.hidden_size), dtype=dtype, device='cuda').expand_as(residual)
+    dropout_rate = 0.1
+    # Warmup JIT fusions with the input grad_enable state of both forward
+    # prop and recomputation
+    for input_grad, bias_grad, residual_grad in zip([False, True], [True, True], [True, True]):
+        input.requires_grad = input_grad
+        bias.requires_grad = bias_grad
+        residual.requires_grad = residual_grad
+        for _ in range(5):
+            output = bias_dropout_add_fused_train(input, bias, residual, dropout_rate)
+    del bias, input, residual, output
+    torch.cuda.empty_cache()

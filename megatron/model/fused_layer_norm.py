@@ -24,6 +24,12 @@ from torch.nn import init
 import importlib
 from torch.nn import functional as F
 
+try:
+    from apex.contrib.layer_norm.layer_norm import FastLayerNormFN
+    HAVE_PERSIST_LAYER_NORM = True
+except:
+    HAVE_PERSIST_LAYER_NORM = False
+
 global fused_mix_prec_layer_norm_cuda
 fused_mix_prec_layer_norm_cuda = None
 

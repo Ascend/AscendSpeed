@@ -69,6 +69,7 @@ def print_datetime(string):
 
 def pretrain(train_valid_test_dataset_provider,
              model_provider,
+             model_type,
              forward_step_func,
              extra_args_provider=None,
              args_defaults={},
@@ -183,6 +184,8 @@ def pretrain(train_valid_test_dataset_provider,
     print_rank_0('training ...')
 
     iteration = 0
+    save_checkpoint(iteration, model, optimizer, lr_scheduler)
+
     if args.do_train and args.train_iters > 0:
         iteration = train(forward_step_func,
                           model, optimizer, lr_scheduler,
@@ -728,7 +731,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     timers_to_log = []
 
     def add_to_logging(name):
-        if name in timers.timers:
+        if name in timers._timers:
             timers_to_log.append(name)
     add_to_logging('forward-compute')
     add_to_logging('forward-recv')

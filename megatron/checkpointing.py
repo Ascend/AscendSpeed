@@ -21,6 +21,7 @@ import sys
 import numpy as np
 from deepspeed.accelerator import get_accelerator
 import torch
+from megatron.enums import PositionEmbeddingType
 
 from megatron import (get_args,
                       is_rank_0,
@@ -62,7 +63,12 @@ def check_checkpoint_args(checkpoint_args):
         _compare('num_layers')
     _compare('hidden_size')
     _compare('num_attention_heads')
-    _compare('max_position_embeddings')
+
+    _compare('position_embedding_type')
+    # with alibi we can change `max_position_embeddings`
+    if args.position_embedding_type != PositionEmbeddingType.alibi:
+        _compare('max_position_embeddings')
+
     if args.vocab_file:
         _compare('make_vocab_size_divisible_by')
         _compare('padded_vocab_size')
