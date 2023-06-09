@@ -69,7 +69,6 @@ def print_datetime(string):
 
 def pretrain(train_valid_test_dataset_provider,
              model_provider,
-             model_type,
              forward_step_func,
              extra_args_provider=None,
              args_defaults={},
@@ -137,6 +136,7 @@ def pretrain(train_valid_test_dataset_provider,
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
         model_provider, teacher=False, data_post_process=data_post_process,
         build_train_valid_test_datasets_provider=train_valid_test_dataset_provider)
+
     timers('model-and-optimizer-setup').stop()
     print_datetime('after model, optimizer, and learning rate '
                    'scheduler are built')
@@ -184,8 +184,6 @@ def pretrain(train_valid_test_dataset_provider,
     print_rank_0('training ...')
 
     iteration = 0
-    save_checkpoint(iteration, model, optimizer, lr_scheduler)
-
     if args.do_train and args.train_iters > 0:
         iteration = train(forward_step_func,
                           model, optimizer, lr_scheduler,
@@ -491,7 +489,6 @@ def setup_model_and_optimizer(model_provider_func, teacher=False,
                 # Number of train/valid/test samples.
                 if args.train_samples:
                     train_samples = args.train_samples
-                    update_train_iters(args)
                 else:
                     train_samples = args.train_iters * args.global_batch_size
                 # eval_iters and test_iters here are not actually used, only for
@@ -731,7 +728,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     timers_to_log = []
 
     def add_to_logging(name):
-        if name in timers._timers:
+        if name in timers.timers:
             timers_to_log.append(name)
     add_to_logging('forward-compute')
     add_to_logging('forward-recv')
@@ -850,7 +847,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                     opt_stats_2[1] = max(opt_stats_2[1], optimizer.state[param]['exp_avg_sq'].sqrt().abs_().max().item())
                     opt_stats_2[2] = max(opt_stats_2[2], abs(optimizer.state[param]['exp_avg'].max().item()), abs(optimizer.state[param]['exp_avg'].min().item()))
                     opt_stats_2[3] = max(opt_stats_2[3], abs(param.max().item()), abs(param.min().item()))
-            # print('step {} rank {} before sync opt_stats {}, {}'.format(iteration, torch.distributed.get_rank(), opt_stats_2, opt_stats))
+
             if args.zero_stage > 0:
                 # ZeRO partiions optimizer states
                 opt_stats = get_accelerator().FloatTensor(opt_stats)
@@ -1276,7 +1273,6 @@ def build_train_valid_test_data_iterators(
         # Number of train/valid/test samples.
         if args.train_samples:
             train_samples = args.train_samples
-            update_train_iters(args)
         else:
             train_samples = args.train_iters * args.global_batch_size
         eval_iters = (args.train_iters // args.eval_interval + 1) * \

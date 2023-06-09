@@ -55,7 +55,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         masked_target_1d = masked_target.view(-1)
         arange_1d = torch.arange(start=0, end=logits_2d.size()[0],
                                  device=logits_2d.device)
-        predicted_logits_1d = logits_2d[arange_1d, masked_target_1d.long()]
+        predicted_logits_1d = logits_2d[arange_1d, masked_target_1d]
         predicted_logits_1d = predicted_logits_1d.clone().contiguous()
         predicted_logits = predicted_logits_1d.view_as(target)
         predicted_logits[target_mask] = 0.0
@@ -96,7 +96,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # Add the gradient from matching classes.
         arange_1d = torch.arange(start=0, end=grad_2d.size()[0],
                                  device=grad_2d.device)
-        grad_2d[arange_1d, masked_target_1d.long()] -= (
+        grad_2d[arange_1d, masked_target_1d] -= (
             1.0 - target_mask.view(-1).float())
 
         # Finally elementwise multiplication with the output gradients.

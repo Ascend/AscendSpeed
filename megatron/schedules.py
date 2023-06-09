@@ -15,7 +15,7 @@
 
 from contextlib import contextmanager
 import torch
-from torch.autograd.variable import Variable
+import torch_npu
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
 from megatron import get_args
@@ -28,6 +28,25 @@ from megatron.utils import unwrap_model
 from megatron.model import DistributedDataParallel as LocalDDP
 from megatron.model import Float16Module
 
+
+def clear_npu_overflow_flag():
+    float_status = torch.zeros(8).npu()   # 8 bit for overflow
+    result = torch_npu.npu_clear_float_status(float_status)
+
+
+def get_npu_overflow_flag():
+    float_status = torch.zeros(8).npu()   # 8 bit for overflow
+    result = torch_npu.npu_get_float_status(float_status)
+    if float_status.cpu()[0] != 0:
+        return True
+    else:
+        return False
+
+
+def set_npu_overflow_flag():
+    torch.tensor([65504]).half().npu() + 100  # fp16 overflow flag
+
+
 def get_forward_backward_func():
     args = get_args()
     if mpu.get_pipeline_model_parallel_world_size() > 1:
@@ -39,94 +58,43 @@ def get_forward_backward_func():
         forward_backward_func = forward_backward_no_pipelining
     return forward_backward_func
 
-def custom_backward(output, grad_output):
-    '''Directly call C++ autograd engine.
 
-    To make the 'deallocate_output_tensor' (above) optimization work, the C++
-    autograd engine must be called directly, bypassing Pytorch's
-    torch.autograd.backward. Pytorch's 'backward' checks that the output and
-    grad have the same shape, while C++'s 'backward' does not.
-    '''
-
-    assert output.numel() == 1, \
-        "output should be pseudo-'freed' in schedule, to optimize memory"
-    assert isinstance(output, torch.Tensor), \
-        "output == '%s'." % type(output).__name__
-    assert isinstance(grad_output, (torch.Tensor, type(None))), \
-        "grad_output == '%s'." % type(grad_output).__name__
-
-    # Handle scalar output
-    if grad_output is None:
-        assert output.numel() == 1, "implicit grad requires scalar output."
-        grad_output = torch.ones_like(
-            output,
-            memory_format = torch.preserve_format,
-        )
-
-    # Call c++ engine [ see torch/csrc/autograd/python_engine.cpp ]
-    Variable._execution_engine.run_backward(
-        tensors = (output,),
-        grad_tensors = (grad_output,),
-        keep_graph = False,
-        create_graph = False,
-        inputs = tuple(),
-        allow_unreachable=True,
-        accumulate_grad=True,
-    )
-
-
-
-
-def forward_step(forward_step_func,
-                 data_iterator,
-                 model,
-                 input_tensor,
-                 forward_data_store,
-                 timers,
-                 collect_non_loss_data=False):
+def forward_step(forward_step_func, data_iterator, model, input_tensor, losses_reduced):
     """Forward step for passed-in model.
 
     If first stage, input tensor is obtained from data_iterator, otherwise
     passed-in input_tensor is used.
 
-    Returns output tensor."""
+    Returns output tensor.
+    """
+    timers = get_timers()
+
     args = get_args()
 
-    if timers is not None:
-        timers('forward-compute', log_level=2).start()
+    timers('forward-compute').start()
     unwrapped_model = unwrap_model(
         model, (torchDDP, LocalDDP, Float16Module))
+    if not args.deepspeed:
+        unwrapped_model.set_input_tensor(input_tensor)
+    else:
+        unwrapped_model.module.set_input_tensor(input_tensor)
 
-    unwrap_output_tensor = False
-    if not isinstance(input_tensor, list):
-        input_tensor = [input_tensor]
-        unwrap_output_tensor = True
-
-    unwrapped_model.set_input_tensor(input_tensor)
+    # Note: it's recommended to NOT add any new argument to forward_step_func()
+    # because it is an abstract API used by many different models and tasks.
+    # Changing this API requires changing it in all models/tasks. Instead,
+    # it's recommended to use args to pass additional arguments.
     output_tensor, loss_func = forward_step_func(data_iterator, model)
     if mpu.is_pipeline_last_stage():
-        if not collect_non_loss_data:
-            output_tensor = loss_func(output_tensor)
-            loss, loss_reduced = output_tensor
+        output_tensor = loss_func(output_tensor)
+        loss, loss_reduced = output_tensor
+        if not args.no_pipeline_parallel:
             output_tensor = loss / get_num_microbatches()
-            forward_data_store.append(loss_reduced)
         else:
-            data = loss_func(output_tensor, non_loss_data=True)
-            forward_data_store.append(data)
+            output_tensor = loss
+        losses_reduced.append(loss_reduced)
+    timers('forward-compute').stop()
 
-    if timers is not None:
-        timers('forward-compute').stop()
-
-    # If T5 model (or other model with encoder and decoder)
-    # and in decoder stack, then send encoder_hidden_state
-    # downstream as well.
-    # remove for bloom
-    # if mpu.is_pipeline_stage_after_split() and \
-    #         args.model_type == ModelType.encoder_and_decoder:
-    #     return [output_tensor, input_tensor[-1]]
-    if unwrap_output_tensor:
-        return output_tensor
-    return [output_tensor]
+    return output_tensor
 
 
 def backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad, model=None):
@@ -149,6 +117,7 @@ def backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad, mo
     if input_tensor is not None:
         input_tensor.retain_grad()
 
+    clear_npu_overflow_flag()
     if args.deepspeed:
         model.backward(output_tensor)
     else:
@@ -165,7 +134,6 @@ def backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad, mo
     timers('backward-compute').stop()
 
     return input_tensor_grad
-
 
 @contextmanager
 def dummy_handler():
@@ -184,35 +152,33 @@ def forward_backward_no_pipelining(forward_step_func, data_iterator, model,
     assert len(model) == 1
     model = model[0]
 
-    args = get_args()
-
     context_handler = dummy_handler
     if isinstance(model, torchDDP):
         context_handler = model.no_sync
 
-    if args.deepspeed:
-        model.set_gradient_accumulation_boundary(False)
-
     losses_reduced = []
     input_tensor, output_tensor_grad = None, None
+    overflow_flag_all = False
     with context_handler():
         for i in range(get_num_microbatches() - 1):
             output_tensor = forward_step(forward_step_func, data_iterator, model,
                                          input_tensor, losses_reduced)
             if not forward_only:
                 backward_step(optimizer, input_tensor, output_tensor,
-                              output_tensor_grad, model)
+                              output_tensor_grad)
 
-    if args.deepspeed:
-        model.set_gradient_accumulation_boundary(True)
-
-    # Run computation for last microbatch out of context handler (want to
-    # synchronize gradients).
+            overflow_flag = get_npu_overflow_flag()
+            overflow_flag_all = overflow_flag or overflow_flag_all
     output_tensor = forward_step(forward_step_func, data_iterator, model,
                                  input_tensor, losses_reduced)
     if not forward_only:
-        backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad, model)
+        backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad)
 
+    overflow_flag = get_npu_overflow_flag()
+    overflow_flag_all = overflow_flag or overflow_flag_all
+
+    if overflow_flag_all:
+        set_npu_overflow_flag()
     return losses_reduced
 
 

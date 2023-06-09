@@ -24,12 +24,6 @@ from torch.nn import init
 import importlib
 from torch.nn import functional as F
 
-try:
-    from apex.contrib.layer_norm.layer_norm import FastLayerNormFN
-    HAVE_PERSIST_LAYER_NORM = True
-except:
-    HAVE_PERSIST_LAYER_NORM = False
-
 global fused_mix_prec_layer_norm_cuda
 fused_mix_prec_layer_norm_cuda = None
 
@@ -71,10 +65,6 @@ class MixedFusedLayerNorm(torch.nn.Module):
   def __init__(self, normalized_shape, eps=1e-5):
         super(MixedFusedLayerNorm, self).__init__()
 
-        global fused_mix_prec_layer_norm_cuda
-        fused_mix_prec_layer_norm_cuda = importlib.import_module(
-          "fused_mix_prec_layer_norm_cuda")
-
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
         self.normalized_shape = torch.Size(normalized_shape)
@@ -85,17 +75,8 @@ class MixedFusedLayerNorm(torch.nn.Module):
 
 
   def reset_parameters(self):
-
     init.ones_(self.weight)
     init.zeros_(self.bias)
 
-
   def forward(self, input):
-    # CPU path is here for unittest sake.
-    if not input.is_cuda:
-        print("WARNING! The input of FusedLayerNorm should be on the GPU."
-              "This warning should only be triggered in the FusedLayerNorm unit tests.")
-        return F.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
-    return FusedLayerNormAffineFunction.apply(
-      input, self.weight, self.bias, self.normalized_shape,self.eps)
-
+    return torch.nn.functional.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)

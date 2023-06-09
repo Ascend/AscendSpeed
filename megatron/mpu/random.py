@@ -168,33 +168,13 @@ class CudaRNGStatesTracker:
         if name in self.states_:
             raise Exception('cuda rng state {} already exists'.format(name))
         # Get the current rng state.
-        orig_rng_state = get_accelerator().get_rng_state()
         # Set the new state and store it.
-        get_accelerator().manual_seed(seed)
-        self.states_[name] = get_accelerator().get_rng_state()
+        torch.cuda.manual_seed(seed)
         # Reset rng state to what it was.
-        _set_cuda_rng_state(orig_rng_state)
 
     @contextlib.contextmanager
     def fork(self, name=_MODEL_PARALLEL_RNG_TRACKER_NAME):
-        """Fork the cuda rng state, perform operations, and exit with
-        the original state."""
-        # Check if we have added the state
-        if name not in self.states_:
-            print(name, self.states_)
-            raise Exception('cuda rng state {} is not added'.format(name))
-        # Store current rng state.
-        orig_cuda_rng_state = get_accelerator().get_rng_state()
-        # Set rng state to the desired one
-        _set_cuda_rng_state(self.states_[name])
-        # Do the stuff we wanted to do.
-        try:
-            yield
-        finally:
-            # Update the current rng state for later use.
-            self.states_[name] = get_accelerator().get_rng_state()
-            # And set the state to the original state we started with.
-            _set_cuda_rng_state(orig_cuda_rng_state)
+        yield
 
 
 # RNG tracker object.
@@ -310,7 +290,7 @@ class CheckpointFunction(torch.autograd.Function):
         if isinstance(outputs, torch.Tensor):
             outputs = (outputs,)
         elif len(outputs) == 2 and isinstance(outputs[1], torch.Tensor) and \
-                torch.equal(outputs[1], torch.tensor(0).to(get_accelerator().device_name())):
+                torch.equal(outputs[1], torch.tensor(0, dtype=outputs[1].dtype).to(get_accelerator().device_name())):
             # a hacky solution to overcome issue when running old script examples/pretrain_gpt_distributed.sh
             outputs = (outputs[0],)
         torch.autograd.backward(outputs, args)
