@@ -43,7 +43,6 @@ _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS = {'tensor_model_parallel': False,
                                       'partition_dim': -1,
                                       'partition_stride': 1}
 
-
 def param_is_not_tensor_parallel_duplicate(param):
     return (hasattr(param, 'tensor_model_parallel') and
             param.tensor_model_parallel) or (

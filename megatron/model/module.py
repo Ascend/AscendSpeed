@@ -25,7 +25,7 @@ from megatron import mpu
 
 _FLOAT_TYPES = (torch.FloatTensor, get_accelerator().FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, get_accelerator().HalfTensor)
-_BF16_TYPES = (torch.BFloat16Tensor, get_accelerator().BFloat16Tensor)
+_BF16_TYPES = (torch.BFloat16Tensor)
 
 
 
@@ -121,30 +121,28 @@ def conversion_helper(val, conversion):
         rtn = tuple(rtn)
     return rtn
 
-
 def fp32_to_float16(val, float16_convertor):
-    """Convert fp32 `val` to fp16/bf16"""
     def half_conversion(val):
         val_typecheck = val
-        if isinstance(val_typecheck, (Parameter, Variable)):
+        if isinstance(val_typecheck, (torch.nn.parameter.Parameter, torch.autograd.Variable)):
             val_typecheck = val.data
-        if isinstance(val_typecheck, _FLOAT_TYPES):
+        if val_typecheck.dtype == torch.float32:
             val = float16_convertor(val)
         return val
+
     return conversion_helper(val, half_conversion)
 
 
 def float16_to_fp32(val):
-    """Convert fp16/bf16 `val` to fp32"""
     def float_conversion(val):
         val_typecheck = val
-        if isinstance(val_typecheck, (Parameter, Variable)):
+        if isinstance(val_typecheck, (torch.nn.parameter.Parameter, torch.autograd.Variable)):
             val_typecheck = val.data
-        if isinstance(val_typecheck, (_BF16_TYPES, _HALF_TYPES)):
+        if val_typecheck.dtype in [torch.float16, torch.bfloat16]:
             val = val.float()
         return val
-    return conversion_helper(val, float_conversion)
 
+    return conversion_helper(val, float_conversion)
 
 
 class Float16Module(MegatronModule):

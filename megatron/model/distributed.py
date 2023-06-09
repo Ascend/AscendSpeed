@@ -188,6 +188,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
     def allreduce_gradients(self):
         """Reduce gradients across data parallel ranks."""
         # If we have buffers, simply reduce the data in the buffer.
+
         if self._grad_buffers is not None:
             for _, buffer_ in self._grad_buffers.items():
                 buffer_.data /= mpu.get_data_parallel_world_size()

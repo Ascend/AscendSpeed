@@ -20,7 +20,6 @@ import os
 
 import torch
 import deepspeed
-from megatron.enums import PositionEmbeddingType
 
 def parse_args(extra_args_provider=None, defaults={},
                ignore_unknown_args=False):
@@ -229,15 +228,10 @@ def parse_args(extra_args_provider=None, defaults={},
         assert args.encoder_seq_length is not None
         args.seq_length = args.encoder_seq_length
 
-    if args.position_embedding_type == PositionEmbeddingType.absolute or args.position_embedding_type == PositionEmbeddingType.alibi:
-        assert args.max_position_embeddings is not None
-        if args.seq_length is not None:
-            assert args.max_position_embeddings >= args.seq_length
-        if args.decoder_seq_length is not None:
-            assert args.max_position_embeddings >= args.decoder_seq_length
-    else:
-        assert args.max_position_embeddings is None
-
+    if args.seq_length is not None:
+        assert args.max_position_embeddings >= args.seq_length
+    if args.decoder_seq_length is not None:
+        assert args.max_position_embeddings >= args.decoder_seq_length
     if args.lr is not None:
         assert args.min_lr <= args.lr
     if args.save is not None:
@@ -315,16 +309,9 @@ def _add_network_size_args(parser):
     group.add_argument('--max-position-embeddings', type=int, default=None,
                        help='Maximum number of position embeddings to use. '
                        'This is the size of position embedding.')
-    group.add_argument('--position-embedding-type', type=lambda x: PositionEmbeddingType[x],
-                       choices=list(PositionEmbeddingType), default=PositionEmbeddingType.absolute,
-                       help='Define position embedding type ("absolute" | "rotary" | "alibi"). "absolute" by default.')
     group.add_argument('--make-vocab-size-divisible-by', type=int, default=128,
                        help='Pad the vocab size to be divisible by this value.'
                        'This is added for computational efficieny reasons.')
-    group.add_argument('--pad-vocab-size-to', type=int, default=None,
-                       help='Pad the vocab size to this value.'
-                       'This value must be greater than the initial size of the tokenizer,'
-                       'needs to be divisible by TP size and `make-vocab-size-divisible-by`.')
     group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
                        help='Layer norm epsilon.')
     group.add_argument('--apply-residual-connection-post-layernorm',
@@ -352,24 +339,6 @@ def _add_logging_args(parser):
                        help='If set, calculate and log parameters norm.')
     group.add_argument('--log-num-zeros-in-grad', action='store_true',
                        help='If set, calculate and log the number of zeros in gradient.')
-    group.add_argument('--timing-log-level', type=int,
-                       default=0, choices=range(0,3),
-                       help='Granularity level to measure and report timing. '
-                       '   0: report only iteration time and make sure timing '
-                       '      does not introduce extra overhead.'
-                       '   1: report timing for operations that are executed '
-                       '      very limited times (basically once) during '
-                       '      each iteration (such as gradient all-reduce) '
-                       '   2: report timing for operations that migh be '
-                       '      executed numerous times during each iteration. '
-                       'Note that setting the level to 1 or 2 might '
-                       'cause increase in iteration time.')
-    group.add_argument('--timing-log-option', type=str, default='minmax',
-                       choices=['max', 'minmax', 'all'],
-                       help='Options for logging timing:'
-                       '  max: report the max timing across all ranks'
-                       '  minmax: report min and max timings across all ranks'
-                       '  all: report timings of all ranks.')
     group.add_argument('--tensorboard-log-interval', type=int, default=1,
                        help='Report to tensorboard interval.')
     group.add_argument('--tensorboard-queue-size', type=int, default=1000,
@@ -403,9 +372,9 @@ def _add_logging_args(parser):
 def _add_regularization_args(parser):
     group = parser.add_argument_group(title='regularization')
 
-    group.add_argument('--attention-dropout', type=float, default=0.0,
+    group.add_argument('--attention-dropout', type=float, default=0.1,
                        help='Post attention dropout probability.')
-    group.add_argument('--hidden-dropout', type=float, default=0.0,
+    group.add_argument('--hidden-dropout', type=float, default=0.1,
                        help='Dropout probability for hidden state transformer.')
     group.add_argument('--weight-decay', type=float, default=0.01,
                        help='Weight decay coefficient for L2 regularization.')
@@ -770,12 +739,8 @@ def _add_data_args(parser):
                        default=None,
                        choices=['BertWordPieceLowerCase',
                                 'BertWordPieceCase',
-                                'GPT2BPETokenizer',
-                                'PretrainedFromHF'],
+                                'GPT2BPETokenizer'],
                        help='What type of tokenizer to use.')
-    group.add_argument("--tokenizer-name-or-path", type=str, default=None,
-                        help="Name or path of the huggingface tokenizer.")
-
     group.add_argument('--data-impl', type=str, default='infer',
                        choices=['lazy', 'cached', 'mmap', 'infer'],
                        help='Implementation of indexed datasets.')
