@@ -2,5 +2,10 @@ pybind11
 six
 regex
 numpy
-megatron
-deepspeed
+sympy
+decorator
+scipy
+attrs
+expecttest
+pytest
+wrapt_timeout_decorator

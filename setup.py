@@ -22,16 +22,17 @@ import setuptools
 if sys.version_info < (3,):
     raise Exception("Python 2 is not supported by Megatron.")
 
-from megatron.package_info import (
-    __description__,
-    __contact_names__,
-    __url__,
-    __download_url__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __version__,
-)
+__description__ = 'AscendSpeed for LLMs of Ascend'
+__version__ = '0.0.1'
+__author__ = 'Ascend'
+__long_description__ = 'AscendSpeed for LLMs of Ascend'
+__url__ = 'https://gitee.com/ascend/AscendSpeed'
+__download_url__ = 'https://gitee.com/ascend/AscendSpeed/release'
+__keywords__ = 'Ascend, langauge, deep learning, NLP'
+__license__ = 'See https://gitee.com/ascend/AscendSpeed'
+__package_name__ = 'ascendspeed'
+__contact_names__ = 'Ascend'
+
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -50,6 +51,7 @@ def req_file(filename):
 install_requires = req_file("requirements.txt")
 
 setuptools.setup(
+    package_data={'ascendspeed':['megatron/data/Makefile']},
     name=__package_name__,
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see

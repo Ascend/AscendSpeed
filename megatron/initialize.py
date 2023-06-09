@@ -21,7 +21,7 @@ import time
 
 import numpy as np
 import torch
-from megatron import fused_kernels
+
 from megatron import get_adlr_autoresume
 from megatron import get_args
 from megatron import get_tensorboard_writer
@@ -31,9 +31,8 @@ from megatron.mpu import (set_tensor_model_parallel_rank,
                           set_tensor_model_parallel_world_size)
 from deepspeed.accelerator import get_accelerator
 import deepspeed
-import deepspeed.utils.groups as groups
 
-def initialize_megatron(extra_args_provider=None, args_defaults={},
+def initialize_megatron(extra_args_provider=None, args_defaults=None,
                         ignore_unknown_args=False, allow_no_cuda=False):
     """Set global variables, initialize distributed, and
     set autoresume and random seeds.
@@ -43,6 +42,9 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
     Returns a function to finalize distributed env initialization 
     (optionally, only when args.lazy_mpu_init == True)
     """
+    if not args_defaults:
+        args_defaults = {}
+
     if not allow_no_cuda:
         # Make sure cuda is available.
         assert get_accelerator().is_available(), 'Megatron requires accelerator.'
@@ -92,66 +94,13 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
 
 
 def _compile_dependencies():
-
-    args = get_args()
-
-    # =========================
-    # Compile dataset C++ code.
-    # =========================
-    # TODO: move this to ninja
-    if _is_rank_0():
+    if torch.distributed.get_rank() == 0:
         start_time = time.time()
         print('> compiling dataset index builder ...')
         from megatron.data.dataset_utils import compile_helper
         compile_helper()
         print('>>> done with dataset index builder. Compilation time: {:.3f} '
               'seconds'.format(time.time() - start_time), flush=True)
-        
-    if not get_accelerator().device_name() == 'cuda':
-        print(">fused kernel is only supported in cuda, skip loading fused kernel")
-        return 
-    # ==================
-    # Load fused kernels
-    # ==================
-
-    # Custom kernel constraints check.
-    seq_len = args.seq_length
-    attn_batch_size = \
-        (args.num_attention_heads / args.tensor_model_parallel_size) * \
-        args.micro_batch_size
-    # Constraints on sequence length and attn_batch_size to enable warp based
-    # optimization and upper triangular optimization (for causal mask)
-    custom_kernel_constraint = seq_len > 16 and seq_len <=2048 and \
-        seq_len % 4 == 0 and attn_batch_size % 4 == 0
-    # Print a warning.
-    if not ((args.fp16 or args.bf16) and
-            custom_kernel_constraint and
-            args.masked_softmax_fusion):
-        if args.rank == 0:
-            print('WARNING: constraints for invoking optimized'
-                  ' fused softmax kernel are not met. We default'
-                  ' back to unfused kernel invocations.', flush=True)
-    
-    # Always build on rank zero first.
-    if _is_rank_0():
-        start_time = time.time()
-        print('> compiling and loading fused kernels ...', flush=True)
-        if get_accelerator().device_count() > 0: # Skip when CPU-only
-            fused_kernels.load(args)
-        torch.distributed.barrier()
-    else:
-        torch.distributed.barrier()
-        fused_kernels.load(args)
-    # Simple barrier to make sure all ranks have passed the
-    # compilation phase successfully before moving on to the
-    # rest of the program. We think this might ensure that
-    # the lock is released.
-    torch.distributed.barrier()
-    if _is_rank_0():
-        print('>>> done with compiling and loading fused kernels. '
-              'Compilation time: {:.3f} seconds'.format(
-                  time.time() - start_time), flush=True)
-
 
 def setup_deepspeed_random_and_activation_checkpointing(args):
     '''Optional DeepSpeed Activation Checkpointing features.
@@ -293,73 +242,3 @@ def _is_rank_0():
             return False
     else:
         return True
-
-def set_jit_fusion_options():
-    """Set PyTorch JIT layer fusion options."""
-    # flags required to enable jit fusion kernels
-    TORCH_MAJOR = int(torch.__version__.split('.')[0])
-    TORCH_MINOR = int(torch.__version__.split('.')[1])
-    if (TORCH_MAJOR > 1) or (TORCH_MAJOR == 1 and TORCH_MINOR >= 10):
-        # nvfuser
-        torch._C._jit_set_profiling_executor(True)
-        torch._C._jit_set_profiling_mode(True)
-        torch._C._jit_override_can_fuse_on_cpu(False)
-        torch._C._jit_override_can_fuse_on_gpu(False)
-        torch._C._jit_set_texpr_fuser_enabled(False)
-        torch._C._jit_set_nvfuser_enabled(True)
-        torch._C._debug_set_autodiff_subgraph_inlining(False)
-    else:
-        # legacy pytorch fuser
-        torch._C._jit_set_profiling_mode(False)
-        torch._C._jit_set_profiling_executor(False)
-        torch._C._jit_override_can_fuse_on_cpu(True)
-        torch._C._jit_override_can_fuse_on_gpu(True)
-
-    _warmup_jit_function()
-
-
-def _warmup_jit_function():
-    """ Compilie JIT functions before the main training steps """
-    args = get_args()
-    if args.bf16:
-        dtype = torch.bfloat16
-    elif args.fp16:
-        dtype = torch.float16
-    else:
-        dtype = torch.float32
-
-    # Warmup fused bias+gelu
-    bias = torch.rand(args.ffn_hidden_size // args.tensor_model_parallel_size,
-                      dtype=dtype, device='cuda')
-    input = torch.rand((args.seq_length, args.micro_batch_size,
-                        args.ffn_hidden_size // args.tensor_model_parallel_size),
-                       dtype=dtype, device='cuda')
-    # Warmup JIT fusions with the input grad_enable state of both forward
-    # prop and recomputation
-    for bias_grad, input_grad in zip([True, True], [False, True]):
-        bias.requires_grad, input.requires_grad = bias_grad, input_grad
-        for _ in range(5):
-            output = bias_gelu(bias, input)
-    del bias, input, output
-
-    # Warmup fused bias+dropout+add
-    if args.sequence_parallel:
-        seq_length = args.seq_length // mpu.get_tensor_model_parallel_world_size()
-    else:
-        seq_length = args.seq_length
-    input = torch.rand((seq_length, args.micro_batch_size, args.hidden_size),
-                       dtype=dtype, device='cuda')
-    residual = torch.rand((seq_length, args.micro_batch_size, args.hidden_size),
-                          dtype=dtype, device='cuda')
-    bias = torch.rand((args.hidden_size), dtype=dtype, device='cuda').expand_as(residual)
-    dropout_rate = 0.1
-    # Warmup JIT fusions with the input grad_enable state of both forward
-    # prop and recomputation
-    for input_grad, bias_grad, residual_grad in zip([False, True], [True, True], [True, True]):
-        input.requires_grad = input_grad
-        bias.requires_grad = bias_grad
-        residual.requires_grad = residual_grad
-        for _ in range(5):
-            output = bias_dropout_add_fused_train(input, bias, residual, dropout_rate)
-    del bias, input, residual, output
-    torch.cuda.empty_cache()

@@ -42,7 +42,6 @@ from .initialize import get_virtual_pipeline_model_parallel_rank, set_virtual_pi
 from .initialize import initialize_model_parallel
 from .initialize import model_parallel_is_initialized
 from .initialize import get_model_parallel_world_size, get_model_parallel_rank
-from .initialize import is_pipeline_stage_after_split 
 
 from .layers import ColumnParallelLinear
 from .layers import RowParallelLinear
