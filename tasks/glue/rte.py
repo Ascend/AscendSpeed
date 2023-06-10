@@ -15,7 +15,7 @@
 
 """RTE dataset."""
 
-from megatron import print_rank_0
+from ascendspeed import print_rank_0
 from tasks.data_utils import clean_text
 from .data import GLUEAbstractDataset
 

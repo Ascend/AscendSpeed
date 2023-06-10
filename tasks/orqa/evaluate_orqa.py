@@ -18,7 +18,7 @@
 import os
 import sys
 
-from megatron import get_args
+from ascendspeed import get_args
 from tasks.orqa.evaluate_utils import ORQAEvaluator
 
 def main():

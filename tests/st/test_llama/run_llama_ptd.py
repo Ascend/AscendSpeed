@@ -26,16 +26,16 @@ from torch_npu.testing.testcase import TestCase, run_tests
 import deepspeed_npu
 from wrapt_timeout_decorator import timeout
 
-from megatron import get_args
-from megatron import print_rank_0
-from megatron import get_timers
-from megatron import get_tokenizer
-from megatron import mpu
-from megatron.data.gpt_dataset import build_train_valid_test_datasets
-from megatron.model import LlamaModel, LlamaModelPipe
-from megatron.training import pretrain
-from megatron.utils import get_ltor_masks_and_position_ids
-from megatron.utils import average_losses_across_data_parallel_group
+from ascendspeed import get_args
+from ascendspeed import print_rank_0
+from ascendspeed import get_timers
+from ascendspeed import get_tokenizer
+from ascendspeed import mpu
+from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
+from ascendspeed.model import LlamaModel, LlamaModelPipe
+from ascendspeed.training import pretrain
+from ascendspeed.utils import get_ltor_masks_and_position_ids
+from ascendspeed.utils import average_losses_across_data_parallel_group
 
 import deepspeed
 from deepspeed.runtime.utils import see_memory_usage

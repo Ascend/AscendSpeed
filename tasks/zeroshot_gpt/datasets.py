@@ -21,9 +21,9 @@ import math
 import numpy as np
 import torch
 
-from megatron import get_args
-from megatron import print_rank_0
-from megatron import get_tokenizer
+from ascendspeed import get_args
+from ascendspeed import print_rank_0
+from ascendspeed import get_tokenizer
 from .detokenizer import get_detokenizer
 
 

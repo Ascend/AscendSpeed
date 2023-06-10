@@ -15,11 +15,11 @@
 
 """GLUE finetuning/evaluation."""
 
-from megatron import get_args
-from megatron import print_rank_0
-from megatron import get_tokenizer
-from megatron import mpu
-from megatron.model.classification import Classification
+from ascendSpeed import get_args
+from ascendSpeed import print_rank_0
+from ascendSpeed import get_tokenizer
+from ascendSpeed import mpu
+from ascendSpeed.model.classification import Classification
 from tasks.eval_utils import accuracy_func_provider
 from tasks.finetune_utils import finetune, mse_forward_step
 
