@@ -1,8 +1,58 @@
 ## AscendSpeed
-DeepSpeed version of NVIDIA's Megatron-LM that adds additional support for several features such as MoE model training, Curriculum Learning, 3D Parallelism, and others. The ```AscendSpeed/examples/``` folder includes example scripts about the features supported by DeepSpeed.
+Acceleration library for large language models in Ascend platform, which is developed based on Megatron and Deepspeed. Currently, GPT and LLaMA with PTD parallel strategy are supported.
 
-### Run on Azure and AzureML
-To try out DeepSpeed on Azure, this fork of Megatron offers easy-to-use recipes and bash scripts. We strongly recommend to start with AzureML recipe in the ```examples/azureml``` folder. If you have a custom infrastructure (e.g. HPC clusters) or Azure VM based environment, please refer to the bash scripts in the ```examples/azure``` folder. 
+
+### Quick Start
+1. Clone the repository to your local server:
+```bash
+git clone https://gitee.com/ascend/AscendSpeed.git 
+cd AscendSpeed 
+mkdir logs
+mkdir ckpt
+```
+
+2. Download [dataset](https://onebox.huawei.com/p/8cb41da9ed8ae1579fbc50d2a2bdebd7):
+```bash
+mv dataset AscendSpeed
+cd dataset
+tar -xzvf enwiki-gpt.tar.gz
+```
+
+3. Build conda envs:
+```bash
+conda create -n py37 python=3.7
+conda activate py37
+```
+
+4. Install pytorch and dependency: \
+(pytorch should be selected according to your server, X86 or Arm, "[2023060213](https://onebox.huawei.com/p/d79535eac8fb159399febca1afa81f95)" version is used here)
+```bash
+pip install apex-0.1_ascend_XXXX-cp37-cp37m-linux_XXXX.whl
+pip install torch-1.11.0+cpu-cp37-cp37m-linux_XXXXX.whl 
+pip install torch_npu-1.11.0.post1.devXXXX-cp37-cp37m-linux_XXXX.whl
+
+pip install -r requirements
+```
+
+5. Install deepspeed and adapter:
+(Deepspeed adapter v0.9.2 can also be downloaded from [here](https://onebox.huawei.com/p/6cdf01273f5d4edbd38a6da7b972c8f9))
+```bash
+pip install deepspeed==0.9.2
+git clone https://gitee.com/ascend/DeepSpeed.git  (Deepspeed adapter v0.9.2, not master!)
+cd DeepSpeed
+vim setup.py (line 24 form "required_dp_ver = '0.6.0'" to "required_dp_ver = '0.9.2'")
+python setup.py develop
+```
+
+6. Start your task
+```bash
+sh examples/gpt_task/pretrain_gpt_ptd_8p.sh    (Demon gpt with 200M parameters)
+sh examples/llama_task/pretrain_llama_ptd_8p.sh    (Demon llama with 250M parameters)
+```
+
+
+
+
 
 Below is Megatron-LM's original README:
 ------
