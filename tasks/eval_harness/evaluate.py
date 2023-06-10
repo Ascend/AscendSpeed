@@ -20,21 +20,21 @@ import numpy as np
 import time
 
 import torch
-from megatron import get_args
-from megatron import print_rank_0
-from megatron import get_tokenizer
-from megatron import mpu
-from megatron.training import setup_model_and_optimizer, get_model
-from megatron.mpu.mappings import gather_from_tensor_model_parallel_region
+from ascendSpeed import get_args
+from ascendSpeed import print_rank_0
+from ascendSpeed import get_tokenizer
+from ascendSpeed import mpu
+from ascendSpeed.training import setup_model_and_optimizer, get_model
+from ascendSpeed.mpu.mappings import gather_from_tensor_model_parallel_region
 
-from megatron.utils import get_ltor_masks_and_position_ids, unwrap_model
-from megatron.p2p_communication import recv_forward, send_forward
+from ascendSpeed.utils import get_ltor_masks_and_position_ids, unwrap_model
+from ascendSpeed.p2p_communication import recv_forward, send_forward
 import pickle
 import json
 
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
-from megatron.model.distributed import DistributedDataParallel as LocalDDP
-from megatron.model.module import Float16Module
+from ascendspeed.model.distributed import DistributedDataParallel as LocalDDP
+from ascendspeed.model.module import Float16Module
 from deepspeed.runtime.pipe import schedule
 from deepspeed.accelerator import get_accelerator
 
@@ -279,15 +279,15 @@ class EvalHarnessAdaptor(GPT2LM):
     def tokenizer_encode(self, text):
         """Tokenize text *without* adding special tokens."""
         # Splitting this into its own method in case we need to handle special cases for different tokenizers
-        from megatron.tokenizer.gpt2_tokenization import GPT2Tokenizer
+        from ascendspeed.tokenizer.gpt2_tokenization import GPT2Tokenizer
         if isinstance(self.tokenizer.tokenizer, GPT2Tokenizer):
             return self.tokenizer.tokenizer.encode(text)
         else:
             return self.tokenizer.tokenizer.encode(text, add_special_tokens=False)
 
 
-from megatron.initialize import initialize_megatron
-import megatron
+from ascendspeed.initialize import initialize_megatron
+import ascendspeed
 
 from tools.convert_checkpoint.deepspeed_checkpoint import DeepSpeedCheckpoint
 from tools.convert_checkpoint.deepspeed_to_megatron import _create_rank_checkpoint
@@ -303,9 +303,9 @@ def override_args(args, override_args, skip_keys, skip_if_specified_keys):
 
 # Note(Hesslow):
 # The model loading is a bit convoluted.
-# We want to parse out the model arguments from the checkpoint and use those to initialize megatron-ds.
+# We want to parse out the model arguments from the checkpoint and use those to initialize ascendspeed-ds.
 #
-# However megatron-ds expects its arguments on the command line.
+# However ascendspeed-ds expects its arguments on the command line.
 # And at that point we don't know them.
 #
 # Instead we use Jasons way: we load the arguments form the checkpoint and then override _parse_args to return whatever args we want.
@@ -314,12 +314,12 @@ def override_args(args, override_args, skip_keys, skip_if_specified_keys):
 # In order to support this we _first_ parse the arguments normally, and then override them with the arguments from the checkpoint.
 # Keeping the default-value of newer arguments.
 #
-# We then use the megatron deepspeed converter to load the deepspeed checkpoints as if they we're megatron checkpoints.
+# We then use the ascendspeed converter to load the deepspeed checkpoints as if they we're ascendspeed checkpoints.
 def load_ds_checkpoint_and_setup_megatron(extra_args_provider):
-    # parse the megatorn args. But wait with initalizing megatron.
+    # parse the ascendspeed args. But wait with initalizing ascendspeed.
     # avoid printing the arguments, since they will later be overridden.
-    _print_args = megatron.arguments._print_args
-    megatron.arguments._print_args = lambda *_args, **kwarg: None
+    _print_args = ascendspeed.arguments._print_args
+    ascendspeed.arguments._print_args = lambda *_args, **kwarg: None
     args = _parse_args(extra_args_provider)
 
     ds_checkpoint = DeepSpeedCheckpoint(args.load,
@@ -342,14 +342,14 @@ def load_ds_checkpoint_and_setup_megatron(extra_args_provider):
 
     override_args(args, cp_args, skip_keys, skip_if_specified)
 
-    # stop megatron from reparsing the arguments.
-    megatron.global_vars._parse_args = lambda *_args, **kwarg: args
-    megatron.global_vars._GLOBAL_ARGS = args
+    # stop ascendspeed from reparsing the arguments.
+    ascendspeed.global_vars._parse_args = lambda *_args, **kwarg: args
+    ascendspeed.global_vars._GLOBAL_ARGS = args
 
     initialize_megatron()
     torch.distributed.barrier()
 
-    # Initializing megatron will update eg. tokenizer size. Override again.
+    # Initializing ascendspeed will update eg. tokenizer size. Override again.
     override_args(args, cp_args, skip_keys, skip_if_specified)
 
     # print final arguments.
@@ -377,7 +377,7 @@ def load_ds_checkpoint_and_setup_megatron(extra_args_provider):
         model._config.zero_enabled = zero_enabled
     else:
         model = get_model(model_provider)[0]
-        # Initialize megatron model using the parsed state dict.
+        # Initialize ascendspeed model using the parsed state dict.
         sd = _create_rank_checkpoint(ds_checkpoint, None, mpu.get_tensor_model_parallel_rank(), mpu.get_pipeline_model_parallel_rank(), True)
 
         model.load_state_dict(sd['model'], strict=True)
@@ -399,7 +399,7 @@ def tasks_args(parser):
     group.add_argument('--eval_fp32',  default = False, action='store_true', help='Should the evaluation run in fp32')
     return parser
 
-from megatron.global_vars import _parse_args
+from ascendspeed.global_vars import _parse_args
 
 def main():
     start = time.time()

@@ -26,8 +26,8 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset, BatchSampler
 
-from megatron import print_rank_0, get_args, get_tokenizer, mpu
-from megatron.data.biencoder_dataset_utils import make_attention_mask
+from ascendspeed import print_rank_0, get_args, get_tokenizer, mpu
+from ascendspeed.data.biencoder_dataset_utils import make_attention_mask
 from deepspeed.accelerator import get_accelerator
 
 def get_nq_dataset(qa_data, split):

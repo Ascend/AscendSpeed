@@ -17,9 +17,9 @@
 
 import os
 import torch
-from megatron import get_args
-from megatron import print_rank_0
-from megatron import mpu
+from ascendspeed import get_args
+from ascendspeed import print_rank_0
+from ascendspeed import mpu
 from tasks.vision.finetune_utils import build_data_loader
 from tasks.vision.finetune_utils import process_batch
 from torchvision import datasets, transforms
