@@ -220,20 +220,11 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
     sample_idx_filename = _filename + '_sample_idx.npy'
     shuffle_idx_filename = _filename + '_shuffle_idx.npy'
 
-    if name == 'train':
-        # force to use certain index files
-        if args.train_doc_idx_path is not None:
-            doc_idx_filename = args.train_doc_idx_path
-        if args.train_sample_idx_path is not None:
-            sample_idx_filename = args.train_sample_idx_path
-        if args.train_shuffle_idx_path is not None:
-            shuffle_idx_filename = args.train_shuffle_idx_path
-
     # Build the indexed mapping if not exist.
     if is_rank_0():
         if (not os.path.isfile(doc_idx_filename)) or \
-           (not os.path.isfile(sample_idx_filename)) or \
-           (not os.path.isfile(shuffle_idx_filename)):
+            (not os.path.isfile(sample_idx_filename)) or \
+            (not os.path.isfile(shuffle_idx_filename)):
 
             print_rank_0(' > WARNING: could not find index map files, building '
                          'the indices on rank 0 ...')
