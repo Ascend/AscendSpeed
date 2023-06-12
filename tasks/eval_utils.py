@@ -21,10 +21,10 @@ from functools import partial
 
 import torch
 
-from megatron import get_args
-from megatron import print_rank_last, is_last_rank
-from megatron import mpu
-from megatron.schedules import get_forward_backward_func
+from ascendspeed import get_args
+from ascendspeed import print_rank_last, is_last_rank
+from ascendspeed import mpu
+from ascendspeed.schedules import get_forward_backward_func
 from tasks.finetune_utils import build_data_loader
 from tasks.finetune_utils import process_batch
 from deepspeed.accelerator import get_accelerator

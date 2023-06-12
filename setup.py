@@ -15,12 +15,11 @@
 
 """Setup for pip package."""
 
-import os
 import sys
 import setuptools
 
 if sys.version_info < (3,):
-    raise Exception("Python 2 is not supported by Megatron.")
+    raise Exception("Python 2 is not supported by AscendSpeed.")
 
 __description__ = 'AscendSpeed for LLMs of Ascend'
 __version__ = '0.0.1'
@@ -51,7 +50,7 @@ def req_file(filename):
 install_requires = req_file("requirements.txt")
 
 setuptools.setup(
-    package_data={'ascendspeed':['megatron/data/Makefile']},
+    package_data={'ascendspeed':['ascendspeed/data/Makefile']},
     name=__package_name__,
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
@@ -77,6 +76,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         # Additional Setting
         'Environment :: Console',
         'Natural Language :: English',

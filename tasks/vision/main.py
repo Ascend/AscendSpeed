@@ -26,8 +26,8 @@ sys.path.append(
         )
     )
 )
-from megatron import get_args
-from megatron.initialize import initialize_megatron
+from ascendspeed import get_args
+from ascendspeed.initialize import initialize_megatron
 from classification import main
 
 
