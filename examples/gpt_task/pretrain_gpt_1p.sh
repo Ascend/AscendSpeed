@@ -1,6 +1,5 @@
 # This is an example: basic gpt
 # without parameter specific and any parallel technologies
-
 export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
