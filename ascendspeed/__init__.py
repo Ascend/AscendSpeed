@@ -17,6 +17,8 @@ import copy
 from functools import wraps
 
 import torch
+import torch_npu
+from torch_npu.contrib import transfer_to_npu
 from torch import distributed as dist
 from deepspeed.accelerator import get_accelerator
 from .package_info import (
@@ -53,11 +55,14 @@ def wrapper_type(fn):
 
     return decorated
 
-torch.Tensor.type = wrapper_type(torch.Tensor.type)  # fix for torch.Tensor.type()
+torch.Tensor.type = wrapper_type(torch.Tensor.type)
 
 def wrapper_dist_long2int(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
+        if not args:
+            args = (kwargs.pop('tensor'),)
+
         if args[0].dtype == torch.long and not kwargs.get('async_op', False):
             new_args = list(copy.deepcopy(args))
             new_args[0] = new_args[0].int()

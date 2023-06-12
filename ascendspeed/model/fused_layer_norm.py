@@ -18,11 +18,18 @@
    with some changes. """
 
 import numbers
+from ascendspeed.mpu.utils import make_viewless_tensor
 import torch
 from torch.nn.parameter import Parameter
 from torch.nn import init
 import importlib
 from torch.nn import functional as F
+
+try:
+    from apex.contrib.layer_norm.layer_norm import FastLayerNormFN
+    HAVE_PERSIST_LAYER_NORM = True
+except ImportError:
+    HAVE_PERSIST_LAYER_NORM = False
 
 global fused_mix_prec_layer_norm_cuda
 fused_mix_prec_layer_norm_cuda = None
@@ -62,21 +69,30 @@ class FusedLayerNormAffineFunction(torch.autograd.Function):
 
 class MixedFusedLayerNorm(torch.nn.Module):
 
-  def __init__(self, normalized_shape, eps=1e-5):
+    def __init__(self, normalized_shape, eps=1e-5, no_persist_layer_norm=True, sequence_parallel=False):
         super(MixedFusedLayerNorm, self).__init__()
-
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
         self.normalized_shape = torch.Size(normalized_shape)
         self.eps = eps
-        self.weight = Parameter(torch.Tensor(*normalized_shape))
-        self.bias = Parameter(torch.Tensor(*normalized_shape))
+        self.weight = torch.nn.parameter.Parameter(torch.Tensor(*normalized_shape))
+        self.bias = torch.nn.parameter.Parameter(torch.Tensor(*normalized_shape))
         self.reset_parameters()
+        self.no_persist_layer_norm = True
+        self.sequence_parallel = sequence_parallel
 
+        # set sequence parallelism flag on weight and bias parameters
+        setattr(self.weight, 'sequence_parallel', self.sequence_parallel)
+        setattr(self.bias, 'sequence_parallel', self.sequence_parallel)
 
-  def reset_parameters(self):
-    init.ones_(self.weight)
-    init.zeros_(self.bias)
+    def reset_parameters(self):
+        init.ones_(self.weight)
+        init.zeros_(self.bias)
 
-  def forward(self, input):
-    return torch.nn.functional.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
+    def forward(self, input):
+      if self.no_persist_layer_norm:
+          return torch.nn.functional.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
+      else:
+          output = FastLayerNormFN.apply(input, self.weight, self.bias, self.eps)
+          output = make_viewless_tensor(inp=output, requires_grad=input.requires_grad, keep_graph=True)
+      return output

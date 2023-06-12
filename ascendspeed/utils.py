@@ -33,6 +33,7 @@ from ascendspeed.model.module import param_is_not_shared
 from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
 from ascendspeed import get_num_microbatches
 from deepspeed.accelerator import get_accelerator
+
 def unwrap_model(model, module_instances=(torchDDP)):
     return_list = True
     if not isinstance(model, list):
@@ -155,14 +156,23 @@ def get_ltor_masks_and_position_ids(data,
                                     eod_token,
                                     reset_position_ids,
                                     reset_attention_mask,
-                                    eod_mask_loss):
-    """Build masks and position id for left to right model."""
+                                    eod_mask_loss,
+                                    prefix_indices=None,
+                                    loss_on_targets_only=False):
+    """
+    Build masks and position id for left to right model.
+    :param prefix_indices: argument can have multiple types:
+        - None signifies that the model is fully autoregressive.
+        - List[int] the argument holds all prefix indices that split a row into an input and a target
+        - List[List[int]] the argument holds all prefix indices that split documents between input and target.
+    :param loss_on_targets_only: bool to determine if we should mask loss on prefix.
+    """
 
     # Extract batch size and sequence length.
     micro_batch_size, seq_length = data.size()
 
     # Attention mask (lower triangular).
-    if reset_attention_mask:
+    if reset_attention_mask or prefix_indices is not None:
         att_mask_batch = micro_batch_size
     else:
         att_mask_batch = 1
@@ -183,12 +193,20 @@ def get_ltor_masks_and_position_ids(data,
     if reset_position_ids:
         position_ids = position_ids.clone()
 
-    if reset_position_ids or reset_attention_mask:
+    if reset_position_ids or reset_attention_mask or prefix_indices is not None:
         # Loop through the batches:
         for b in range(micro_batch_size):
 
             # Find indecies where EOD token is.
             eod_index = position_ids[b, data[b] == eod_token]
+
+            # If the last eod token is not the last token of the sequence, we suppose that there is a partial document
+            # We treat this case as if we add an eod token at the end of the sequence.
+            if data[b][-1] != eod_token:
+                eod_index = torch.cat(
+                    (eod_index, torch.tensor([len(data[b])], dtype=eod_index.dtype, device=eod_index.device))
+                )
+
             # Detach indecies from positions if going to modify positions.
             if reset_position_ids:
                 eod_index = eod_index.clone()
@@ -197,13 +215,35 @@ def get_ltor_masks_and_position_ids(data,
             prev_index = 0
             for j in range(eod_index.size()[0]):
                 i = eod_index[j]
-                # Mask attention loss.
+
                 if reset_attention_mask:
+                    # Prevent cross document interactions.
                     attention_mask[b, 0, (i + 1):, :(i + 1)] = 0
+
+                    # Prefix lm per document.
+                    if prefix_indices:
+                        assert isinstance(prefix_indices[b], list), \
+                        (f"prefix for a row has to be document specific, "
+                        "and consequently return a list, got {prefix_indices[b]}")
+                        attention_mask[b, 0, prev_index: prefix_indices[b][j], prev_index: prefix_indices[b][j]] = 1
+                        if loss_on_targets_only:
+                            # Last token of the prefix should predict the prefix_index id
+                            loss_mask[b, prev_index: prefix_indices[b][j] - 1] = 0.0
+
                 # Reset positions.
                 if reset_position_ids:
                     position_ids[b, (i + 1):] -= (i + 1 - prev_index)
-                    prev_index = i + 1
+
+                prev_index = i + 1
+
+            # Prefix lm per row.
+            if prefix_indices is not None and (reset_attention_mask is False):
+                assert isinstance(prefix_indices[b], int), \
+                    f"prefix for a row has to be row specific, and consequently return an int, got {prefix_indices[b]}"
+                attention_mask[b, 0, :prefix_indices[b], :prefix_indices[b]] = 1
+                if loss_on_targets_only:
+                    # Last token of the prefix should predict the prefix_index id
+                    loss_mask[b, :prefix_indices[b] - 1] = 0.0
 
     # Convert attention mask to binary:
     attention_mask = (attention_mask < 0.5)

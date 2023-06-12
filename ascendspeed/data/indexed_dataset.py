@@ -11,6 +11,7 @@
 #    An empty sentence no longer separates documents.
 
 # Some of the fixes/improvements are adopted from
+# https://github.com/bigscience-workshop/AscendSpeed/blob/main/megatron/data/indexed_dataset.py
 
 from functools import lru_cache
 import os

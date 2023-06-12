@@ -22,3 +22,4 @@ from .gpt_model import GPTModel, GPTModelPipe
 from .llama_model import LlamaModel, LlamaModelPipe
 from .language_model import get_language_model
 from .module import Float16Module
+from .enums import ModelType
