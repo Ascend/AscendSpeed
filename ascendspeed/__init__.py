@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import torch
 import copy
-import torch_npu
 from functools import wraps
+
+import torch
+import torch_npu
 from torch_npu.contrib import transfer_to_npu
 from torch import distributed as dist
-
 from deepspeed.accelerator import get_accelerator
 from .package_info import (
     __description__,
@@ -68,7 +68,7 @@ def wrapper_dist_long2int(fn):
             new_args[0] = new_args[0].int()
             fn(*new_args, **kwargs)
             args[0].copy_(new_args[0].long())
-            return
+            return None
         return fn(*args, **kwargs)
 
     return wrapper

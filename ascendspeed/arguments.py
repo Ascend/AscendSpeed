@@ -230,9 +230,10 @@ def parse_args(extra_args_provider=None, defaults={},
         assert args.encoder_seq_length is not None
         args.seq_length = args.encoder_seq_length
 
-    if args.position_embedding_type == PositionEmbeddingType.absolute or args.position_embedding_type == PositionEmbeddingType.alibi:
+    if (args.position_embedding_type == PositionEmbeddingType.absolute or
+     args.position_embedding_type == PositionEmbeddingType.alibi):
         assert args.max_position_embeddings is not None
-        if args.seq_length is not None:
+        if not args.seq_length:
             assert args.max_position_embeddings >= args.seq_length
         if args.decoder_seq_length is not None:
             assert args.max_position_embeddings >= args.decoder_seq_length
@@ -318,7 +319,7 @@ def _add_network_size_args(parser):
                        '   args.hidden_size // args.num_attention_heads '
                        'if not provided.')
     group.add_argument('--embed-layernorm', action='store_true',
-                       help='use layernorm for embedding')
+                       help='Use layernorm for embedding.')
     group.add_argument('--max-position-embeddings', type=int, default=None,
                        help='Maximum number of position embeddings to use. '
                        'This is the size of position embedding.')
@@ -782,7 +783,6 @@ def _add_data_args(parser):
                        help='What type of tokenizer to use.')
     group.add_argument("--tokenizer-name-or-path", type=str, default=None,
                         help="Name or path of the huggingface tokenizer.")
-
     group.add_argument('--data-impl', type=str, default='infer',
                        choices=['lazy', 'cached', 'mmap', 'infer'],
                        help='Implementation of indexed datasets.')
