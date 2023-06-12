@@ -20,28 +20,29 @@
 
 import math
 
+import deepspeed.runtime.activation_checkpointing.checkpointing as ds_checkpointing
 import torch
 import torch.nn.functional as F
 import torch.nn.init as init
 from torch.nn.parameter import Parameter
-
-from .initialize import get_tensor_model_parallel_rank
-from .initialize import get_tensor_model_parallel_world_size
-from .mappings import copy_to_tensor_model_parallel_region
-from .mappings import gather_from_tensor_model_parallel_region
-from .mappings import reduce_from_tensor_model_parallel_region
-from .mappings import scatter_to_tensor_model_parallel_region
-from .random import get_cuda_rng_tracker
-from .utils import divide
-from .utils import split_tensor_along_last_dim
-from .utils import VocabUtility
-from ascendspeed import get_args
-import deepspeed.runtime.activation_checkpointing.checkpointing as ds_checkpointing
 from deepspeed.accelerator import get_accelerator
+
+from ascendspeed import get_args, mpu
+from ascendspeed.mpu.initialize import get_tensor_model_parallel_rank
+from ascendspeed.mpu.initialize import get_tensor_model_parallel_world_size
+from ascendspeed.mpu.mappings import copy_to_tensor_model_parallel_region
+from ascendspeed.mpu.mappings import gather_from_tensor_model_parallel_region
+from ascendspeed.mpu.mappings import reduce_from_tensor_model_parallel_region
+from ascendspeed.mpu.mappings import scatter_to_tensor_model_parallel_region
+from ascendspeed.mpu.random import get_cuda_rng_tracker
+from ascendspeed.mpu.utils import divide, split_tensor_along_last_dim, VocabUtility
+from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
+
 
 _MODEL_PARALLEL_ATTRIBUTE_DEFAULTS = {'tensor_model_parallel': False,
                                       'partition_dim': -1,
                                       'partition_stride': 1}
+
 
 def param_is_not_tensor_parallel_duplicate(param):
     return (hasattr(param, 'tensor_model_parallel') and
@@ -165,6 +166,9 @@ class VocabParallelEmbedding(torch.nn.Module):
 
         # Allocate weights and initialize.
         args = get_args()
+        if mpu.is_pipeline_first_stage() and args.embed_layernorm:
+            self.norm = LayerNorm(embedding_dim)
+
         if args.use_cpu_initialization:
             self.weight = Parameter(torch.empty(
                 self.num_embeddings_per_partition, self.embedding_dim,
@@ -199,6 +203,9 @@ class VocabParallelEmbedding(torch.nn.Module):
             output_parallel[input_mask, :] = 0.0
         # Reduce across all the model parallel GPUs.
         output = reduce_from_tensor_model_parallel_region(output_parallel)
+        if hasattr(self, 'norm'):
+            output = self.norm(output)
+
         return output
 
 

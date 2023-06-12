@@ -20,6 +20,7 @@ import torch
 import torch_npu
 from torch_npu.contrib import transfer_to_npu
 from torch import distributed as dist
+import deepspeed_npu
 from deepspeed.accelerator import get_accelerator
 from .package_info import (
     __description__,
@@ -54,8 +55,6 @@ def wrapper_type(fn):
         return output
 
     return decorated
-
-torch.Tensor.type = wrapper_type(torch.Tensor.type)
 
 def wrapper_dist_long2int(fn):
     @wraps(fn)

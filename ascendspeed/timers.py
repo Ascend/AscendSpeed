@@ -239,13 +239,24 @@ class Timers:
             return None
         return output_string
 
+    def _get_flatten_time_string(self, names, normalizer=1.0, reset=True):
+        """Log a group of timers."""
+        assert normalizer > 0.0
+        string = 'time (ms)'
+        for name in names:
+            elapsed_time = self._timers[name].elapsed(
+                reset=reset) * 1000.0 / normalizer
+            string += ' | {}: {:.2f}'.format(name, elapsed_time)
+        return string
 
     def log(self, names, rank=None, normalizer=1.0, reset=True, barrier=False):
         """Log a group of timers."""
 
         # Print.
         assert normalizer > 0.0
-        if self._log_option in ['max', 'minmax']:
+        if self._log_option == 'flatten':
+            output_string = self._get_flatten_time_string(names, normalizer=normalizer, reset=reset)
+        elif self._log_option in ['max', 'minmax']:
             max_only = False
             if self._log_option == 'max':
                 max_only = True

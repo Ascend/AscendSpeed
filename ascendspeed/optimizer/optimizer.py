@@ -245,6 +245,8 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
                         param_type = "torch.npu.BFloat16Tensor"
                     elif param.type() == "torch.cuda.FloatTensor":
                         param_type = "torch.npu.FloatTensor"
+                    else:
+                        param_type = param.type()
 
                     # float16 params:
                     if param_type in ['torch.{}.HalfTensor'.format(get_accelerator().device_name()),

@@ -72,6 +72,7 @@ class GPTModel(MegatronModule):
                  parallel_output=True,
                  pre_process=True,
                  post_process=True,
+                 prefix_lm=False,
                  return_moe_loss=True):
         super(GPTModel, self).__init__()
         args = get_args()
@@ -84,10 +85,9 @@ class GPTModel(MegatronModule):
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
             add_pooler=False,
-            encoder_attn_mask_type=AttnMaskType.causal,
+            encoder_attn_mask_type=AttnMaskType.prefix if prefix_lm else AttnMaskType.causal,
             init_method=init_method_normal(args.init_method_std),
             scaled_init_method=scaled_init_method_normal(args.init_method_std, args.num_layers),
-            num_experts=args.num_experts,
             pre_process=self.pre_process,
             post_process=self.post_process)
 
@@ -177,23 +177,53 @@ class GPTModel(MegatronModule):
         self.language_model.load_state_dict(state_dict, strict=strict)
 
 
-def CrossEntropy(output, labels):
-    labels, loss_mask = labels[0], labels[1]
+def get_cross_entropy(is_prefix: bool):
+    def CrossEntropy(output, labels):
+        labels, loss_mask = labels[0], labels[1]
 
-    args = get_args()
+        args = get_args()
 
-    losses = mpu.vocab_parallel_cross_entropy(output.contiguous().float(), labels)
-    loss_mask = loss_mask.view(-1)
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
-    return loss
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous().float(), labels)
 
+        if is_prefix:
+            micro_batch_size, sequence_length = loss_mask.shape
+            average_tokens_per_sample: torch.Tensor
+            if args.loss_on_targets_only:
+                # HACK: This is useful when we obtain loss masks that are microbatch dependent.
+                #   Consequently, if we want to
+                #   preserve the notion that all tokens have the same impact on the loss,
+                #   we can only normalise using a
+                #   microbatch independent value. It should be expected weight over a microbatch.
+                #   Here we still use `sequence_length`, that's batch size dependent,
+                #   in order to be backwards compatible with
+                #   current experiment on vanilla gpt.
+                if args.reweight_loss_based_on_position_frequency:
+                    reweight = torch.arange(
+                        sequence_length, 0, -1, dtype=torch.float, device=loss_mask.device
+                    ) / (sequence_length + 1) * 2
+                    average_tokens_per_sample = reweight.flip(-1).cumsum(-1).mean()
+                else:
+                    average_tokens_per_sample = (sequence_length + 1) / 2
+            else:
+                average_tokens_per_sample = sequence_length
+            expected_number_of_tokens = average_tokens_per_sample * micro_batch_size
+        else:
+            expected_number_of_tokens = loss_mask.sum()
+
+        loss_mask = loss_mask.view(-1)
+        loss = torch.sum(losses.view(-1) * loss_mask) / expected_number_of_tokens
+        return loss
+    return CrossEntropy
 
 class GPTModelPipe(PipelineModule,MegatronModule):
     """GPT-2 Language model."""
 
-    def __init__(self,
-                 num_tokentypes=0,
-                 parallel_output=True):
+    def __init__(
+        self,
+        num_tokentypes=0,
+        parallel_output=True,
+        attn_mask_type: AttnMaskType = AttnMaskType.causal
+    ):
         args = get_args()
         self.parallel_output = parallel_output
 
@@ -221,11 +251,19 @@ class GPTModelPipe(PipelineModule,MegatronModule):
                                         init_method=init_method,
                                         num_tokentypes=num_tokentypes,
                                         tied_weight_attr='word_embeddings_weight'))
-        
+
         if args.fp32_residual_connection:
-            self.specs.append(lambda x: x.transpose(0, 1).contiguous().float())
+            if getattr(args, 'pretrain_causal_attention', False):
+                self.specs.append(lambda x: x.transpose(0, 1).contiguous().float())
+            else:
+                # EmbeddingPipe returns attention mask as well
+                self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous().float(), *x[1:]))
         else:
-            self.specs.append(lambda x: x.transpose(0, 1).contiguous())
+            if getattr(args, 'pretrain_causal_attention', False):
+                self.specs.append(lambda x: x.transpose(0, 1).contiguous())
+            else:
+                # EmbeddingPipe returns attention mask as well
+                self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
 
         for layer_idx in range(args.num_layers):
             self.specs.append(
@@ -234,11 +272,15 @@ class GPTModelPipe(PipelineModule,MegatronModule):
                     output_layer_init_method=scaled_init_method_normal(args.init_method_std,
                                                                        args.num_layers),
                     layer_number=layer_idx,
-                    self_attn_mask_type=AttnMaskType.causal))
-                
-        
+                    # TODO: Change naming of class from GPT to something that encapsulate prefix lm.
+                    self_attn_mask_type=attn_mask_type))
+
         # Undo data format change
-        self.specs.append(lambda x: x.transpose(0, 1).contiguous())
+        def undo(x):
+            if not getattr(args, 'pretrain_causal_attention', False):
+                x = x[0]
+            return x.transpose(0, 1).contiguous()
+        self.specs.append(undo)
 
         # Final layernorm after transformer layers
         self.specs.append(
@@ -274,14 +316,23 @@ class GPTModelPipe(PipelineModule,MegatronModule):
             interval = args.checkpoint_num_layers
         else:
             interval = 0
-        
+
         from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
         topo = PipeModelDataParallelTopology(num_pp=mpu.get_pipeline_model_parallel_world_size(),
                                              num_mp=mpu.get_tensor_model_parallel_world_size(),
                                              num_dp=mpu.get_data_parallel_world_size())
 
+        # here one can extend the regex to include more layers to be counted towards partitioning,
+        # e.g. 'type:transformer|embedding' will add up all the transformer blocks and also the first
+        # and last embedding layers and then partition that transformers+2 layers - so to get a good
+        # balance you may want to use less transformer layers
+        #
+        # caveat emptor: the current implementation of PP fails unless each stage has at least one
+        # transformer layer
+        partition_method = 'type:transformer'
+
         super().__init__(layers=self.specs,
-                         loss_fn=CrossEntropy,
+                         loss_fn=get_cross_entropy(is_prefix=attn_mask_type is AttnMaskType.prefix),
                          topology=topo,
                          activation_checkpoint_interval=interval,
-                         partition_method='type:transformer')
+                         partition_method=partition_method)
