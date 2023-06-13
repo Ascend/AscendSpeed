@@ -11,11 +11,11 @@ mkdir logs
 mkdir ckpt
 ```
 
-2. Download [dataset](https://onebox.huawei.com/p/8cb41da9ed8ae1579fbc50d2a2bdebd7):
+2. Download GPT dataset or LLama dataset:
 ```bash
 mv dataset AscendSpeed
 cd dataset
-tar -xzvf enwiki-gpt.tar.gz
+tar -xzvf enwiki-gpt.tar.gz # or llama-data.tar.gz
 ```
 
 3. Build conda envs:
@@ -24,8 +24,7 @@ conda create -n py37 python=3.7
 conda activate py37
 ```
 
-4. Install pytorch and dependency: \
-(pytorch should be selected according to your server, X86 or Arm, "[2023060213](https://onebox.huawei.com/p/d79535eac8fb159399febca1afa81f95)" version is used here)
+4. Install pytorch and dependency: 
 ```bash
 pip install apex-0.1_ascend_XXXX-cp37-cp37m-linux_XXXX.whl
 pip install torch-1.11.0+cpu-cp37-cp37m-linux_XXXXX.whl 
@@ -35,7 +34,6 @@ pip install -r requirements
 ```
 
 5. Install deepspeed and adapter:
-(Deepspeed adapter v0.9.2 can also be downloaded from [here](https://onebox.huawei.com/p/6cdf01273f5d4edbd38a6da7b972c8f9))
 ```bash
 pip install deepspeed==0.9.2
 git clone https://gitee.com/ascend/DeepSpeed.git  (Deepspeed adapter v0.9.2, not master!)
@@ -50,7 +48,19 @@ sh examples/gpt_task/pretrain_gpt_ptd_8p.sh    (Demon gpt with 200M parameters)
 sh examples/llama_task/pretrain_llama_ptd_8p.sh    (Demon llama with 250M parameters)
 ```
 
+# Using HuggingFace Tokenizer
+Llama Tokenizer
+------
+1.  Set `--tokenizer-name-or-path` in the training script : 
+```bash
+# examples/llama_task/pretrain_llama_ptd_8p.sh
 
+--tokenizer-name-or-path ./dataset/llama/  \
+--tokenizer-not-use-fast  \
+```
+2. Remove `--vocab-file` and`--merge-file` arguments.
+3. Make sure the `tokenizer_type` of `args_defaults` in `pretrain_llama.py` is `PretrainedFromHF`.
+ 
 
 
 

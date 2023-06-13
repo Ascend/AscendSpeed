@@ -10,3 +10,4 @@ expecttest
 pytest
 wrapt_timeout_decorator
 transformers
+sentencepiece

@@ -6,7 +6,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 RANK=0
 WORLD_SIZE=1
 
-DATA_PATH=./dataset/enwiki-gpt/gpt_text_sentence
+DATA_PATH=./dataset/llama_text_document
 CHECKPOINT_PATH=./ckpt
 
 export LOCAL_RANK=0
@@ -26,8 +26,8 @@ python pretrain_llama.py \
        --save $CHECKPOINT_PATH \
        --load $CHECKPOINT_PATH \
        --data-path $DATA_PATH \
-       --vocab-file ./dataset/gpt2-vocab.json \
-       --merge-file ./dataset/gpt2-merges.txt \
+       --tokenizer-name-or-path ./dataset/llama/ \
+       --tokenizer-not-use-fast \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \

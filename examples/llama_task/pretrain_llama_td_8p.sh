@@ -11,7 +11,7 @@ NNODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
-DATA_PATH=./dataset/enwiki-gpt/gpt_text_sentence
+DATA_PATH=./dataset/llama_text_document
 CHECKPOINT_PATH=./ckpt
 
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
@@ -33,8 +33,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --save $CHECKPOINT_PATH \
        --load $CHECKPOINT_PATH \
        --data-path $DATA_PATH \
-       --vocab-file ./dataset/gpt2-vocab.json \
-       --merge-file ./dataset/gpt2-merges.txt \
+       --tokenizer-name-or-path ./dataset/llama/ \
+       --tokenizer-not-use-fast \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
