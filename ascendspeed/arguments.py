@@ -372,9 +372,10 @@ def _add_logging_args(parser):
                        '      executed numerous times during each iteration. '
                        'Note that setting the level to 1 or 2 might '
                        'cause increase in iteration time.')
-    group.add_argument('--timing-log-option', type=str, default='minmax',
-                       choices=['max', 'minmax', 'all'],
+    group.add_argument('--timing-log-option', type=str, default='flatten',
+                       choices=['flatten', 'max', 'minmax', 'all'],
                        help='Options for logging timing:'
+                       '  flatten: report elapsed time in one line'
                        '  max: report the max timing across all ranks'
                        '  minmax: report min and max timings across all ranks'
                        '  all: report timings of all ranks.')
@@ -929,8 +930,10 @@ def _add_memoryopt_args(parser):
     group.add_argument("--tile-factor", type=int, default=1,
                        help='Make all linear layers the same size of [hidden/tile_factor, hidden/tile_factor]. '
                             'Must be enabled with --memory-centric-tiled-linear. '
-                            'Example A: if tile_factor=1, the qkv layer [hidden, 3* hidden] would be converted into [1,3] tiles of size [hidden,hidden]. '
-                            'Example B: if tile_factor=2, the intermediate layer [4*hidden, hidden] will be converted into [8, 2] tiles of size [hidden/2, hidden/2]. '
+                            'Example A: if tile_factor=1, the qkv layer [hidden, 3* hidden] '
+                            'would be converted into [1,3] tiles of size [hidden,hidden]. '
+                            'Example B: if tile_factor=2, the intermediate layer [4*hidden, hidden] '
+                            'will be converted into [8, 2] tiles of size [hidden/2, hidden/2]. '
                             'Default is 1.')
 
     return parser
