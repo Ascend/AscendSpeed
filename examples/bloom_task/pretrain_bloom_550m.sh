@@ -14,7 +14,7 @@ CHECKPOINT_PATH=./ckpt
 
 export LOCAL_RANK=0
 
-python pretrain_llama.py \
+python pretrain_bloom.py \
        --DDP-impl local \
        --use-contiguous-buffers-in-ddp \
        --num-layers 24 \

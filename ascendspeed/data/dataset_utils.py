@@ -603,6 +603,22 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
     return indexed_dataset
 
 
+def get_split_by_range_(range_string, size):
+    """ Get dataset splits based on a range:
+    range_string is in the form  START%:END%  for e.g. 0.2:0.8
+    outputs an array of two values [start_index, end_index]
+    """
+    # some checks that range is given in the correct form
+    splits = [float(i) for i in range_string.split(":")]
+    assert len(splits) == 2, "splits should be passed as start:end"
+    assert splits[0] <= 1 and splits[1] <= 1
+    splits_sum = sum(splits)
+    assert splits_sum > 0.0
+    splits_index = [round(s * float(size)) for s in splits]
+    assert len(splits_index) == 2
+    return splits_index
+
+
 def get_train_valid_test_split_(splits_string, size):
     """ Get dataset splits from comma or '/' separated string list."""
 
