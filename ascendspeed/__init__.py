@@ -43,39 +43,6 @@ from .global_vars import get_adlr_autoresume
 from .global_vars import get_timers
 from .initialize  import initialize_megatron
 
-def wrapper_type(fn):
-    @wraps(fn)
-    def decorated(*args, **kwargs):
-        output = fn(*args, **kwargs)
-        if isinstance(output, str):
-            if output == 'torch.npu.FloatTensor':
-                output = 'torch.cuda.FloatTensor'
-            elif output == 'torch.npu.HalfTensor':
-                output = 'torch.cuda.HalfTensor'
-        return output
-
-    return decorated
-
-def wrapper_dist_long2int(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not args:
-            args = (kwargs.pop('tensor'),)
-
-        if args[0].dtype == torch.long and not kwargs.get('async_op', False):
-            new_args = list(copy.deepcopy(args))
-            new_args[0] = new_args[0].int()
-            fn(*new_args, **kwargs)
-            args[0].copy_(new_args[0].long())
-            return None
-        return fn(*args, **kwargs)
-
-    return wrapper
-
-dist.all_reduce = wrapper_dist_long2int(dist.all_reduce)
-dist.broadcast = wrapper_dist_long2int(dist.broadcast)
-dist.send = wrapper_dist_long2int(dist.send)
-dist.recv = wrapper_dist_long2int(dist.recv)    # fix for torch.distributed
 
 def print_rank_0(message):
     """If distributed is initialized, print only on rank 0."""

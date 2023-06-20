@@ -572,12 +572,11 @@ class ParallelTransformerLayer(MegatronModule):
             layernorm_output = self.post_inter_attention_layernorm(layernorm_input)
 
         # MLP.
-        moe_loss = torch.tensor(0.0, device=layernorm_output.device, dtype=layernorm_output.dtype)
-        mlp_bias = torch.tensor(0.0, device=layernorm_output.device, dtype=layernorm_output.dtype)
-
         if self.num_experts == 1:
             mlp_output, mlp_bias = self.mlp(layernorm_output)
+            moe_loss = None
         else:
+            mlp_bias = torch.tensor(0.0, device=layernorm_output.device, dtype=layernorm_output.dtype)
             mlp_output, moe_loss, _ = self.mlp(layernorm_output)
 
         # Second residual connection.
@@ -588,14 +587,11 @@ class ParallelTransformerLayer(MegatronModule):
 
         # re-enable torch grad to enable fused optimization.
         with torch.enable_grad():
-            #if self.num_experts <= 1:
             output = bias_dropout_add_func(
                     mlp_output,
                     mlp_bias.expand_as(residual),
                     residual,
                     self.hidden_dropout)
-            #else:
-            #    output = mlp_output + residual
 
         if get_key_value:
             output = [output, presents]
@@ -776,7 +772,8 @@ class ParallelTransformer(MegatronModule):
                 for index in range(start, end):
                     layer = self._get_layer(index)
                     x_, moe_loss = layer(x_, attention_mask=attention_mask, encoder_output=encoder_output, enc_dec_attn_mask=enc_dec_attn_mask)
-                    moe_losses.append(moe_loss)
+                    if moe_loss is not None:
+                        moe_losses.append(moe_loss)
                 return (x_, *moe_losses)
             return custom_forward
 
