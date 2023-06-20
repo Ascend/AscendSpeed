@@ -238,6 +238,7 @@ class LlamaParallelMLP(MegatronModule):
         self.gate_proj = mpu.ColumnParallelLinear(
             args.hidden_size,
             args.ffn_hidden_size,
+            bias=False,
             gather_output=False,
             init_method=self.init_method,
             skip_bias_add=True,
@@ -248,6 +249,7 @@ class LlamaParallelMLP(MegatronModule):
         self.up_proj = mpu.ColumnParallelLinear(
             args.hidden_size,
             args.ffn_hidden_size,
+            bias=False,
             gather_output=False,
             init_method=self.init_method,
             skip_bias_add=True,
@@ -261,6 +263,7 @@ class LlamaParallelMLP(MegatronModule):
         self.down_proj = mpu.RowParallelLinear(
             args.ffn_hidden_size,
             args.hidden_size,
+            bias=False,
             input_is_parallel=True,
             init_method=self.output_layer_init_method,
             skip_bias_add=True,
@@ -321,6 +324,7 @@ class LlamaParallelAttention(MegatronModule):
             self.query_key_value = mpu.ColumnParallelLinear(
                 args.hidden_size,
                 3 * projection_size,
+                bias=False,
                 gather_output=False,
                 init_method=self.init_method)
 
@@ -345,6 +349,7 @@ class LlamaParallelAttention(MegatronModule):
         self.dense = mpu.RowParallelLinear(
             projection_size,
             args.hidden_size,
+            bias=False,
             input_is_parallel=True,
             init_method=self.output_layer_init_method,
             skip_bias_add=True)
@@ -366,16 +371,19 @@ class LlamaParallelAttention(MegatronModule):
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-            # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
-            new_tensor_shape = mixed_x_layer.size()[:-1] + \
-                               (self.num_attention_heads_per_partition,
-                                3 * self.hidden_size_per_attention_head)
-            mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
-
-            # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
+            # [sq, b, 3 * h] --> 3 [sq, b, h]
             (query_layer,
              key_layer,
              value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
+
+            # [sq, b, (np * hn)] --> [sq, b, np, hn]
+            new_tensor_shape = mixed_x_layer.size()[:-1] + \
+                               (self.num_attention_heads_per_partition,
+                                self.hidden_size_per_attention_head)
+            query_layer = query_layer.view(*new_tensor_shape)
+            key_layer = key_layer.view(*new_tensor_shape)
+            value_layer = value_layer.view(*new_tensor_shape)
+
         # ==================================
         # Rotary Position Embedding
         # ==================================
