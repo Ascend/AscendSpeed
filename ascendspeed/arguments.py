@@ -21,6 +21,7 @@ import os
 import torch
 import deepspeed
 from ascendspeed.enums import PositionEmbeddingType
+from ascendspeed.data.parse import ParseDataPaths, ParseDataPathsPath
 
 
 def parse_args(extra_args_provider=None, defaults={},
@@ -95,6 +96,16 @@ def parse_args(extra_args_provider=None, defaults={},
                   args.world_size, args.data_parallel_size,
                   args.tensor_model_parallel_size,
                   args.pipeline_model_parallel_size), flush=True)
+
+    if args.data_path:
+        assert args.train_weighted_split_paths is None, message
+        setattr(args, "valid_weighted_split_names", None)
+        setattr(args, "valid_weighted_split_weights", None)
+        setattr(args, "valid_weighted_split_splits", None)
+
+        setattr(args, "test_weighted_split_names", None)
+        setattr(args, "test_weighted_split_weights", None)
+        setattr(args, "test_weighted_split_splits", None)
 
     # Deprecated arguments
     assert args.batch_size is None, '--batch-size argument is no longer ' \
@@ -813,6 +824,39 @@ def _add_data_args(parser):
                        help='Force to use certain index file.')
     group.add_argument('--train-shuffle-idx-path', type=str, default=None,
                        help='Force to use certain index file.')
+    
+    group.add_argument('--train-weighted-split-paths', nargs='*', default=None,
+                    help='Weights, splits and paths to groups of datasets'
+                    'Accepted format: ONE dataset groups could be'
+                    'submitted in the following form between double quotes'
+                    '"GIVEN_NAME WEIGHT1 START:END PATH1, WEIGHT2 START:END PATH2"'
+                    'e.g.: "NAME_ABC: 0.6 0:0.6 A, 0.3 0:1 B, 0.1 0:1 C" '
+                    'WEIGHT is used to up and down sample each dataset A,B,C in the group'
+                    'START:END indicates the split portion of the dataset',
+                    action=ParseDataPaths)
+    group.add_argument('--valid-weighted-split-paths', nargs='*', default=None,
+                    help='Weights, splits and paths to groups of datasets'
+                    'Accepted format: one or many dataset groups could be'
+                    'submitted in the following form each between double quotes'
+                    '"GIVEN_NAME WEIGHT1 START:END PATH1, WEIGHT2 START:END PATH2"'
+                    'e.g.: "NAME_ABC: 0.6 0.6:0.8 A, 0.3 0:1 B, 0.1 0:1 C" '
+                    '"NAME_CDE: 0.6 0.6:0.8 C, 0.3 0:1 D, 0.1 0:1 E" '
+                    'validation will be run on each of those groups independently',
+                    action=ParseDataPaths)
+    group.add_argument('--test-weighted-split-paths', nargs='*', default=None,
+                    help='Weights, splits and paths to groups of datasets'
+                    'Accepted format: one or many dataset groups could be'
+                    'submitted in the following form each between double quotes'
+                    '"GIVEN_NAME WEIGHT1 START:END PATH1, WEIGHT2 START:END PATH2"'
+                    'e.g.: "NAME_ABC: 0.6 0.6:0.8 A, 0.3 0:1 B, 0.1 0:1 C" '
+                    '"NAME_CDE: 0.6 0.6:0.8 C, 0.3 0:1 D, 0.1 0:1 E" '
+                    'test will be run on each of those groups independently',
+                    action=ParseDataPaths)
+
+    group.add_argument('--train-weighted-split-paths-path', type=str, action=ParseDataPathsPath ,default=None)
+    group.add_argument('--valid-weighted-split-paths-path', type=str, action=ParseDataPathsPath, default=None)
+    group.add_argument('--test-weighted-split-paths-path', type=str, action=ParseDataPathsPath, default=None)
+
     return parser
 
 
@@ -917,6 +961,7 @@ def _add_zero_args(parser):
                      help='Use pinned CPU memory for ZeRO-3 initialized model parameters.')
     return parser
 
+
 def _add_memoryopt_args(parser):
     """Memory optimization arguments."""
 
@@ -939,6 +984,7 @@ def _add_memoryopt_args(parser):
                             'Default is 1.')
 
     return parser
+
 
 def _add_activation_checkpoint_args(parser):
     group = parser.add_argument_group('Activation Checkpointing',

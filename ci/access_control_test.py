@@ -16,8 +16,9 @@ class ST_Test:
 
         gpt_shell_file = os.path.join(TEST_DIR, "st", "test_gpt", "test_gpt_ptd.sh")
         llama_shell_file = os.path.join(TEST_DIR, "st", "test_llama", "test_llama_ptd.sh")
+        bloom_shell_file = os.path.join(TEST_DIR, "st", "test_bloom", "test_bloom_ptd.sh")
 
-        self.shell_file_list = [gpt_shell_file, llama_shell_file]
+        self.shell_file_list = [gpt_shell_file, llama_shell_file, bloom_shell_file]
 
     def run_shell(self):
         for shell_file in self.shell_file_list:
