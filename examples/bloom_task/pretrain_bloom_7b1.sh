@@ -18,7 +18,7 @@ NNODES=1
 PP_SIZE=1
 TP_SIZE=8
 
-MICRO_BATCH_SIZE=1
+MICRO_BATCH_SIZE=4
 GLOBAL_BATCH_SIZE=512
 
 NLAYERS=30
@@ -33,8 +33,8 @@ LR_DECAY_SAMPLES=200_000_000  # Decay for the first 410B tokens then continue at
 LR_WARMUP_SAMPLES=183_105  # 375M tokens
 
 # dataset path
-TOKENIZER_NAME_OR_PATH=/home/wangyixian/data/vocab_file
-DATA_PATH=/home/wangyixian/oscar_data_1g/my-gpt2_text_document
+TOKENIZER_NAME_OR_PATH=./dataset/bloom_vocab/vocab_file/
+DATA_PATH=./dataset/oscar_data_1g/my-gpt2_text_document
 
 ZERO_STAGE=0 # important: bf16 must use z0! it implements its own zero stage 1 equivalent
 config_json="./ds_config.json"

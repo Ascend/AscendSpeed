@@ -11,11 +11,27 @@ mkdir logs
 mkdir ckpt
 ```
 
-2. Download GPT dataset or LLama dataset:
+2. Download GPT dataset or LLama dataset or Bloom dataset:
 ```bash
 mv dataset AscendSpeed
 cd dataset
 tar -xzvf enwiki-gpt.tar.gz # or llama-data.tar.gz
+
+# for bloom
+cd AscendSpeed
+wget https://huggingface.co/bigscience/misc-test-data/resolve/main/stas/oscar-1GB.jsonl.xz
+xz -d oscar-1GB.jsonl.xz
+wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json
+wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
+
+python tools/preprocess_data.py --input ./oscar-1GB.jsonl --output-prefix my-gpt2 --vocab ./gpt2-vocab.json --dataset-impl mmap --tokenizer-type GPT2BPETokenizer --merge-file .//gpt2-merges.txt --append-eod --workes 9
+
+mkdir -p dataset/oscar_data_1g
+mv gpt2-vocab.json gpt2-merges.txt my-gpt2_text_* dataset/oscar_data_1g/
+
+mkdir -p dataset/bloom_vocab/vocab_file
+# download data by yourself from https://huggingface.co/bigscience-catalogue-data-dev/byte-level-bpe-tokenizer-no-norm-250k-whitespace-and-eos-regex-alpha-v3-dedup-lines-articles/tree/main to vocab_file
+
 ```
 
 3. Build conda envs:
