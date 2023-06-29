@@ -94,16 +94,36 @@ def _communicate(tensor_send_next, tensor_send_prev, recv_prev, recv_next,
                 torch.distributed.irecv, tensor_recv_prev,
                 mpu.get_pipeline_model_parallel_prev_rank())
             ops.append(recv_prev_op)
-        if tensor_recv_next is not None:
-            recv_next_op = torch.distributed.P2POp(
-                torch.distributed.irecv, tensor_recv_next,
-                mpu.get_pipeline_model_parallel_next_rank())
-            ops.append(recv_next_op)
-        if tensor_send_next is not None:
-            send_next_op = torch.distributed.P2POp(
-                torch.distributed.isend, tensor_send_next,
-                mpu.get_pipeline_model_parallel_next_rank())
-            ops.append(send_next_op)
+
+        if args.num_layers_per_virtual_pipeline_stage is None:
+            # pp
+            if tensor_recv_next is not None:
+                recv_next_op = torch.distributed.P2POp(
+                    torch.distributed.irecv, tensor_recv_next,
+                    mpu.get_pipeline_model_parallel_next_rank())
+                ops.append(recv_next_op)
+            if tensor_send_next is not None:
+                send_next_op = torch.distributed.P2POp(
+                    torch.distributed.isend, tensor_send_next,
+                    mpu.get_pipeline_model_parallel_next_rank())
+                ops.append(send_next_op)
+        else:
+            # vp
+            if tensor_send_next is not None:
+                send_next_op = torch.distributed.P2POp(
+                    torch.distributed.isend, tensor_send_next,
+                    mpu.get_pipeline_model_parallel_next_rank())
+                ops.append(send_next_op)
+            if tensor_recv_next is not None:
+                recv_next_op = torch.distributed.P2POp(
+                    torch.distributed.irecv, tensor_recv_next,
+                    mpu.get_pipeline_model_parallel_next_rank())
+                ops.append(recv_next_op)
+
+        if (args.num_layers_per_virtual_pipeline_stage is not None) \
+                and (mpu.get_pipeline_model_parallel_rank() % 2 == 1):
+            ops.reverse()
+
         if len(ops) > 0:
             reqs = torch.distributed.batch_isend_irecv(ops)
             for req in reqs:
