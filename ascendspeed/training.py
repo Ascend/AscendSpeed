@@ -150,8 +150,14 @@ def pretrain(train_valid_test_dataset_provider,
             for _ in range(len(model))
         ]
         train_data_iterator = [data_iterators[0] for data_iterators in all_data_iterators]
-        valid_data_iterator = [data_iterators[1] for data_iterators in all_data_iterators]
-        test_data_iterator = [data_iterators[2] for data_iterators in all_data_iterators]
+        valid_data_iterator = [[
+            all_data_iterators[i][1][j] for i in range(len(all_data_iterators))] 
+            for j in range(len(all_data_iterators[0][1]))
+        ] 
+        test_data_iterator = [[
+            all_data_iterators[i][2][j] for i in range(len(all_data_iterators))] 
+            for j in range(len(all_data_iterators[0][2]))
+        ]
     else:
         train_data_iterator, valid_data_iterator, test_data_iterator \
             = build_train_valid_test_data_iterators(
