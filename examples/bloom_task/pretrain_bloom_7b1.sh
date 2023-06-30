@@ -91,7 +91,7 @@ TRANSFORMERS_OFFLINE=1  \
     --fp16 \
     --seed 42 \
     --position-embedding-type alibi \
-    --optimizer adam \
+    --optimizer fused_adam \
     --adam-beta1 0.9 \
     --adam-beta2 0.95 \
     --adam-eps 1e-8 \

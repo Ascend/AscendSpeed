@@ -78,7 +78,6 @@ class MixedFusedLayerNorm(torch.nn.Module):
         self.weight = torch.nn.parameter.Parameter(torch.Tensor(*normalized_shape))
         self.bias = torch.nn.parameter.Parameter(torch.Tensor(*normalized_shape))
         self.reset_parameters()
-        self.no_persist_layer_norm = True
         self.sequence_parallel = sequence_parallel
 
         # set sequence parallelism flag on weight and bias parameters
@@ -90,9 +89,4 @@ class MixedFusedLayerNorm(torch.nn.Module):
         init.zeros_(self.bias)
 
     def forward(self, input):
-      if self.no_persist_layer_norm:
-          return torch.nn.functional.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)
-      else:
-          output = FastLayerNormFN.apply(input, self.weight, self.bias, self.eps)
-          output = make_viewless_tensor(inp=output, requires_grad=input.requires_grad, keep_graph=True)
-      return output
+        return torch.nn.functional.layer_norm(input, self.normalized_shape, self.weight, self.bias, self.eps)

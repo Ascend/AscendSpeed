@@ -533,7 +533,7 @@ def _add_training_args(parser):
                        help='Create separate groups for MoE params.'
                        'This is necessary for techniques like ZeRO.')
     group.add_argument('--optimizer', type=str, default='adam',
-                       choices=['adam', 'sgd'],
+                       choices=['adam', 'sgd', 'fused_adam'],
                        help='Optimizer function')
     group.add_argument('--dataloader-type', type=str, default=None,
                        choices=['single', 'cyclic'],

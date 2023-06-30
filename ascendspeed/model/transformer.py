@@ -18,6 +18,7 @@ import math
 
 import deepspeed
 import torch
+import torch_npu
 import torch.nn.functional as F
 from torch import distributed as dist
 from deepspeed.accelerator import get_accelerator
@@ -104,7 +105,7 @@ class ParallelMLP(MegatronModule):
 
         if self.bias_gelu_fusion:
              intermediate_parallel = \
-                     bias_gelu_impl(intermediate_parallel, bias_parallel)
+                     torch_npu.fast_gelu(intermediate_parallel + bias_parallel)
         else:
             intermediate_parallel = \
                 self.activation_func(intermediate_parallel + bias_parallel)
@@ -542,7 +543,7 @@ class ParallelTransformerLayer(MegatronModule):
         with torch.enable_grad():
             layernorm_input = bias_dropout_add_func(
                 attention_output,
-                attention_bias.expand_as(residual),
+                attention_bias,
                 residual,
                 self.hidden_dropout)
 
@@ -564,7 +565,7 @@ class ParallelTransformerLayer(MegatronModule):
             with torch.enable_grad():
                 layernorm_input = bias_dropout_add_func(
                     attention_output,
-                    attention_bias.expand_as(residual),
+                    attention_bias,
                     residual,
                     self.hidden_dropout)
 
@@ -589,7 +590,7 @@ class ParallelTransformerLayer(MegatronModule):
         with torch.enable_grad():
             output = bias_dropout_add_func(
                     mlp_output,
-                    mlp_bias.expand_as(residual),
+                    mlp_bias,
                     residual,
                     self.hidden_dropout)
 
