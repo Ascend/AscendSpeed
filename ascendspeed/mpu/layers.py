@@ -200,7 +200,8 @@ class VocabParallelEmbedding(torch.nn.Module):
                                       self.sparse)
         # Mask the output embedding.
         if self.tensor_model_parallel_size > 1:
-            output_parallel[input_mask, :] = 0.0
+            compare = torch.zeros_like(output_parallel)
+            output_parallel = torch.lerp(output_parallel, compare, input_mask[..., None].half())
         # Reduce across all the model parallel GPUs.
         output = reduce_from_tensor_model_parallel_region(output_parallel)
         if hasattr(self, 'norm'):
