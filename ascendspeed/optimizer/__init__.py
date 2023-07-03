@@ -78,6 +78,14 @@ def get_megatron_optimizer(model):
                             lr=args.lr,
                             weight_decay=args.weight_decay,
                             momentum=args.sgd_momentum)
+        elif args.optimizer == 'fused_adam':
+            from deepspeed.ops.adam.fused_adam import FusedAdam
+            optimizer = FusedAdam(param_groups,
+                                 lr=args.lr,
+                                 weight_decay=args.weight_decay,
+                                 betas=(args.adam_beta1, args.adam_beta2),
+                                 eps=args.adam_eps)
+
         else:
             raise Exception('{} optimizer is not supported.'.format(
             args.optimizer))
