@@ -20,7 +20,7 @@ import math
 import torch
 
 from ascendspeed import get_args
-from ascendspeed import print_rank_0, is_last_rank
+from ascendspeed import print_rank_0, is_last_rank, print_rank_last
 from ascendspeed import get_tokenizer
 from ascendspeed import mpu
 from ascendspeed.checkpointing import load_checkpoint
@@ -215,7 +215,8 @@ def custom_forwrad(batch, model):
 def evaluate(data_loader, model, eval_metric):
     """Evaluation."""
     args = get_args()
-
+    micro_batch_size = args.orig_micro_batch_size if hasattr(args, "orig_micro_batch_size") \
+        else args.micro_batch_Size
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_output = 0.0
@@ -223,8 +224,8 @@ def evaluate(data_loader, model, eval_metric):
         # For all the batches in the dataset.
         for iteration, batch in enumerate(data_loader):
             if iteration % args.log_interval == 0:
-                print_rank_0(f'> working on iteration: {iteration}')
-                print_rank_0(f"> corrcet percent: {total_output / max(1, (iteration * args.micro_batch_size))}")
+                print_rank_last(f'> working on iteration: {iteration}')
+                print_rank_last(f"> corrcet percent: {total_output / max(1, (iteration * micro_batch_size))}")
             # Forward evaluation.
             if eval_metric:
                 output = forward_step(batch, model, eval_metric)
@@ -315,6 +316,9 @@ def main():
     dataset = build_dataset(args.task)
     dataloader = build_data_loader(dataset, args.micro_batch_size,
                                    args.num_workers, drop_last=False)
+    if hasattr(dataset, "class_num"):
+        args.orig_micro_batch_size = args.micro_batch_size
+        args.micro_batch_size *= dataset.class_num
 
     # Run evaluation.
     evaluate_and_print_results(args.task, dataloader, model, eval_metric)
