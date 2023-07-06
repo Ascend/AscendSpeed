@@ -16,14 +16,19 @@
 """Llama ckpt convert utils"""
 
 import os
+import stat
+
 import torch
 
 
 def make_ascendspeed_model_dirs(output_model_dir):
     if not os.path.exists(output_model_dir):
         os.makedirs(output_model_dir)
-    with open(os.path.join(output_model_dir, "latest_checkpointed_iteration.txt"), 'w') as f:
-        f.write("release\n")
+    flags = os.O_RDWR | os.O_CREAT
+    modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IWGRP | stat.S_IRGRP
+    with os.fdopen(os.open(os.path.join(output_model_dir, "latest_checkpointed_iteration.txt"), flags, modes),
+                   'w') as fout:
+        fout.write("release\n")
 
     release_model_dir = os.path.join(output_model_dir, "release")
     os.makedirs(release_model_dir, exist_ok=True)
@@ -37,9 +42,9 @@ def row_split(w, tp, r):
 
 
 def column_split(w, tp, r):
-    len = w.shape[1]
-    assert len % tp == 0, f"param:{w.name} dim 1 must be divisible by tensor model parallel size"
-    part_len = len // tp
+    dim1 = w.shape[1]
+    assert dim1 % tp == 0, f"param:{w.name} dim 1 must be divisible by tensor model parallel size"
+    part_len = dim1 // tp
     return w[:, r * part_len: (r + 1) * part_len].clone()
 
 

@@ -16,19 +16,16 @@
 """Convert weight when model parallel change"""
 
 import argparse
-import torch
 import os
 
-import torch_npu
-from torch_npu.contrib import transfer_to_npu
-import deepspeed_npu
+import torch
 
-from ckpt_utils import row_split
 from ckpt_utils import column_split
-from ckpt_utils import pad_embed
 from ckpt_utils import make_ascendspeed_model_dirs
+from ckpt_utils import pad_embed
 from ckpt_utils import permute_qkv_weight
 from ckpt_utils import print_model
+from ckpt_utils import row_split
 from ckpt_utils import save_ascendspeed_model
 
 
@@ -79,16 +76,16 @@ def get_weight_from_name(k):
     return entire_model[k]
 
 
-def merge_weight(entire_model, tp_models, k, pp_i, tot_i, dim):
+def merge_weight(entire_model_dic, tp_models, k, pp_i, tot_i, dim):
     ws = [tm[k.format(pp_i)] for tm in tp_models]
-    entire_model[k.format(tot_i)] = torch.cat(ws, dim=dim)
+    entire_model_dic[k.format(tot_i)] = torch.cat(ws, dim=dim)
 
 
-def merge_pp_tp_models(pp_size, tp_size, input_model_dir, orig_vocab_size, n_heads, n_layer, hidden_size):
+def merge_pp_tp_models(pp_size, tp_size, input_model_dir, orig_vocab_size, num_heads, num_layer, hid_size):
     global entire_model
-    assert n_heads % tp_size == 0, "num_head must be divisible by tensor model parallel"
-    assert n_layer % pp_size == 0, "num_layers must be divisible by pipeline model parallel"
-    pp_n_layer = n_layer // pp_size
+    assert num_heads % tp_size == 0, "num_head must be divisible by tensor model parallel"
+    assert num_layer % pp_size == 0, "num_layers must be divisible by pipeline model parallel"
+    pp_n_layer = num_layer // pp_size
 
     for pp_rank in range(pp_size):
         tp_models = []
@@ -126,11 +123,11 @@ def merge_pp_tp_models(pp_size, tp_size, input_model_dir, orig_vocab_size, n_hea
             assert qkv_len % 3 == 0, "qkv weight should be divisible by 3"
             s1, s2 = qkv_len // 3, qkv_len // 3 * 2
 
-            qs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], n_heads, hidden_size, tp_size, split=True)[:s1,
+            qs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], num_heads, hid_size, tp_size, split=True)[:s1,
                   ...].clone() for tm in tp_models]
-            ks = [permute_qkv_weight(tm[qkv_key.format(pp_i)], n_heads, hidden_size, tp_size, split=True)[s1:s2,
+            ks = [permute_qkv_weight(tm[qkv_key.format(pp_i)], num_heads, hid_size, tp_size, split=True)[s1:s2,
                   ...].clone() for tm in tp_models]
-            vs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], n_heads, hidden_size, tp_size, split=True)[s2:,
+            vs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], num_heads, hid_size, tp_size, split=True)[s2:,
                   ...].clone() for tm in tp_models]
 
             entire_model[qkv_key.format(g_i) + "_query"] = torch.cat(qs, dim=0)
@@ -143,12 +140,12 @@ def merge_pp_tp_models(pp_size, tp_size, input_model_dir, orig_vocab_size, n_hea
     return entire_model
 
 
-def generate_ascendspeed_weights(tp_size, pp_size, output_model_dir, make_vocab_size_divisible_by, n_heads, n_layer,
-                                 hidden_size):
+def generate_ascendspeed_weights(tp_size, pp_size, output_model_dir, make_vocab_size_divisible_by, num_heads, num_layer,
+                                 hid_size):
     release_model_dir = os.path.join(output_model_dir, "release")
-    assert n_heads % tp_size == 0, "num_head must be divisible by tensor model parallel"
-    assert n_layer % pp_size == 0, "num_layers must be divisible by pipeline model parallel"
-    pp_n_layer = n_layer // pp_size
+    assert num_heads % tp_size == 0, "num_head must be divisible by tensor model parallel"
+    assert num_layer % pp_size == 0, "num_layers must be divisible by pipeline model parallel"
+    pp_n_layer = num_layer // pp_size
 
     for tp_rank in range(tp_size):
         for pp_rank in range(pp_size):
@@ -177,7 +174,7 @@ def generate_ascendspeed_weights(tp_size, pp_size, output_model_dir, make_vocab_
                 qw = row_split(get_weight_from_name(qkv_key + "_query"), tp_size, tp_rank)
                 kw = row_split(get_weight_from_name(qkv_key + "_key"), tp_size, tp_rank)
                 vw = row_split(get_weight_from_name(qkv_key + "_value"), tp_size, tp_rank)
-                permute_w = permute_qkv_weight(torch.cat([qw, kw, vw], dim=0), n_heads, hidden_size, tp_size)
+                permute_w = permute_qkv_weight(torch.cat([qw, kw, vw], dim=0), num_heads, hid_size, tp_size)
                 rank_model[f"language_model.layers.{pp_i}.attention.query_key_value.weight"] = permute_w
 
                 rank_model[f"language_model.layers.{pp_i}.attention.dense.weight"] = column_split(
@@ -200,12 +197,12 @@ def generate_ascendspeed_weights(tp_size, pp_size, output_model_dir, make_vocab_
             save_ascendspeed_model(model_dic, rank_model, pp_size, tp_rank, pp_rank, release_model_dir)
 
 
-def print_result(args):
+def print_result(arg):
     print("=" * 100)
     print(
-        f"weight converted from (tp={args.tgt_tensor_model_parallel_size},pp={args.tgt_pipeline_model_parallel_size})"
-        f"to (tp={args.tgt_tensor_model_parallel_size},pp={args.tgt_pipeline_model_parallel_size}) success.."
-        f"\nthe converted weights are stored in {args.output_model_dir}"
+        f"weight converted from (tp={arg.tgt_tensor_model_parallel_size},pp={arg.tgt_pipeline_model_parallel_size})"
+        f"to (tp={arg.tgt_tensor_model_parallel_size},pp={arg.tgt_pipeline_model_parallel_size}) success.."
+        f"\nthe converted weights are stored in {arg.output_model_dir}"
     )
     print("=" * 100)
 

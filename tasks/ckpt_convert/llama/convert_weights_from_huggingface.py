@@ -16,16 +16,17 @@
 """Convert weight from huggingface to ascendspeed"""
 
 import argparse
-import torch
-import os
 import json
+import os
 
-from ckpt_utils import row_split
+import torch
+
 from ckpt_utils import column_split
-from ckpt_utils import pad_embed
 from ckpt_utils import make_ascendspeed_model_dirs
+from ckpt_utils import pad_embed
 from ckpt_utils import permute_qkv_weight
 from ckpt_utils import print_model
+from ckpt_utils import row_split
 from ckpt_utils import save_ascendspeed_model
 
 
