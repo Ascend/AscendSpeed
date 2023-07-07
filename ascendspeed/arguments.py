@@ -49,6 +49,7 @@ def parse_args(extra_args_provider=None, defaults={},
     parser = _add_memoryopt_args(parser)
     parser = _add_activation_checkpoint_args(parser)
     parser = _add_distillation_args(parser)
+    parser = _add_optimized_pipeline_args(parser)
 
     # Custom arguments.
     if extra_args_provider is not None:
@@ -1029,5 +1030,19 @@ def _add_distillation_args(parser):
     
     group.add_argument('--load-teacher', type=str, default=None,
                        help='Directory containing a teacher model checkpoint.')
+
+    return parser
+
+def _add_optimized_pipeline_args(parser):
+    group = parser.add_argument_group(title='optimized_pipeline')
+
+    group.add_argument('--optimized-pipeline', action='store_true',
+                       help='Enable optimized pipeline for bubble time reduction.')
+    group.add_argument('--manual-mbs', type=str, default='',
+                       help='Dynamic micro batches for optimized pipeline. '
+                            'The format shoud be a sequence of numbers seperated by '
+                            'comma; e.g., 4,4,4,4. Two examples are provided by '
+                            '--manual-mbs example-config-1, and '
+                            '--manual-mbs example-config-2')
 
     return parser

@@ -31,12 +31,20 @@ def build_pretraining_data_loader(dataset, consumed_samples):
 
     # ascendspeed sampler
     if args.dataloader_type == 'single':
-        batch_sampler = MegatronPretrainingSampler(
-            total_samples=len(dataset),
-            consumed_samples=consumed_samples,
-            micro_batch_size=args.micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size())
+        if args.optimized_pipeline:
+            batch_sampler = DynamicMicroBatchPretrainingSampler(
+                total_samples=len(dataset),
+                consumed_samples=consumed_samples,
+                micro_batch_size=args.micro_batch_size,
+                data_parallel_rank=mpu.get_data_parallel_rank(),
+                data_parallel_size=mpu.get_data_parallel_world_size())
+        else:
+            batch_sampler = MegatronPretrainingSampler(
+                total_samples=len(dataset),
+                consumed_samples=consumed_samples,
+                micro_batch_size=args.micro_batch_size,
+                data_parallel_rank=mpu.get_data_parallel_rank(),
+                data_parallel_size=mpu.get_data_parallel_world_size())
     elif args.dataloader_type == 'cyclic':
         batch_sampler = MegatronPretrainingRandomSampler(
             total_samples=len(dataset),
@@ -157,3 +165,59 @@ class MegatronPretrainingRandomSampler:
                 self.consumed_samples += self.micro_batch_times_data_parallel_size
                 yield batch
                 batch = []
+
+
+class DynamicMicroBatchPretrainingSampler:
+
+    def __init__(self, total_samples, consumed_samples, micro_batch_size,
+                 data_parallel_rank, data_parallel_size, drop_last=True):
+
+        args = get_args()
+        # Keep a copy of input params for later use.
+        self.total_samples = total_samples
+        self.consumed_samples = consumed_samples
+        self.micro_batch_size = micro_batch_size
+        self.data_parallel_rank = data_parallel_rank
+        self.drop_last = drop_last
+        self.dynamic_micro_batch_size = args.manual_mbs
+        self.micro_batch_times_data_parallel_size = [
+            self.dynamic_micro_batch_size[i] * data_parallel_size \
+            for i in range(len(self.dynamic_micro_batch_size))
+        ]
+
+        # Sanity checks.
+        assert self.total_samples > 0, \
+            'no sample to consume: {}'.format(self.total_samples)
+        assert self.consumed_samples < self.total_samples, \
+            'no samples left to consume: {}, {}'.format(self.consumed_samples,
+                                                        self.total_samples)
+        assert self.micro_batch_size > 0
+        assert data_parallel_size > 0
+        assert self.data_parallel_rank < data_parallel_size, \
+            'data_parallel_rank should be smaller than data size: {}, ' \
+            '{}'.format(self.data_parallel_rank, data_parallel_size)
+
+    def __len__(self):
+        return self.total_samples
+
+    def get_start_end_idx(self, n_mbs):
+        start_idx = self.data_parallel_rank * self.dynamic_micro_batch_size[n_mbs]
+        end_idx = start_idx + self.dynamic_micro_batch_size[n_mbs]
+        return start_idx, end_idx
+
+    def __iter__(self):
+        batch = []
+        n_mbs = 0
+        # Last batch will be dropped if drop_last is not set False
+        for idx in range(self.consumed_samples, self.total_samples):
+            batch.append(idx)
+            if len(batch) == self.micro_batch_times_data_parallel_size[n_mbs]:
+                start_idx, end_idx = self.get_start_end_idx(n_mbs)
+                yield batch[start_idx:end_idx]
+                batch = []
+                n_mbs = (n_mbs + 1) % len(self.micro_batch_times_data_parallel_size)
+
+        # Check the last partial batch and see drop_last is set
+        if len(batch) > 0 and not self.drop_last:
+            start_idx, end_idx = self.get_start_end_idx()
+            yield batch[start_idx:end_idx]

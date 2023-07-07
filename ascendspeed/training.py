@@ -51,6 +51,7 @@ from ascendspeed.utils import calc_params_l2_norm
 from ascendspeed.schedules import forward_backward_no_pipelining
 from ascendspeed.schedules import forward_backward_pipelining_without_interleaving
 from ascendspeed.schedules import forward_backward_pipelining_with_interleaving
+from ascendspeed.schedules import optimized_forward_backward_pipelining
 from ascendspeed.utils import report_memory, throughput_calculator, checkpoint_throughput_calculator
 from ascendspeed.model.transformer import  ParallelTransformerLayer
 
@@ -60,12 +61,50 @@ from deepspeed.compression.compress import init_compression, redundancy_clean
 from deepspeed.runtime.data_pipeline.data_routing.helper import convert_to_random_ltd
 
 
-
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
     torch.distributed.barrier()
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print_rank_0('[' + string + '] datetime: {} '.format(time_str))
+
+
+def _initialize_optimized_pipeline():
+    args = get_args()
+    if args.manual_mbs == 'example-config-1':
+        # An example config when pipeline-model-parallel-size is 4.
+        # This theoretically reduces near 20% pipeline bubble.
+        assert args.micro_batch_size == 4
+        assert args.global_batch_size // mpu.get_data_parallel_world_size() == 64
+        assert args.pipeline_model_parallel_size == 4
+        args.manual_mbs = [1, 2, 3, 4, 5, 5, 5, 5, 5, 5, \
+                           5, 5, 5, 4, 3, 2]
+    elif args.manual_mbs == 'example-config-2':
+        # An example config when pipeline-model-parallel-size is 8
+        # # This theoretically reduces near 30% pipeline bubble.
+        assert args.micro_batch_size == 4
+        assert args.global_batch_size // mpu.get_data_parallel_world_size() == 96
+        assert args.pipeline_model_parallel_size == 8
+        args.manual_mbs = [1, 2, 2, 3, 4, 5, 5, 5, 5, 5, 5, 5, \
+                           5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 3, 2]
+    elif args.maual_mbs is not '':
+        # Customized manual micro-batch-size
+        # Warning: this API will be changed in the future
+        # to automatically set args.maual_mbs for minimizing
+        # bubble time in pipeline.
+        mbs = args.manual_mbs.split(',')
+        mbs = [int(mbs[i]) for i in range(len(mbs))]
+        args.manual_mbs = mbs
+    else:
+        raise ValueError('A proper manual-mbs has to be provided.')
+
+    # sanity check
+    assert isinstance(args.manual_mbs, list), 'A proper manual-mbs has to be provided'
+    assert len(args.manual_mbs) == args.global_batch_size // mpu.get_data_parallel_world_size() \
+           // args.micro_batch_size, 'Check number of micro batches.'
+    assert sum(args.manual_mbs) * mpu.get_data_parallel_world_size() == args.global_batch_size, \
+        'Check either miro batch sizes or global batch sizes.'
+
+
 
 
 def pretrain(train_valid_test_dataset_provider,
@@ -116,6 +155,9 @@ def pretrain(train_valid_test_dataset_provider,
 
     args = get_args()
     timers = get_timers()
+
+    if args.optimized_pipeline:
+        _initialize_optimized_pipeline()
 
     if args.deepspeed:
         args.deepspeed_configuration = json.load(
@@ -612,6 +654,8 @@ def train_step(forward_step_func, data_iterator,
             assert get_num_microbatches() % args.pipeline_model_parallel_size == 0, \
                 'number of microbatches is not divisible by pipeline-parallel ' \
                 'size when using interleaved schedule'
+        elif args.optimized_pipeline:
+            forward_backward_func = optimized_forward_backward_pipelining
         else:
             forward_backward_func = forward_backward_pipelining_without_interleaving
     else:
@@ -1179,6 +1223,8 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
             if mpu.get_pipeline_model_parallel_world_size() > 1:
                 if args.virtual_pipeline_model_parallel_size is not None:
                     forward_backward_func = forward_backward_pipelining_with_interleaving
+                elif args.optimized_pipeline:
+                    forward_backward_func = optimized_forward_backward_pipelining
                 else:
                     forward_backward_func = forward_backward_pipelining_without_interleaving
             else:
