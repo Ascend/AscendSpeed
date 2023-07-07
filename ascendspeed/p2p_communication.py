@@ -22,7 +22,8 @@ from ascendspeed import mpu
 
 
 def _communicate(tensor_send_next, tensor_send_prev, recv_prev, recv_next,
-                 use_ring_exchange=False):
+                 use_ring_exchange=False,
+                 recv_tensor_shape=None):
     """Communicate tensors between stages. Used as helper method in other
     communication methods that are used in ascendspeed/schedules.py.
 
@@ -37,6 +38,8 @@ def _communicate(tensor_send_next, tensor_send_prev, recv_prev, recv_next,
                    next rank.
         use_ring_exchange: boolean for whether torch.distributed.ring_exchange()
                            API should be used.
+        recv_tensor_shape: shape of received tensor. This can be useful when using
+                           optimized pipeline parallelism.
 
     Returns:
         (tensor_recv_prev, tensor_recv_next)
@@ -47,10 +50,16 @@ def _communicate(tensor_send_next, tensor_send_prev, recv_prev, recv_next,
     # if needed.
     tensor_recv_prev = None
     tensor_recv_next = None
-    tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
+
+    if args.optimized_pipeline and (recv_prev or recv_next) and (recv_tensor_shape is None):
+        raise ValueError('recv_tensor_shape has to be provided for optimized pipeline.')
+
+    tensor_shape = recv_tensor_shape if args.optimized_pipeline and (recv_prev or recv_next) \
+        else (args.seq_length, args.micro_batch_size, args.hidden_size)
+
     if args.scatter_gather_tensors_in_pipeline:
         tensor_chunk_shape = reduce(operator.mul, tensor_shape, 1) // \
-            mpu.get_tensor_model_parallel_world_size()
+                             mpu.get_tensor_model_parallel_world_size()
     else:
         tensor_chunk_shape = tensor_shape
     dtype = args.params_dtype
@@ -144,7 +153,7 @@ def _communicate(tensor_send_next, tensor_send_prev, recv_prev, recv_next,
     return tensor_recv_prev, tensor_recv_next
 
 
-def recv_forward(timers=None):
+def recv_forward(timers=None, recv_tensor_shape=None):
     """Receive tensor from previous rank in pipeline (forward receive)."""
     if mpu.is_pipeline_first_stage():
         input_tensor = None
@@ -155,13 +164,14 @@ def recv_forward(timers=None):
             tensor_send_next=None,
             tensor_send_prev=None,
             recv_prev=True,
-            recv_next=False)
+            recv_next=False,
+            recv_tensor_shape=recv_tensor_shape)
         if timers is not None:
             timers('forward-recv').stop()
     return input_tensor
 
 
-def recv_backward(timers=None):
+def recv_backward(timers=None, recv_tensor_shape=None):
     """Receive tensor from next rank in pipeline (backward receive)."""
     if mpu.is_pipeline_last_stage():
         output_tensor_grad = None
@@ -172,7 +182,8 @@ def recv_backward(timers=None):
             tensor_send_next=None,
             tensor_send_prev=None,
             recv_prev=False,
-            recv_next=True)
+            recv_next=True,
+            recv_tensor_shape=recv_tensor_shape)
         if timers is not None:
             timers('backward-recv').stop()
     return output_tensor_grad
@@ -206,7 +217,7 @@ def send_backward(input_tensor_grad, timers=None):
             timers('backward-send').stop()
 
 
-def send_forward_recv_backward(output_tensor, timers=None):
+def send_forward_recv_backward(output_tensor, timers=None, recv_tensor_shape=None):
     """Batched send and recv with next rank in pipeline."""
     if mpu.is_pipeline_last_stage():
         output_tensor_grad = None
@@ -217,13 +228,14 @@ def send_forward_recv_backward(output_tensor, timers=None):
             tensor_send_next=output_tensor,
             tensor_send_prev=None,
             recv_prev=False,
-            recv_next=True)
+            recv_next=True,
+            recv_tensor_shape=recv_tensor_shape)
         if timers is not None:
             timers('forward-send-backward-recv').stop()
     return output_tensor_grad
 
 
-def send_backward_recv_forward(input_tensor_grad, timers=None):
+def send_backward_recv_forward(input_tensor_grad, timers=None, recv_tensor_shape=None):
     """Batched send and recv with previous rank in pipeline."""
     if mpu.is_pipeline_first_stage():
         input_tensor = None
@@ -234,7 +246,8 @@ def send_backward_recv_forward(input_tensor_grad, timers=None):
             tensor_send_next=None,
             tensor_send_prev=input_tensor_grad,
             recv_prev=True,
-            recv_next=False)
+            recv_next=False,
+            recv_tensor_shape=recv_tensor_shape)
         if timers is not None:
             timers('backward-send-forward-recv').stop()
     return input_tensor
