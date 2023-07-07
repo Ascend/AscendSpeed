@@ -280,18 +280,11 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     load_dir = getattr(args, load_arg)
 
     if args.deepspeed:
-        if args.finetune:
-            loaded_dir, state_dict = model[0].load_checkpoint(load_dir,
-                load_module_strict=strict, load_optimizer_states=False,
-                load_lr_scheduler_states=False, load_module_only=True)
-        else:
-            loaded_dir, state_dict = model[0].load_checkpoint(load_dir,
-                load_module_strict=strict)
+        load_optimizer_states = False if args.no_load_optim else True
+        loaded_dir, state_dict = model[0].load_checkpoint(load_dir, load_optimizer_states=load_optimizer_states)
         if loaded_dir is None:
-            print_rank_0('WARNING: could not find the metadata file {} '.format(
-                load_dir))
-            print_rank_0('    will not load any checkpoints and will start from '
-                        'random')
+            print_rank_0(f"WARNING: could not find the metadata file {load_dir}")
+            print_rank_0(f" will not load any checkpoints and will start from random")
             return 0
         release = False
     else:
