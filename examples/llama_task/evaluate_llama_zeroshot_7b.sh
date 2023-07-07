@@ -29,7 +29,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/main.py \
                --ffn-hidden-size 11008 \
                --num-attention-heads 32 \
                --micro-batch-size 8 \
-               --global-batch-size 16 \
                --seq-length 2048 \
                --max-position-embeddings 2048 \
                --log-interval 1 \
