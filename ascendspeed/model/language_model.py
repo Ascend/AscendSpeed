@@ -26,13 +26,27 @@ from ascendspeed.model.module import MegatronModule
 from ascendspeed.model.transformer import ParallelTransformer
 from ascendspeed.model.utils import get_linear_layer
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal
-
+from ascendspeed.mpu.mappings import gather_from_sequence_parallel_region
+from ascendspeed.mpu.initialize import get_global_memory_buffer
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
                        bias=None):
     """LM logits using word embedding weights."""
+    args = get_args()
     # Parallel logits.
-    input_parallel = mpu.copy_to_tensor_model_parallel_region(input_)
+    if args.sequence_parallel:
+        world_size = get_tensor_model_parallel_world_size()
+        dim_size = list(input_.size())
+        dim_size[0] = dim_size[0] * world_size
+
+        input_parallel = \
+                get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
+        torch.distributed._all_gather_base(
+            input_parallel,
+            input_,
+            group=get_tensor_model_parallel_group())
+    else:
+        input_parallel = mpu.copy_to_tensor_model_parallel_region(input_)
     # Matrix multiply.
     if bias is None:
         logits_parallel = F.linear(input_parallel, word_embeddings_weight)
@@ -92,11 +106,17 @@ class Pooler(MegatronModule):
 
     def __init__(self, hidden_size, init_method):
         super(Pooler, self).__init__()
+        args = get_args()
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
+        self.sequence_parallel = args.sequence_parallel
 
     def forward(self, hidden_states, sequence_index=0):
         # hidden_states: [b, s, h]
         # sequence_index: index of the token to pool.
+        if self.sequence_parallel:
+            hidden_states = gather_from_sequence_parallel_region(
+                hidden_states,
+                tensor_parallel_output_grad=False)
         pooled = hidden_states[:, sequence_index, :]
         pooled = self.dense(pooled)
         pooled = torch.tanh(pooled)

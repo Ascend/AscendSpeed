@@ -160,20 +160,23 @@ class ParallelAttention(MegatronModule):
                 args.hidden_size,
                 3 * projection_size,
                 gather_output=False,
-                init_method=init_method)
+                init_method=init_method,
+                sequence_parallel_enabled=args.sequence_parallel)
         else:
             assert attention_type == AttnType.cross_attn
             self.query = mpu.ColumnParallelLinear(
                 args.hidden_size,
                 projection_size,
                 gather_output=False,
-                init_method=init_method)
+                init_method=init_method,
+                sequence_parallel_enabled=args.sequence_parallel)
 
             self.key_value = mpu.ColumnParallelLinear(
                 args.hidden_size,
                 2 * projection_size,
                 gather_output=False,
-                init_method=init_method)
+                init_method=init_method,
+                sequence_parallel_enabled=args.sequence_parallel)
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -200,7 +203,8 @@ class ParallelAttention(MegatronModule):
             args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
-            skip_bias_add=True)
+            skip_bias_add=True,
+            sequence_parallel_enabled=args.sequence_parallel)
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
