@@ -190,9 +190,6 @@ def pretrain(train_valid_test_dataset_provider,
     timers.log(['model-and-optimizer-setup', 'train/valid/test-data-iterators-setup'])
     print_rank_0('training ...')
 
-    iteration = 0
-    save_checkpoint(iteration, model, optimizer, lr_scheduler)
-
     if args.do_train and args.train_iters > 0:
         iteration = train(forward_step_func,
                           model, optimizer, lr_scheduler,
