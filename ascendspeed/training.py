@@ -115,7 +115,6 @@ def pretrain(train_valid_test_dataset_provider,
     print_datetime('after ascendspeed is initialized')
 
     args = get_args()
-
     timers = get_timers()
 
     if args.deepspeed:
