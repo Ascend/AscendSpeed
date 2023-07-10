@@ -235,6 +235,9 @@ def parse_args(extra_args_provider=None, defaults={},
         assert args.hidden_size % args.num_attention_heads == 0
         args.kv_channels = args.hidden_size // args.num_attention_heads
 
+    if args.tensor_model_parallel_size == 1:
+        args.sequence_parallel = False
+    
     if args.seq_length is not None:
         assert args.encoder_seq_length is None
         args.encoder_seq_length = args.seq_length
@@ -284,7 +287,6 @@ def parse_args(extra_args_provider=None, defaults={},
 
     _print_args(args)
     return args
-
 
 def _print_args(args):
     """Print arguments."""
@@ -695,6 +697,9 @@ def _add_distributed_args(parser):
     group.add_argument('--enable-expert-tensor-parallelism', action='store_true',
                         default=False,
                         help="use tensor parallelism for expert layers in MoE")
+    group.add_argument('--sequence-parallel', action='store_true',
+                       default=False,
+                       help="use sequence parallelism")
     group.add_argument('--pipeline-model-parallel-size', type=int, default=1,
                        help='Degree of pipeline model parallelism.')
     group.add_argument('--moe-expert-parallel-size', type=int, default=1,

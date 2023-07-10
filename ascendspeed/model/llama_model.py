@@ -31,6 +31,7 @@ from ascendspeed.model.enums import AttnMaskType, LayerType, AttnType
 from ascendspeed.model.utils import get_linear_layer, init_method_normal, scaled_init_method_normal, attention_mask_func, \
     openai_gelu, erf_gelu
 
+from ascendspeed.mpu.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
 from ascendspeed.model.language_model import Pooler
 
@@ -133,10 +134,13 @@ class LlamaLMHead(MegatronModule):
                                                 bias=False,
                                                 gather_output=not self.parallel_output,
                                                 skip_bias_add=True,
-                                                init_method=self.init_method, )
+                                                init_method=self.init_method,
+                                                sequence_parallel_enabled=args.sequence_parallel)
 
     def forward(self, inputs):
+        inputs = inputs.transpose(0, 1).contiguous()
         logits, _ = self.lm_head(inputs)
+        logits = logits.transpose(0, 1).contiguous()  # SBH-->BSH
         return logits
 
 
@@ -188,10 +192,16 @@ class LlamaEmbedding(MegatronModule):
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(vocab_size, self.hidden_size,
                                                           init_method=self.init_method)
+        self.sequence_parallel = args.sequence_parallel
 
     def forward(self, input_ids):
         # Embeddings.
         embeddings = self.word_embeddings(input_ids)
+        if self.sequence_parallel:
+            embeddings = embeddings.transpose(0, 1).contiguous()
+            embeddings = scatter_to_sequence_parallel_region(embeddings)
+            embeddings = embeddings.transpose(0, 1).contiguous()
+
         return embeddings
 
 
@@ -243,7 +253,8 @@ class LlamaParallelMLP(MegatronModule):
             init_method=self.init_method,
             skip_bias_add=True,
             moe=moe,
-            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
+            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
+            sequence_parallel_enabled=args.sequence_parallel
         )
 
         self.up_proj = mpu.ColumnParallelLinear(
@@ -254,7 +265,8 @@ class LlamaParallelMLP(MegatronModule):
             init_method=self.init_method,
             skip_bias_add=True,
             moe=moe,
-            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
+            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
+            sequence_parallel_enabled=args.sequence_parallel
         )
 
         self.activation_func = F.silu
@@ -268,7 +280,8 @@ class LlamaParallelMLP(MegatronModule):
             init_method=self.output_layer_init_method,
             skip_bias_add=True,
             moe=moe,
-            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism)
+            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
+            sequence_parallel_enabled=args.sequence_parallel)
 
     def forward(self, hidden_states):
         intermediate_parallel = self.activation_func(self.gate_proj(hidden_states)[0]) * self.up_proj(hidden_states)[0]
@@ -296,7 +309,7 @@ class LlamaParallelAttention(MegatronModule):
         args = get_args()
         self.fp16 = args.fp16
         self.bf16 = args.bf16
-
+        self.sequence_parallel = args.sequence_parallel
         self.apply_query_key_layer_scaling = args.apply_query_key_layer_scaling
         self.attention_softmax_in_fp32 = args.attention_softmax_in_fp32
         if self.apply_query_key_layer_scaling:
@@ -326,7 +339,8 @@ class LlamaParallelAttention(MegatronModule):
                 3 * projection_size,
                 bias=False,
                 gather_output=False,
-                init_method=self.init_method)
+                init_method=self.init_method,
+                sequence_parallel_enabled=self.sequence_parallel)
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -352,7 +366,8 @@ class LlamaParallelAttention(MegatronModule):
             bias=False,
             input_is_parallel=True,
             init_method=self.output_layer_init_method,
-            skip_bias_add=True)
+            skip_bias_add=True,
+            sequence_parallel_enabled=self.sequence_parallel)
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
@@ -559,6 +574,7 @@ class LlamaParallelTransformerLayer(MegatronModule):
             eps=args.layernorm_epsilon)
 
         # MLP
+        self.rank = args.rank
         self.mlp = LlamaParallelMLP(self.init_method, self.output_layer_init_method)
 
     def forward(self, hidden_states, attention_mask=None,
