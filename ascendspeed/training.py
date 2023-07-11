@@ -54,7 +54,6 @@ from ascendspeed.schedules import optimized_forward_backward_pipelining
 from ascendspeed.utils import report_memory, throughput_calculator, checkpoint_throughput_calculator
 from ascendspeed.model.transformer import  ParallelTransformerLayer
 
-
 import deepspeed
 from deepspeed.accelerator import get_accelerator
 from deepspeed.compression.compress import init_compression, redundancy_clean
