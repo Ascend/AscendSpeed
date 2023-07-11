@@ -1,11 +1,10 @@
-# text generation using bloom
+#!/bin/bash
 
-`bash examples/bloom_task/generate_text_bloom.sh`
+export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
+export HCCL_CONNECT_TIMEOUT=1200
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
-> We generate text samples using largely the Bloom pretraining script. Few changes need to make, such as we need to provide the path to the pretrained checkpoint, the length of the output samples.
-
-```shell
-DISTRIBUTED_ARGS="--nproc_per_node 8 --nnodes 1 --node_rank 0 --master_addr localhost --master_port 6001"
+DISTRIBUTED_ARGS="--nproc_per_node 8 --nnodes 2 --node_rank 0 --master_addr localhost --master_port 6001"
 
 CHECK_POINTS=<checkpoints-path>
 TOKENIZER_NAME_OR_PATH=<tokenizer-vocab-file-path>
@@ -36,14 +35,3 @@ python -m torch.distributed.run $DISTRIBUTED_ARGS ./examples/bloom_task/generate
                --temperature 1.0 \
                --top_p 0.9 \
                --recompute \
-```
-
-# bloom 7b 1000 step perftest
-
-**NPU loss**
-
-![NPU-LOSS](./images/7b_lm_loss.png)
-
-**NPU GPU loss relative error**
-
-![NPU-Relative-Error](./images/relative_error.png)

@@ -16,12 +16,11 @@
 """Pretrain utilities."""
 
 from datetime import datetime
+import os
 import math
 import sys
 import time
 import json
-# The earliest we can measure the start time.
-_TRAIN_START_TIME = time.time()
 
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
@@ -60,6 +59,8 @@ from deepspeed.accelerator import get_accelerator
 from deepspeed.compression.compress import init_compression, redundancy_clean
 from deepspeed.runtime.data_pipeline.data_routing.helper import convert_to_random_ltd
 
+# The earliest we can measure the start time.
+_TRAIN_START_TIME = time.time()
 
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
@@ -231,9 +232,6 @@ def pretrain(train_valid_test_dataset_provider,
     print_rank_0('done with setup ...')
     timers.log(['model-and-optimizer-setup', 'train/valid/test-data-iterators-setup'])
     print_rank_0('training ...')
-
-    iteration = 0
-    save_checkpoint(iteration, model, optimizer, lr_scheduler)
 
     if args.do_train and args.train_iters > 0:
         iteration = train(forward_step_func,
@@ -903,9 +901,12 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                     opt_stats[5] += torch.norm(optimizer.state[param]['exp_avg_sq'].sqrt(),p=1).item()
                     opt_stats[6] += torch.norm(optimizer.state[param]['exp_avg'],p=1).item()
                     opt_stats[7] += torch.norm(param,p=1).item()
-                    opt_stats_2[0] = max(opt_stats_2[0], abs(optimizer.state[param]['exp_avg_sq'].max().item()), abs(optimizer.state[param]['exp_avg_sq'].min().item()))
-                    opt_stats_2[1] = max(opt_stats_2[1], optimizer.state[param]['exp_avg_sq'].sqrt().abs_().max().item())
-                    opt_stats_2[2] = max(opt_stats_2[2], abs(optimizer.state[param]['exp_avg'].max().item()), abs(optimizer.state[param]['exp_avg'].min().item()))
+                    opt_stats_2[0] = max(opt_stats_2[0], abs(optimizer.state[param]['exp_avg_sq'].max().item()), 
+                                         abs(optimizer.state[param]['exp_avg_sq'].min().item()))
+                    opt_stats_2[1] = max(opt_stats_2[1], optimizer.state[param]['exp_avg_sq']
+                                         .sqrt().abs_().max().item())
+                    opt_stats_2[2] = max(opt_stats_2[2], abs(optimizer.state[param]['exp_avg'].max().item()), 
+                                         abs(optimizer.state[param]['exp_avg'].min().item()))
                     opt_stats_2[3] = max(opt_stats_2[3], abs(param.max().item()), abs(param.min().item()))
 
             if args.zero_stage > 0:
@@ -1328,7 +1329,8 @@ def build_train_valid_test_data_iterators(
         assert args.train_samples is None, \
             'only backward compatiblity support for iteration-based training'
         args.consumed_train_samples = args.iteration * args.global_batch_size
-    if args.iteration > 0 and args.consumed_valid_samples == 0:
+        
+    if args.iteration // args.eval_interval > 0 and args.consumed_valid_samples == 0:
         assert args.train_samples is None, \
             'only backward compatiblity support for iteration-based training'
         args.consumed_valid_samples = (args.iteration // args.eval_interval) * \
