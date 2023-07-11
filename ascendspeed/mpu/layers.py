@@ -19,7 +19,7 @@
 
 
 import math
-
+from typing import List, Optional
 import deepspeed.runtime.activation_checkpointing.checkpointing as ds_checkpointing
 import torch
 import torch.nn.functional as F
@@ -29,11 +29,14 @@ from deepspeed.accelerator import get_accelerator
 
 from ascendspeed import get_args, mpu
 from ascendspeed.mpu.initialize import get_tensor_model_parallel_rank
+from ascendspeed.mpu.initialize import get_tensor_model_parallel_group
 from ascendspeed.mpu.initialize import get_tensor_model_parallel_world_size
+from ascendspeed.mpu.initialize import get_global_memory_buffer
 from ascendspeed.mpu.mappings import copy_to_tensor_model_parallel_region
 from ascendspeed.mpu.mappings import gather_from_tensor_model_parallel_region
 from ascendspeed.mpu.mappings import reduce_from_tensor_model_parallel_region
 from ascendspeed.mpu.mappings import scatter_to_tensor_model_parallel_region
+from ascendspeed.mpu.mappings import reduce_scatter_to_sequence_parallel_region
 from ascendspeed.mpu.random import get_cuda_rng_tracker
 from ascendspeed.mpu.utils import divide, split_tensor_along_last_dim, VocabUtility
 from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
@@ -210,6 +213,157 @@ class VocabParallelEmbedding(torch.nn.Module):
         return output
 
 
+class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
+    """See linear_with_grad_accumulation_and_async_allreduce"""
+
+    @staticmethod
+    def forward(ctx, input_, weight, bias, sequence_parallel):
+        ctx.save_for_backward(input_, weight)
+        ctx.use_bias = bias is not None
+        ctx.sequence_parallel = sequence_parallel
+
+
+        if sequence_parallel:
+            world_size = get_tensor_model_parallel_world_size()
+            dim_size = list(input_.size())
+            dim_size[0] = dim_size[0] * world_size
+
+            all_gather_buffer = \
+                get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
+            torch.distributed._all_gather_base(
+                all_gather_buffer,
+                input_,
+                group=get_tensor_model_parallel_group())
+
+            total_input = all_gather_buffer
+        else:
+            total_input = input_
+
+        output = torch.matmul(total_input, weight.t())
+        if bias is not None:
+            output = output + bias
+        return output
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input_, weight = ctx.saved_tensors
+        use_bias = ctx.use_bias
+
+        if ctx.sequence_parallel:
+            world_size = get_tensor_model_parallel_world_size()
+            dim_size = list(input_.size())
+            dim_size[0] = dim_size[0] * world_size
+
+            all_gather_buffer = \
+                get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
+            handle = torch.distributed._all_gather_base(
+                all_gather_buffer,
+                input_,
+                group=get_tensor_model_parallel_group(), async_op=True)
+
+            # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
+            # gather is scheduled before the input gradient computation
+            total_input = all_gather_buffer
+        else:
+            total_input = input_
+        grad_input = grad_output.matmul(weight)
+
+        if ctx.sequence_parallel:
+            handle.wait()
+
+        # Convert the tensor shapes to 2D for execution compatibility
+        grad_output = grad_output.reshape(grad_output.shape[0] * grad_output.shape[1],
+                                       grad_output.shape[2])
+        total_input = total_input.reshape(total_input.shape[0] * total_input.shape[1],
+				       total_input.shape[2])
+
+        if ctx.sequence_parallel:
+            dim_size = list(input_.size())
+            sub_grad_input = torch.empty(dim_size, dtype=input_.dtype,
+                                         device=torch.cuda.current_device(),
+                                         requires_grad=False)
+            handle = torch.distributed._reduce_scatter_base(sub_grad_input, grad_input,
+                                                            group=get_tensor_model_parallel_group(),
+                                                            async_op=True)
+            # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
+            # reduce scatter is scheduled before the weight gradient computation
+
+
+
+        grad_weight = grad_output.t().matmul(total_input)
+        grad_bias = grad_output.sum(dim=0) if use_bias else None
+
+        if ctx.sequence_parallel:
+            handle.wait()
+            return sub_grad_input, grad_weight, grad_bias, None, None, None
+
+        return grad_input, grad_weight, grad_bias, None, None, None
+
+
+def linear_with_grad_accumulation_and_async_allreduce(
+    input_: torch.Tensor,
+    weight: torch.Tensor,
+    bias: Optional[torch.Tensor],
+    sequence_parallel_enabled: bool,
+) -> torch.Tensor:
+    """Linear layer execution with asynchronous communication and
+    gradient accumulation fusion in backprop.
+
+    This has the option to accumulate the result of backprop
+    calculation into an existing gradient buffer, preventing the need
+    to do an additional addition kernel after the gradient
+    calculation.
+
+    Additionally, the tensor parallel all reduce of the input
+    gradients can be done asynchronously with the calculation of
+    the weight gradients.
+
+    In the case of sequence parallelism, the reduce scatter of the
+    input gradients is done asynchronously with the calcluation of the
+    weight gradients.
+
+    Use of this module requires that the environment variable
+    CUDA_DEVICE_MAX_CONNECTIONS=1. There are a few collective
+    operations, noted in the code, that should be scheduled before
+    compute kernels to overlap the communication with the computation,
+    which is necessary for a speedup but not for correctness so that
+    ordering isn't imposed by the scheduler. Setting
+    CUDA_DEVICE_MAX_CONNECTIONS=1 forces the kernels to be scheduled
+    in the order they are called.
+
+    Arguments:
+
+    input (torch.Tensor required): input like torch.nn.functional.linear
+
+    weight (torch.Tensor required): weight like torch.nn.functional.linear
+
+    bias (torch.Tensor optional): bias like torch.nn.functional.linear
+
+    gradient_accumulation_fusion (bool required): Perform the gradient
+        accumulation fusion, requires the custom CUDA extension
+        fused_weight_gradient_mlp_cuda module. To use
+        gradient_accumulation_fusion you must install APEX with
+        --cpp_ext and --cuda_ext. For example: "pip install
+        --global-option=\"--cpp_ext\" --global-option=\"--cuda_ext .\"
+        " Note that the extension requires CUDA>=11. Otherwise, you
+        must turn off gradient accumulation fusion."
+
+    sequence_parallel_enabled (bool required): Indicates that sequence
+        parallelism is used and thus in the forward pass the input is
+        all gathered, and the backward pass the input gradients are
+        reduce scattered.
+    """
+    args = [
+        input_,
+        weight,
+        bias,
+        sequence_parallel_enabled,
+    ]
+
+    with torch.cuda.amp.autocast(enabled=False):
+        return LinearWithGradAccumulationAndAsyncCommunication.apply(*args)
+linear_with_grad_accumulation_and_async_allreduce.warned = False
+
 class ColumnParallelLinear(torch.nn.Module):
     """Linear layer with column parallelism.
 
@@ -237,7 +391,10 @@ class ColumnParallelLinear(torch.nn.Module):
     def __init__(self, input_size, output_size, bias=True, gather_output=True,
                  init_method=init.xavier_normal_, stride=1,
                  keep_master_weight_for_test=False,
-                 skip_bias_add=False, moe=False, enable_expert_tensor_parallelism=False):
+                 skip_bias_add=False, moe=False,
+                 enable_expert_tensor_parallelism=False,
+                 sequence_parallel_enabled: bool = False
+                 ):
         super(ColumnParallelLinear, self).__init__()
 
         # Keep input parameters
@@ -290,12 +447,20 @@ class ColumnParallelLinear(torch.nn.Module):
                 self.bias.zero_()
         else:
             self.register_parameter('bias', None)
+        if sequence_parallel_enabled:
+            if world_size <= 1:
+                warnings.warn(
+                    f"`sequence_parallel_enabled` is set to `True`, but tensor model parallel size is {world_size}. "
+                    f"Disabling sequence parallel."
+                )
+                sequence_parallel_enabled = False
 
+        self.sequence_parallel_enabled = sequence_parallel_enabled
 
 
     def forward(self, input_):
         # Set up backprop all-reduce.
-        if self.is_expert_without_slicing: # non-expert only tensor parallelism
+        if self.is_expert_without_slicing or self.sequence_parallel_enabled: # non-expert only tensor parallelism
             input_parallel = input_
         else:
             input_parallel = copy_to_tensor_model_parallel_region(input_)
@@ -303,9 +468,17 @@ class ColumnParallelLinear(torch.nn.Module):
         # Matrix multiply.
 
         bias = self.bias if not self.skip_bias_add else None
-        output_parallel = F.linear(input_parallel, self.weight, bias)
+
+        output_parallel = linear_with_grad_accumulation_and_async_allreduce(
+            input_=input_parallel,
+            weight=self.weight,
+            bias=bias,
+            sequence_parallel_enabled=self.sequence_parallel_enabled,
+        )
+
         if self.gather_output and not self.is_expert_without_slicing:
             # All-gather across the partitions.
+            assert not self.sequence_parallel_enabled
             output = gather_from_tensor_model_parallel_region(output_parallel)
         else:
             output = output_parallel 
@@ -347,7 +520,9 @@ class RowParallelLinear(torch.nn.Module):
                  input_is_parallel=False,
                  init_method=init.xavier_normal_, stride=1,
                  keep_master_weight_for_test=False,
-                 skip_bias_add=False, moe=False, enable_expert_tensor_parallelism=False):
+                 skip_bias_add=False, moe=False,
+                 enable_expert_tensor_parallelism=False,
+                 sequence_parallel_enabled: bool = False):
         super(RowParallelLinear, self).__init__()
 
         # Keep input parameters
@@ -365,7 +540,9 @@ class RowParallelLinear(torch.nn.Module):
 
         self.input_size_per_partition = divide(input_size, world_size)
         self.skip_bias_add = skip_bias_add
-
+        self.sequence_parallel_enabled = sequence_parallel_enabled
+        if self.sequence_parallel_enabled and not self.input_is_parallel:
+            raise RuntimeError("To enable `sequence_parallel_enabled`, `input_is_parallel` must be `True`")
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
         # we allocate the transpose.
@@ -406,14 +583,24 @@ class RowParallelLinear(torch.nn.Module):
         if self.input_is_parallel or self.is_expert_without_slicing:
             input_parallel = input_
         else:
+            assert not self.sequence_parallel_enabled
             input_parallel = scatter_to_tensor_model_parallel_region(input_)
         # Matrix multiply.
-        output_parallel = F.linear(input_parallel, self.weight)
+        output_parallel = linear_with_grad_accumulation_and_async_allreduce(
+            input_=input_parallel,
+            weight=self.weight,
+            bias=None,
+            sequence_parallel_enabled=False,
+        )
+
         # All-reduce across all the partitions.
         if self.is_expert_without_slicing: # non-expert only tensor-parallelism
             output_ = output_parallel
         else:
-            output_ = reduce_from_tensor_model_parallel_region(output_parallel)
+            if self.sequence_parallel_enabled:
+                output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
+            else:
+                output_ = reduce_from_tensor_model_parallel_region(output_parallel)
 
         if not self.skip_bias_add:
             output = output_ + self.bias if self.bias is not None else output_

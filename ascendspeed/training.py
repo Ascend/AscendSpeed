@@ -59,6 +59,7 @@ from deepspeed.accelerator import get_accelerator
 from deepspeed.compression.compress import init_compression, redundancy_clean
 from deepspeed.runtime.data_pipeline.data_routing.helper import convert_to_random_ltd
 
+
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
 
