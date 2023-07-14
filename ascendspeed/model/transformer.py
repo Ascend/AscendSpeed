@@ -312,17 +312,13 @@ class ParallelAttention(MegatronModule):
 
         # Raw attention scores. [b * np, sq, sk]
         if alibi is None:
-            matmul_result = torch.baddbmm(
-                matmul_result,
-                query_layer.transpose(0, 1),   # [b * np, sq, hn]
-                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-                beta=0.0, alpha=(1.0/self.norm_factor))
+            q_trans = query_layer.transpose(0, 1).contiguous() * (1.0 / self.norm_factor)
+            k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
+            matmul_result = self.beta * matmul_result + torch.bmm(q_trans, k_trans)
         else:
-            matmul_result = torch.baddbmm(
-                matmul_result,
-                query_layer.transpose(0, 1),  # [b * np, sq, hn]
-                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-                beta=self.beta, alpha=(1.0 / self.norm_factor))
+            q_trans = query_layer.transpose(0, 1).contiguous() * (1.0 / self.norm_factor)
+            k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
+            matmul_result = self.beta * matmul_result + torch.bmm(q_trans, k_trans)
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
