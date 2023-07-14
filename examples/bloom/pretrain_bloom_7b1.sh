@@ -116,4 +116,6 @@ TRANSFORMERS_OFFLINE=1  \
     --deepspeed_config ${config_json} \
     --zero-stage ${ZERO_STAGE} \
     --deepspeed-activation-checkpointing  \
-    --distributed-backend nccl
+    --distributed-backend nccl \
+    --sequence-parallel
+    
