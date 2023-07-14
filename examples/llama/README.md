@@ -1,20 +1,24 @@
 # Contents
+
 - [Contents](#contents)
 - [Evaluation and Tasks](#evaluation-and-tasks)
-  - [Datastes](#datastes)
+  - [Dataset](#datastes)
   - [LLama Evaluation](#llama-evaluation)
-  - [Zeroshot Task](#zeroshot-task)
+  - [Zero-shot Task](#zeroshot-task)
+
 # Evaluation and Tasks
 
-## Datastes
-First of all, You must download the evaluation datasets for the [BoolQ](https://storage.googleapis.com/boolq/dev.jsonl), PIQA ([1](https://yonatanbisk.com/piqa/data/valid.jsonl), [2](https://yonatanbisk.com/piqa/data/valid-labels.lst)), [HellaSwag](https://github.com/rowanz/hellaswag/tree/master/data/hellaswag_val.jsonl) tasks.
+## Dataset
+
+First of all, You must download the evaluation dataset for the [BoolQ](https://storage.googleapis.com/boolq/dev.jsonl), PIQA ([1](https://yonatanbisk.com/piqa/data/valid.jsonl), [2](https://yonatanbisk.com/piqa/data/valid-labels.lst)), [HellaSwag](https://github.com/rowanz/hellaswag/tree/master/data/hellaswag_val.jsonl) tasks.
 
 ## LLama Evaluation
 
-We include zeroshot example scripts for llama evaluation on [BoolQ](https://storage.googleapis.com/boolq/dev.jsonl), PIQA ([1](https://yonatanbisk.com/piqa/data/valid.jsonl), [2](https://yonatanbisk.com/piqa/data/valid-labels.lst)), and [HellaSwag](https://github.com/rowanz/hellaswag/tree/master/data/hellaswag_val.jsonl) accuracy.
+We include zero-shot example scripts for llama evaluation on [BoolQ](https://storage.googleapis.com/boolq/dev.jsonl), PIQA ([1](https://yonatanbisk.com/piqa/data/valid.jsonl), [2](https://yonatanbisk.com/piqa/data/valid-labels.lst)), and [HellaSwag](https://github.com/rowanz/hellaswag/tree/master/data/hellaswag_val.jsonl) accuracy.
 
 For example, you can use the following command to run BoolQ zeroshot task on a Llama-7B parameter model.
-<pre>
+
+```Shell
 WORLD_SIZE=8
 
 DISTRIBUTED_ARGS="--nproc_per_node $WORLD_SIZE \
@@ -47,12 +51,12 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/main.py \
                --fp16 \
                --no-load-optim \
                --no-load-rng
-</pre>
+```
 
-## Zeroshot Task
+## Zero-shot Task
 
 
-The following table shows the NPU and [LLama Paper](https://arxiv.org/abs/2302.13971) accuracy achieved by the Zeroshot task of the Llama model. 
+The following table shows the NPU and [LLama Paper](https://arxiv.org/abs/2302.13971) accuracy achieved by the Zero-shot task of the Llama model. 
 
 | Model Size | BoolQ | PIQA | HellaSwag |
 | :---: | :---: | :---: | :---: |
