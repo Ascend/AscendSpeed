@@ -15,8 +15,6 @@ MASTER_ADDR=localhost
 MASTER_PORT=5999
 GPUS_PER_NODE=8
 NNODES=1
-PP_SIZE=1
-TP_SIZE=8
 
 MICRO_BATCH_SIZE=4
 GLOBAL_BATCH_SIZE=512
@@ -76,8 +74,8 @@ TRANSFORMERS_OFFLINE=1  \
     --attention-dropout 0 \
     --hidden-dropout 0 \
     --pad-vocab-size-to 250880 \
-    --tensor-model-parallel-size $TP_SIZE \
-    --pipeline-model-parallel-size $PP_SIZE \
+    --tensor-model-parallel-size 8 \
+    --pipeline-model-parallel-size 1 \
     --num-layers $NLAYERS \
     --hidden-size $NHIDDEN \
     --num-attention-heads $NHEADS \
@@ -119,6 +117,3 @@ TRANSFORMERS_OFFLINE=1  \
     --zero-stage ${ZERO_STAGE} \
     --deepspeed-activation-checkpointing  \
     --distributed-backend nccl
-
-    
-    # --finetune \
