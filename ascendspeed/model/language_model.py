@@ -27,6 +27,7 @@ from ascendspeed.model.transformer import ParallelTransformer
 from ascendspeed.model.utils import get_linear_layer
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal
 from ascendspeed.mpu.mappings import gather_from_sequence_parallel_region
+from ascendspeed.mpu.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.mpu.initialize import get_global_memory_buffer
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
@@ -35,23 +36,21 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
     args = get_args()
     # Parallel logits.
     if args.sequence_parallel:
-        world_size = get_tensor_model_parallel_world_size()
-        dim_size = list(input_.size())
-        dim_size[0] = dim_size[0] * world_size
+        input_parallel = input_.transpose(1, 0).contiguous()
+        logits_parallel = mpu.layers.linear_with_grad_accumulation_and_async_allreduce(
+            input_=input_parallel,
+            weight=word_embeddings_weight,
+            bias=bias,
+            sequence_parallel_enabled=args.sequence_parallel)
 
-        input_parallel = \
-                get_global_memory_buffer().get_tensor(dim_size, input_.dtype, "mpu")
-        torch.distributed._all_gather_base(
-            input_parallel,
-            input_,
-            group=get_tensor_model_parallel_group())
+        logits_parallel = logits_parallel.transpose(1, 0).contiguous()
     else:
         input_parallel = mpu.copy_to_tensor_model_parallel_region(input_)
     # Matrix multiply.
-    if bias is None:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight)
-    else:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+        if bias is None:
+            logits_parallel = F.linear(input_parallel, word_embeddings_weight)
+        else:
+            logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
     # Gather if needed.
     if parallel_output:
         return logits_parallel
@@ -151,7 +150,7 @@ class Embedding(MegatronModule):
         self.num_tokentypes = num_tokentypes
 
         args = get_args()
-
+        self.sequence_parallel = args.sequence_parallel
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
             vocab_size, self.hidden_size,
@@ -221,6 +220,10 @@ class Embedding(MegatronModule):
         else:
             assert self.tokentype_embeddings is None
 
+        if self.sequence_parallel:
+            embeddings = embeddings.transpose(0, 1).contiguous()
+            embeddings = scatter_to_sequence_parallel_region(embeddings)
+            embeddings = embeddings.transpose(0, 1).contiguous()
         # Dropout.
         embeddings = self.embedding_dropout(embeddings)
 
