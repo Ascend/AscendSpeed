@@ -386,18 +386,16 @@ class LlamaParallelAttention(MegatronModule):
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-            # [sq, b, 3 * h] --> 3 [sq, b, h]
+            # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
+            new_tensor_shape = mixed_x_layer.size()[:-1] + \
+                               (self.num_attention_heads_per_partition,
+                                3 * self.hidden_size_per_attention_head)
+            mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
+
+            # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
             (query_layer,
              key_layer,
              value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
-
-            # [sq, b, (np * hn)] --> [sq, b, np, hn]
-            new_tensor_shape = mixed_x_layer.size()[:-1] + \
-                               (self.num_attention_heads_per_partition,
-                                self.hidden_size_per_attention_head)
-            query_layer = query_layer.view(*new_tensor_shape)
-            key_layer = key_layer.view(*new_tensor_shape)
-            value_layer = value_layer.view(*new_tensor_shape)
 
         # ==================================
         # Rotary Position Embedding
