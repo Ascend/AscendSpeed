@@ -84,16 +84,23 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
             tensor_model_parallel_size_))
         print('> initializing pipeline model parallel with size {}'.format(
             pipeline_model_parallel_size_))
+
     # Get world size and rank. Ensure some consistencies.
+    # 确保torch已经做了分布式初始化
     assert torch.distributed.is_initialized()
-    world_size = torch.distributed.get_world_size()
+    world_size = torch.distributed.get_world_size() # 得到全局进程的总数
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
+
+    # 后者表示一个完整模型所占的gpu数，我们要保证前者能被后者整除
     ensure_divisibility(world_size,
                         tensor_model_parallel_size * pipeline_model_parallel_size)
+
+    # 根据TP_size和PP_size，求出DP_size
     data_parallel_size = world_size // (tensor_model_parallel_size *
                                         pipeline_model_parallel_size)
 
+    # 设置 tp、pp、dp的组数
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
     num_data_parallel_groups = world_size // data_parallel_size
@@ -104,9 +111,10 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
         _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
         _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = virtual_pipeline_model_parallel_size_
 
+    # 获取当前进程的全局rank
     rank = torch.distributed.get_rank()
 
-    # Build the data-parallel groups.
+    # Build the data-parallel groups. 设置DP组
     global _DATA_PARALLEL_GROUP
     assert _DATA_PARALLEL_GROUP is None, \
         'data parallel group is already initialized'
@@ -122,7 +130,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
             if rank in ranks:
                 _DATA_PARALLEL_GROUP = group
 
-    # Build the model-parallel groups.
+    # Build the model-parallel groups. 设置MP组
     global _MODEL_PARALLEL_GROUP
     assert _MODEL_PARALLEL_GROUP is None, \
         'model parallel group is already initialized'
@@ -133,7 +141,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
         if rank in ranks:
             _MODEL_PARALLEL_GROUP = group
 
-    # Build the tensor model-parallel groups.
+    # Build the tensor model-parallel groups. 设置TP组
     global _TENSOR_MODEL_PARALLEL_GROUP
     assert _TENSOR_MODEL_PARALLEL_GROUP is None, \
         'tensor model parallel group is already initialized'
@@ -146,6 +154,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
+    # 设置PP组与embedding组
     global _PIPELINE_MODEL_PARALLEL_GROUP
     global _PIPELINE_GLOBAL_RANKS
     assert _PIPELINE_MODEL_PARALLEL_GROUP is None, \
@@ -156,7 +165,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size,
                       num_pipeline_model_parallel_groups)
-        group = torch.distributed.new_group(ranks)
+        group = torch.distributed.new_group(ranks) # 设置PP组
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -166,7 +175,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
             embedding_ranks = [ranks[0], ranks[-1]]
         else:
             embedding_ranks = ranks
-        group = torch.distributed.new_group(embedding_ranks)
+        group = torch.distributed.new_group(embedding_ranks) # 设置embedding组
         if rank in embedding_ranks:
             _EMBEDDING_GROUP = group
             
