@@ -80,8 +80,6 @@ def rotate_half(x):
 
 
 def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
-    cos = cos[..., offset: q.shape[-2] + offset, :]
-    sin = sin[..., offset: q.shape[-2] + offset, :]
     q_embed = (q * cos) + (rotate_half(q) * sin)
     k_embed = (k * cos) + (rotate_half(k) * sin)
     return q_embed, k_embed
@@ -98,11 +96,7 @@ class RMSNorm(torch.nn.Module):  # for cpu
 
     def forward(self, hidden_states):
         variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-
-        # convert into half-precision if necessary
-        if self.weight.dtype in [torch.float16, torch.bfloat16]:
-            hidden_states = hidden_states.to(self.weight.dtype)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon).half()
         hidden_states = self.weight * hidden_states
 
         return hidden_states
@@ -386,13 +380,12 @@ class LlamaParallelAttention(MegatronModule):
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-            # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
             new_tensor_shape = mixed_x_layer.size()[:-1] + \
                                (self.num_attention_heads_per_partition,
                                 3 * self.hidden_size_per_attention_head)
             mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
 
-            # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
+            # [sq, b, 3 * h] --> 3 [sq, b, h]
             (query_layer,
              key_layer,
              value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
@@ -401,17 +394,13 @@ class LlamaParallelAttention(MegatronModule):
         # Rotary Position Embedding
         # ==================================
         # [sq, b, np, hn] --> [b, np, sq, hn] TODO optimize the permute of dimension back and forth
-        query_layer = query_layer.permute(1, 2, 0, 3)
-        key_layer = key_layer.permute(1, 2, 0, 3)
-        value_layer = value_layer.permute(1, 2, 0, 3)
+        query_layer = query_layer.permute(1, 2, 0, 3).contiguous()
+        key_layer = key_layer.permute(1, 2, 0, 3).contiguous()
+        value_layer = value_layer.permute(1, 2, 0, 3).contiguous()
 
         cos, sin = self.rotary_emb(value_layer, seq_len=new_tensor_shape[0])
         query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, cos, sin, offset=0)
 
-        # [b, np, sq, hn] --> [sq, b, np, hn] TODO optimize the permute of dimension back and forth
-        query_layer = query_layer.permute(2, 0, 1, 3).contiguous()
-        key_layer = key_layer.permute(2, 0, 1, 3).contiguous()
-        value_layer = value_layer.permute(2, 0, 1, 3).contiguous()
 
         # ==================================
         # Adjust key and value for inference
@@ -430,36 +419,8 @@ class LlamaParallelAttention(MegatronModule):
         # Raw attention scores. [b, np, s, s]
         # ===================================
 
-        # [b, np, sq, sk]
-        output_size = (query_layer.size(1),
-                       query_layer.size(2),
-                       query_layer.size(0),
-                       key_layer.size(0))
-
-        # [sq, b, np, hn] -> [sq, b * np, hn]
-        query_layer = query_layer.view(output_size[2],
-                                       output_size[0] * output_size[1], -1)
-        # [sk, b, np, hn] -> [sk, b * np, hn]
-        key_layer = key_layer.view(output_size[3],
-                                   output_size[0] * output_size[1], -1)
-
-        # preallocting result tensor: [b * np, sq, sk]
-        matmul_result = torch.empty(
-            output_size[0] * output_size[1],
-            output_size[2],
-            output_size[3],
-            dtype=query_layer.dtype,
-            device=get_accelerator().current_device_name())
-
-        # Raw attention scores. [b * np, sq, sk]
-        matmul_result = torch.baddbmm(
-            matmul_result,
-            query_layer.transpose(0, 1),  # [b * np, sq, hn]
-            key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-            beta=0.0, alpha=(1.0 / self.norm_factor))
-
-        # change view to [b, np, sq, sk]
-        attention_scores = matmul_result.view(*output_size)
+        query_layer *= (1.0 / self.norm_factor)
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(3, 2))
 
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
@@ -489,41 +450,11 @@ class LlamaParallelAttention(MegatronModule):
         # =========================
         # Context layer. [sq, b, hp]
         # =========================
+        context_layer = torch.matmul(attention_probs, value_layer)
 
-        # value_layer -> context layer.
-        # [sk, b, np, hn] --> [b, np, sq, hn]
-
-        # context layer shape: [b, np, sq, hn]
-        output_size = (value_layer.size(1),
-                       value_layer.size(2),
-                       query_layer.size(0),
-                       value_layer.size(3))
-
-        # change view [sk, b * np, hn]
-        value_layer = value_layer.view(value_layer.size(0),
-                                       output_size[0] * output_size[1], -1)
-
-        # change view [b * np, sq, sk]
-        attention_probs = attention_probs.view(output_size[0] * output_size[1],
-                                               output_size[2], -1)
-
-        # matmul: [b * np, sq, hn]
-        context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
-
-        # change view [b, np, sq, hn]
-        context_layer = context_layer.view(*output_size)
-
-        # [b, np, sq, hn] --> [sq, b, np, hn]
+        bs, nh, sq, hd = context_layer.shape
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
-
-        # [sq, b, np, hn] --> [sq, b, hp]
-        new_context_layer_shape = context_layer.size()[:-2] + \
-                                  (self.hidden_size_per_partition,)
-        context_layer = context_layer.view(*new_context_layer_shape)
-
-        # =================
-        # Output. [sq, b, h]
-        # =================
+        context_layer = context_layer.view(sq, bs, nh*hd)
 
         output, _ = self.dense(context_layer)
 
