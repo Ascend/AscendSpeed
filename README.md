@@ -60,8 +60,8 @@ python setup.py develop
 
 6. Start your task
 ```bash
-sh examples/gpt_task/pretrain_gpt_ptd_8p.sh    (Demon gpt with 200M parameters)
-sh examples/llama_task/pretrain_llama_ptd_8p.sh    (Demon llama with 250M parameters)
+sh examples/gpt/pretrain_gpt_ptd_8p.sh    (Demon gpt with 200M parameters)
+sh examples/llama/pretrain_llama_ptd_8p.sh    (Demon llama with 250M parameters)
 ```
 
 # Using HuggingFace Tokenizer
@@ -69,7 +69,7 @@ Llama Tokenizer
 ------
 1.  Set `--tokenizer-name-or-path` in the training script : 
 ```bash
-# examples/llama_task/pretrain_llama_ptd_8p.sh
+# examples/llama/pretrain_llama_ptd_8p.sh
 
 --tokenizer-name-or-path ./dataset/llama/  \
 --tokenizer-not-use-fast  \

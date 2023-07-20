@@ -1,4 +1,5 @@
 # coding=utf-8
+# Copyright (c) 2023, HUAWEI CORPORATION.  All rights reserved.
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +13,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Pretrain Llama."""
 
-"""Pretrain Llama"""
 import math
 from functools import partial
 
 import torch
 import torch_npu
 from torch_npu.contrib import transfer_to_npu
+
+import deepspeed
 import deepspeed_npu
+from deepspeed.runtime.utils import see_memory_usage
+from deepspeed.accelerator.real_accelerator import get_accelerator
 
 from ascendspeed import get_args
 from ascendspeed import print_rank_0
@@ -33,16 +38,12 @@ from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
 
-import deepspeed
-from deepspeed.runtime.utils import see_memory_usage
-from deepspeed.accelerator.real_accelerator import get_accelerator
-
 
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
 
-    print_rank_0('building llama model ...')
-    see_memory_usage(f"Before Building Model", force=True)
+    print_rank_0('Building llama model ...')
+    see_memory_usage(f"Before Building Model ...", force=True)
 
     args = get_args()
     with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group(),
@@ -60,7 +61,8 @@ def model_provider(pre_process=True, post_process=True):
             # pipeline it as an activation during training. The mask is constant, and thus
             # we can reuse it.
             attention_mask = torch.tril(torch.ones(
-                (1, args.seq_length, args.seq_length), device=get_accelerator().current_device_name())).view(
+                (1, args.seq_length, args.seq_length),
+                device=get_accelerator().current_device_name())).view(
                 1, 1, args.seq_length, args.seq_length)
 
             # Convert attention mask to binary:
@@ -72,7 +74,6 @@ def model_provider(pre_process=True, post_process=True):
 
             # Attention mask must be bool.
             args.attn_mask = attention_mask.to(torch.bool)
-
         else:
             model = LlamaModel(
                 parallel_output=True,
@@ -170,6 +171,7 @@ def get_batch_pipe(data):
 
 def loss_func(loss_mask, output_tensor):
     args = get_args()
+
     losses = output_tensor.float()
     loss_mask = loss_mask.view(-1).float()
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
@@ -182,6 +184,7 @@ def loss_func(loss_mask, output_tensor):
 def forward_step(data_iterator, model):
     """Forward step."""
     args = get_args()
+
     timers = get_timers()
     # Get the batch.
     timers('batch-generator').start()
@@ -212,6 +215,8 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     return train_ds, valid_ds, test_ds
 
 if __name__ == "__main__":
-    pretrain(train_valid_test_datasets_provider, model_provider, forward_step,
+    pretrain(train_valid_test_datasets_provider,
+             model_provider,
+             forward_step,
              args_defaults={'tokenizer_type': 'PretrainedFromHF'},
              data_post_process=data_post_process)

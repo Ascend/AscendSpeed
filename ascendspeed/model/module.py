@@ -12,13 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Megatron Module"""
+"""AscendSpeed Module"""
 
 import torch
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 from deepspeed.accelerator import get_accelerator
+
 from ascendspeed import get_args
 from ascendspeed import mpu
 
@@ -26,7 +26,6 @@ from ascendspeed import mpu
 _FLOAT_TYPES = (torch.FloatTensor, get_accelerator().FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, get_accelerator().HalfTensor)
 _BF16_TYPES = (torch.BFloat16Tensor)
-
 
 
 def param_is_not_shared(param):
