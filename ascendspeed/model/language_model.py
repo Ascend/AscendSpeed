@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Transformer based language model."""
 
 import torch
@@ -28,6 +27,7 @@ from ascendspeed.model.utils import get_linear_layer
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal
 from ascendspeed.mpu.mappings import gather_from_sequence_parallel_region
 from ascendspeed.mpu.initialize import get_global_memory_buffer
+
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
                        bias=None):
