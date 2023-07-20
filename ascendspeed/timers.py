@@ -133,8 +133,29 @@ class Timers:
 
 
     def __call__(self, name, log_level=None):
-        if name not in self._timers:
-            self._timers[name] = Timer(name=name)
+        # If the timer has already been set, then check if the log-level
+        # is provided, it matches the one that the timer was created with.
+        if name in self._timers:
+            if log_level is not None:
+                assert log_level == self._log_levels[name], \
+                    'input log level {} does not match already existing '\
+                    'log level {} for {} timer'.format(
+                        log_level, self._log_levels[name], name)
+            return self._timers[name]
+        # If timer does not exist and no log level is provided,
+        # set it to the max log level which is 2.
+        if log_level is None:
+            log_level = self._max_log_level
+        assert log_level <= self._max_log_level, \
+            'log level {} is larger than max supported log level {}'.format(
+                log_level, self._max_log_level)
+        # Now if the input log level is larger than the one set for
+        # the timers class, just ignore it and return a dummy timer.
+        if log_level > self._log_level:
+            return self._dummy_timer
+        # Otherwise, initalize the timer and set the level.
+        self._timers[name] = Timer(name)
+        self._log_levels[name] = log_level
         return self._timers[name]
 
 

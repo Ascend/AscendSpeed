@@ -71,7 +71,7 @@ def forward_step(forward_step_func, data_iterator, model, input_tensor, losses_r
 
     args = get_args()
 
-    timers('forward-compute').start()
+    timers('forward-compute', log_level=2).start()
     unwrapped_model = unwrap_model(
         model, (torchDDP, LocalDDP, Float16Module))
     if not args.deepspeed:
@@ -111,7 +111,7 @@ def backward_step(optimizer, input_tensor, output_tensor, output_tensor_grad, mo
         assert model is not None
 
     timers = get_timers()
-    timers('backward-compute').start()
+    timers('backward-compute', log_level=2).start()
 
     # Retain the grad on the input_tensor.
     if input_tensor is not None:
