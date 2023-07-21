@@ -1,32 +1,19 @@
+# LLAMA
+
+This directory contains some of the scripts that were used to produce the results in the AscendSpeed. These scripts is to show the example how to run the following Model in terminal.
+
+LLaMA model is from: [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971)
+
+> Touvron, Hugo, et al. "Llama: Open and efficient foundation language models." arXiv preprint arXiv:2302.13971 (2023).
 # Contents
 
-- [Contents](#contents)
-- [Evaluation and Tasks](#evaluation-and-tasks)
-  - [Dataset](#datastes)
-  - [LLama Evaluation](#llama-evaluation)
-  - [Zero-shot Task](#zeroshot-task)
-# BLOOM
-
-This directory contains some of the scripts that were used to produce the results in the AscendSpeed. These scripts is to show the example how to run BLOOM in terminal.
-
-BLOOM model is from: [A 176B-Parameter Open-Access Multilingual Language Model](https://arxiv.org/abs/2211.05100)
-
-> Scao, Teven Le, et al. "Bloom: A 176b-parameter open-access multilingual language model." arXiv preprint arXiv:2211.05100 (2022).
-
-# Contents
-
-TODO：需要更新二级 content.
-- [Contents](#contents)
-- [Evaluation and Tasks](#evaluation-and-tasks)
-  - [Dataset](#datastes)
-  - [LLama Evaluation](#llama-evaluation)
-  - [Zero-shot Task](#zeroshot-task)
+@DOC TODO：需要更新二级 content.
 
 ## Pre-Training
 
-BLOOM's architecture is very similar to GPT3 with a few added improvements as will be discussed later in this article.
+LLaMA's architecture is very similar to GPT3 with a few added improvements as will be discussed later in this article.
 
-Here's a quick summary of training bloom:
+Here's a quick summary of training llama:
 
 |               |                             |
 | :-----        | :-------------              |
@@ -46,10 +33,10 @@ TODO: change the context xxxx. Another important feature from Megatron-LM is the
 
 ### Script
 
-To launch the environment use ``:
+To launch the environment use `pretrain_llama_ptd_16B.sh`:
 
 ```Shell
-source $six_ALL_CCFRWORK/code/tr11-176B-ml/bigscience/train/tr11-176B-ml/start-tr11-176B-ml
+>>> sh pretrain_llama_ptd_16B.sh
 ```
 
 There is an hourly pulse checking script running that checks that the training is either running or scheduled.
@@ -140,24 +127,13 @@ All the provided scripts are tested on 8 910B 64GB GPUs for BLOOM 7B1 (fp16). Th
 
 > Note: Sometimes NPUs memory is not freed when inference deployment crashes. You can free this memory by running kill all python in terminal.
 
-## Citation
+## Evaluation and Tasks
 
-You may also consider original work in your reference:
-
-@article{scao2022bloom,
-  title={Bloom: A 176b-parameter open-access multilingual language model},
-  author={Scao, Teven Le and Fan, Angela and Akiki, Christopher and Pavlick, Ellie and Ili{\'c}, Suzana and Hesslow, Daniel and Castagn{\'e}, Roman and Luccioni, Alexandra Sasha and Yvon, Fran{\c{c}}ois and Gall{\'e}, Matthias and others},
-  journal={arXiv preprint arXiv:2211.05100},
-  year={2022}
-}
-
-# Evaluation and Tasks
-
-## Dataset
+### Dataset
 
 First of all, You must download the evaluation dataset for the [BoolQ](https://storage.googleapis.com/boolq/dev.jsonl), PIQA ([1](https://yonatanbisk.com/piqa/data/valid.jsonl), [2](https://yonatanbisk.com/piqa/data/valid-labels.lst)), [HellaSwag](https://github.com/rowanz/hellaswag/tree/master/data/hellaswag_val.jsonl) tasks.
 
-## LLama Evaluation
+### LLama Evaluation
 
 We include zero-shot example scripts for llama evaluation on [BoolQ](https://storage.googleapis.com/boolq/dev.jsonl), PIQA ([1](https://yonatanbisk.com/piqa/data/valid.jsonl), [2](https://yonatanbisk.com/piqa/data/valid-labels.lst)), and [HellaSwag](https://github.com/rowanz/hellaswag/tree/master/data/hellaswag_val.jsonl) accuracy.
 
@@ -198,7 +174,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/main.py \
                --no-load-rng
 ```
 
-## Zero-shot Task
+### Zero-shot Task
 
 
 The following table shows the NPU and [LLama Paper](https://arxiv.org/abs/2302.13971) accuracy achieved by the Zero-shot task of the Llama model. 
@@ -209,3 +185,14 @@ The following table shows the NPU and [LLama Paper](https://arxiv.org/abs/2302.1
 | 13B  | 79.5% \| 78.1% | 80.4% \| 80.1% | 77.3% \| 80.1% | 
 | 33B  | 83.1% \| 83.1% | 81.7% \| 82.3% | 83.0% \| 82.3% |
 | 65B  | 85.5% \| 85.3% | 81.2% \| 82.8% | 82.3% \| 82.8% |
+
+## Citation
+
+You may also consider original work in your reference:
+
+@article{touvron2023llama,
+  title={Llama: Open and efficient foundation language models},
+  author={Touvron, Hugo and Lavril, Thibaut and Izacard, Gautier and Martinet, Xavier and Lachaux, Marie-Anne and Lacroix, Timoth{\'e}e and Rozi{\`e}re, Baptiste and Goyal, Naman and Hambro, Eric and Azhar, Faisal and others},
+  journal={arXiv preprint arXiv:2302.13971},
+  year={2023}
+}
