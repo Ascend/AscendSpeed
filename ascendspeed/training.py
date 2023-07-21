@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pretrain utilities."""
 
 from datetime import datetime
@@ -24,6 +23,11 @@ import json
 
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
+
+import deepspeed
+from deepspeed.accelerator import get_accelerator
+from deepspeed.compression.compress import init_compression, redundancy_clean
+from deepspeed.runtime.data_pipeline.data_routing.helper import convert_to_random_ltd
 
 from ascendspeed import get_args
 from ascendspeed import get_timers
@@ -53,11 +57,6 @@ from ascendspeed.schedules import forward_backward_pipelining_with_interleaving
 from ascendspeed.schedules import optimized_forward_backward_pipelining
 from ascendspeed.utils import report_memory, throughput_calculator, checkpoint_throughput_calculator
 from ascendspeed.model.transformer import  ParallelTransformerLayer
-
-import deepspeed
-from deepspeed.accelerator import get_accelerator
-from deepspeed.compression.compress import init_compression, redundancy_clean
-from deepspeed.runtime.data_pipeline.data_routing.helper import convert_to_random_ltd
 
 
 # The earliest we can measure the start time.
@@ -121,7 +120,7 @@ def pretrain(train_valid_test_dataset_provider,
         1) initialize ascendspeed.
         2) setup model, optimizer and lr schedule using the model_provider.
         3) call train_val_test_data_provider to get train/val/test datasets.
-        4) train the modle using the forward_step_func.
+        4) train the model using the forward_step_func.
 
     Arguments:
         train_valid_test_dataset_provider: a function that takes the size of
@@ -139,7 +138,8 @@ def pretrain(train_valid_test_dataset_provider,
             to set already parse arguments.
     """
 
-    # Initalize and get arguments, timers, and Tensorboard writer.
+    # Initialize and get arguments, timers, and TensorBoard writer.
+    # 1.初始化分布式环境
     initialize_megatron(extra_args_provider=extra_args_provider,
                         args_defaults=args_defaults)
 
@@ -177,6 +177,7 @@ def pretrain(train_valid_test_dataset_provider,
             args.compression_training = True
 
     # Model, optimizer, and learning rate.
+    # 2、模型并行：定义模型架构，并切割模型
     timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
         model_provider, teacher=False, data_post_process=data_post_process,
@@ -187,6 +188,7 @@ def pretrain(train_valid_test_dataset_provider,
                    'scheduler are built')
 
     # Data stuff.
+    # 3、构造train/val/test数据集
     timers('train/valid/test-data-iterators-setup', log_level=0).start(barrier=True)
     if args.virtual_pipeline_model_parallel_size is not None:
         all_data_iterators = [
@@ -234,6 +236,7 @@ def pretrain(train_valid_test_dataset_provider,
     timers.log(['model-and-optimizer-setup', 'train/valid/test-data-iterators-setup'], barrier=True)
     print_rank_0('training ...')
 
+    # 4、正式训练
     if args.do_train and args.train_iters > 0:
         iteration = train(forward_step_func,
                           model, optimizer, lr_scheduler,
@@ -354,7 +357,6 @@ def get_model(model_provider_func):
             post_process=post_process
         )
 
-
     if not isinstance(model, list):
         model = [model]
 
@@ -383,7 +385,6 @@ def get_model(model_provider_func):
         device_name = get_accelerator().current_device_name()
         print_rank_0(f"model to {device_name}")
         model_module.to(device_name)
- 
 
     # Fp16 conversion.
     if args.fp16 or args.bf16:
@@ -480,13 +481,14 @@ def load_model_weights_only(model_provider_func):
     print_datetime('before load checkpoint')
     if args.load is not None:
         iteration = load_checkpoint(model, optimizer, lr_scheduler, strict=True, load_only_weights=True)
-
     print_datetime('after load checkpoint weights')
 
     return model, optimizer, lr_scheduler
 
-def setup_model_and_optimizer(model_provider_func, teacher=False,
-    data_post_process=None, build_train_valid_test_datasets_provider=None):
+def setup_model_and_optimizer(model_provider_func,
+                              teacher=False,
+                              data_post_process=None,
+                              build_train_valid_test_datasets_provider=None):
     """Setup model and optimizer."""
     args = get_args()
 

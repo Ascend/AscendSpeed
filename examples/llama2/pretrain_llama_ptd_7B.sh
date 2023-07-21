@@ -1,4 +1,4 @@
-# This is an example: train llama using PTD.
+# This is an example: training llama using PTD/
 
 # The number of parameters is not aligned
 export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
@@ -32,7 +32,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --micro-batch-size 1 \
        --global-batch-size 32 \
        --seq-length 2048 \
-       --max-position-embeddings 2048 \
+       --max-position-embeddings 4096 \
        --train-iters 500000 \
        --lr-decay-iters 320000 \
        --save $CHECKPOINT_PATH \

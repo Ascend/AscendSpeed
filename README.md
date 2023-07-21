@@ -1,9 +1,11 @@
 ## AscendSpeed
+
 Acceleration library for large language models in Ascend platform, which is developed based on Megatron and Deepspeed. Currently, GPT and LLaMA with PTD parallel strategy are supported.
 
-
 ### Quick Start
+
 1. Clone the repository to your local server:
+
 ```bash
 git clone https://gitee.com/ascend/AscendSpeed.git 
 cd AscendSpeed 
@@ -12,6 +14,7 @@ mkdir ckpt
 ```
 
 2. Download GPT dataset or LLama dataset or Bloom dataset:
+
 ```bash
 mv dataset AscendSpeed
 cd dataset
@@ -31,16 +34,17 @@ mv gpt2-vocab.json gpt2-merges.txt my-gpt2_text_* dataset/oscar_data_1g/
 
 mkdir -p dataset/bloom_vocab/vocab_file
 # download data by yourself from https://huggingface.co/bigscience-catalogue-data-dev/byte-level-bpe-tokenizer-no-norm-250k-whitespace-and-eos-regex-alpha-v3-dedup-lines-articles/tree/main to vocab_file
-
 ```
 
 3. Build conda envs:
+
 ```bash
 conda create -n py37 python=3.7
 conda activate py37
 ```
 
-4. Install pytorch and dependency: 
+4. Install pytorch and dependency:
+
 ```bash
 pip install apex-0.1_ascend_XXXX-cp37-cp37m-linux_XXXX.whl
 pip install torch-1.11.0+cpu-cp37-cp37m-linux_XXXXX.whl 
@@ -50,6 +54,7 @@ pip install -r requirements
 ```
 
 5. Install deepspeed and adapter:
+
 ```bash
 pip install deepspeed==0.9.2
 git clone https://gitee.com/ascend/DeepSpeed.git  (Deepspeed adapter v0.9.2, not master!)
@@ -59,35 +64,38 @@ python setup.py develop
 ```
 
 6. Start your task
+
 ```bash
-sh examples/gpt_task/pretrain_gpt_ptd_8p.sh    (Demon gpt with 200M parameters)
-sh examples/llama_task/pretrain_llama_ptd_16B.sh    (Demon llama with 250M parameters)
+sh examples/gpt/pretrain_gpt_ptd_8p.sh    (Demon gpt with 200M parameters)
+sh examples/llama/pretrain_llama_ptd_16B.sh    (Demon llama with 16B parameters)
 ```
 
 # Using HuggingFace Tokenizer
+
 Llama Tokenizer
 ------
+
 1.  Set `--tokenizer-name-or-path` in the training script : 
 ```bash
-# examples/llama_task/pretrain_llama_ptd_8p.sh
+# examples/llama/pretrain_llama_ptd_8p.sh
 
 --tokenizer-name-or-path ./dataset/llama/  \
 --tokenizer-not-use-fast  \
 ```
+
 2. Remove `--vocab-file` and`--merge-file` arguments.
+
 3. Make sure the `tokenizer_type` of `args_defaults` in `pretrain_llama.py` is `PretrainedFromHF`.
  
 
-
-
-Below is ascendspeed original README:
+Below is AscendSpeed original README:
 ------
 
 Our codebase is capable of efficiently training very large (hundreds of billions of parameters) language models with both model and data parallelism. To demonstrate how the code scales with multiple GPUs and model sizes, we consider GPT models from 1 billion all the way to 1 trillion parameters. All models use a vocabulary size of 51,200 and a sequence length of 2048. We vary hidden size, number of attention heads, and number of layers to arrive at a specifc model size. As the model size increases, we also modestly increase the batch size. We leverage [NVIDIA's Selene supercomputer](https://www.top500.org/system/179842/) to perform scaling studies and use up to 3072 [A100](https://www.nvidia.com/en-us/data-center/a100/) GPUs for the largest model. The table below shows the model configurations along with the achieved FLOPs (both per GPU and aggregate over all GPUs). Note that the FLOPs are measured for end-to-end training, i.e., includes all operations including data loading, optimization, and even logging.
 
 ![Cases](images/cases_april2021.png)
 
-All the cases from 1 billion to 1 trillion parameters achieve more than 43% half precision utilization, which is high for an end-to-end application. We observe that initially the utilization remains constant but as hidden size increases for larger models, utilization starts increasing and reaches 52% for the largest model. We also note that achieved aggregate petaFLOPs across all GPUs increases almost linearly with number of GPUs, demonstrating good weak scaling.
+All the caseSs from 1 billion to 1 trillion parameters achieve more than 43% half precision utilization, which is high for an end-to-end application. We observe that initially the utilization remains constant but as hidden size increases for larger models, utilization starts increasing and reaches 52% for the largest model. We also note that achieved aggregate petaFLOPs across all GPUs increases almost linearly with number of GPUs, demonstrating good weak scaling.
 
 
 # Contents

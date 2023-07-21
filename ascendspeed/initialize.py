@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """initialization."""
 
 import random
@@ -30,7 +29,7 @@ from ascendspeed import get_tensorboard_writer
 from ascendspeed import mpu
 from ascendspeed.global_vars import set_global_variables
 from ascendspeed.mpu import (set_tensor_model_parallel_rank,
-                          set_tensor_model_parallel_world_size)
+                             set_tensor_model_parallel_world_size)
 
 
 def initialize_megatron(extra_args_provider=None, args_defaults=None,
@@ -48,7 +47,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
     if not allow_no_cuda:
         # Make sure cuda is available.
-        assert get_accelerator().is_available(), 'ascendspeed requires accelerator.'
+        assert get_accelerator().is_available(), 'AscendSpeed requires accelerator.'
 
     # Parse args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.
@@ -61,21 +60,21 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
         args = get_args()
         # Pytorch distributed.
         _initialize_distributed()
-        
+
         # Random seeds for reproducibility.
         if args.rank == 0:
             print('> setting random seeds to {} ...'.format(args.seed))
         _set_random_seed(args.seed)
 
     args = get_args()
-    if  args.lazy_mpu_init:
-        args.use_cpu_initialization=True
+    if args.lazy_mpu_init:
+        args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals    
         set_tensor_model_parallel_world_size(args.tensor_model_parallel_size)
         # and return function for external DDP manager
         # to call when it has DDP initialized
-        set_tensor_model_parallel_rank(args.rank)    
+        set_tensor_model_parallel_rank(args.rank)
         return finish_mpu_init
     else:
         # MPU is the master. Complete initialization right away.
@@ -83,8 +82,8 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
         # Initialize memory buffers.
         _initialize_mem_buffs()
-        
-        # Autoresume.
+
+        # Auto resume.
         _init_autoresume()
 
         # Compile dependencies.
@@ -102,6 +101,7 @@ def _compile_dependencies():
         compile_helper()
         print('>>> done with dataset index builder. Compilation time: {:.3f} '
               'seconds'.format(time.time() - start_time), flush=True)
+
 
 def setup_deepspeed_random_and_activation_checkpointing(args):
     '''Optional DeepSpeed Activation Checkpointing features.
@@ -137,19 +137,26 @@ def setup_deepspeed_random_and_activation_checkpointing(args):
 def _initialize_distributed():
     """Initialize torch.distributed and mpu."""
     args = get_args()
-    device_count = get_accelerator().device_count()
-    if torch.distributed.is_initialized():
 
+    # 当前进程所在的node上可使用的GPU的数量
+    device_count = get_accelerator().device_count()
+
+    # 如果已创建好分布式环境
+    if torch.distributed.is_initialized():
+        # 在0号进程上打印出“创建完毕”的日志
         if args.rank == 0:
             print('torch distributed is already initialized, '
-                  'skipping initialization ...', flush=True)
+                  'skipping initialization ...',
+                  flush=True)
+        # 取得当前进程的全局序号
         args.rank = torch.distributed.get_rank()
+        # 取得全局进程的个数
         args.world_size = torch.distributed.get_world_size()
-
     else:
         if args.rank == 0:
             print('> initializing torch distributed ...', flush=True)
         # Manually set the device ids.
+        # 1. 初始化进程，分配GPU，并设置进程大组（group）
         if device_count > 0:
             device = args.rank % device_count
             if args.local_rank is not None:
@@ -158,12 +165,13 @@ def _initialize_distributed():
             else:
                 args.local_rank = device
 
-            get_accelerator().set_device(device) # only do so when device_count > 0
+            get_accelerator().set_device(device)  # only do so when device_count > 0
 
         # Call the init process
+        # 设置进程大组
         init_method = 'tcp://'
-        master_ip = os.getenv('MASTER_ADDR', 'localhost')
-        master_port = os.getenv('MASTER_PORT', '6000')
+        master_ip = os.getenv('MASTER_ADDR', 'localhost')  # 获取rank=0进程的ip
+        master_port = os.getenv('MASTER_PORT', '6000')  # 获取rank=0进程的端口
         init_method += master_ip + ':' + master_port
 
         if args.deepspeed or args.ds_inference:
@@ -173,8 +181,10 @@ def _initialize_distributed():
                 backend=args.distributed_backend,
                 world_size=args.world_size, rank=args.rank,
                 init_method=init_method)
+
     # Set the tensor model-parallel, pipeline model-parallel, and
     # data-parallel communicators.
+    # 2、制定DP/TP/PP分组策略，设置进程子组（subgroup）
     if device_count > 0:
         if mpu.model_parallel_is_initialized():
             print('model parallel is already initialized')
@@ -183,12 +193,13 @@ def _initialize_distributed():
                                           args.pipeline_model_parallel_size,
                                           args.virtual_pipeline_model_parallel_size)
 
+    # 设置DeepSpeed ZeRO-R，对activation进行优化
     if args.deepspeed and args.deepspeed_activation_checkpointing:
         setup_deepspeed_random_and_activation_checkpointing(args)
 
 
 def _init_autoresume():
-    """Set autoresume start time."""
+    """Set auto resume start time."""
     autoresume = get_adlr_autoresume()
     if autoresume:
         torch.distributed.barrier()
@@ -232,12 +243,12 @@ def _initialize_mem_buffs():
     if args.distribute_checkpointed_activations:
         mpu.init_checkpointed_activations_memory_buffer()
 
+
 def _is_rank_0():
     """Check whether it is rank 0. For AML, check if it is rank 0 of a node"""
     if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0 or (
-            'AZUREML_EXPERIMENT_ID' in os.environ and torch.distributed.get_rank() % get_accelerator().device_count() == 0
-            ):
+        if torch.distributed.get_rank() == 0 or \
+                torch.distributed.get_rank() % get_accelerator().device_count() == 0:
             return True
         else:
             return False
