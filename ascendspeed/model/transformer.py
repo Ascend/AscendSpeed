@@ -78,7 +78,8 @@ class ParallelMLP(MegatronModule):
             init_method=init_method,
             skip_bias_add=True,
             moe=moe,
-            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
+            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
+            sequence_parallel_enabled=args.sequence_parallel
             )
 
         self.bias_gelu_fusion = args.bias_gelu_fusion
@@ -96,7 +97,9 @@ class ParallelMLP(MegatronModule):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             moe=moe,
-            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism)
+            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
+            sequence_parallel_enabled=args.sequence_parallel
+        )
 
     def forward(self, hidden_states):
 
@@ -161,7 +164,8 @@ class ParallelAttention(MegatronModule):
                 3 * projection_size,
                 gather_output=False,
                 init_method=init_method,
-                sequence_parallel_enabled=args.sequence_parallel)
+                sequence_parallel_enabled=args.sequence_parallel
+            )
         else:
             assert attention_type == AttnType.cross_attn
             self.query = mpu.ColumnParallelLinear(
@@ -169,14 +173,16 @@ class ParallelAttention(MegatronModule):
                 projection_size,
                 gather_output=False,
                 init_method=init_method,
-                sequence_parallel_enabled=args.sequence_parallel)
+                sequence_parallel_enabled=args.sequence_parallel
+            )
 
             self.key_value = mpu.ColumnParallelLinear(
                 args.hidden_size,
                 2 * projection_size,
                 gather_output=False,
                 init_method=init_method,
-                sequence_parallel_enabled=args.sequence_parallel)
+                sequence_parallel_enabled=args.sequence_parallel
+            )
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -204,7 +210,8 @@ class ParallelAttention(MegatronModule):
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True,
-            sequence_parallel_enabled=args.sequence_parallel)
+            sequence_parallel_enabled=args.sequence_parallel
+        )
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
@@ -305,17 +312,13 @@ class ParallelAttention(MegatronModule):
 
         # Raw attention scores. [b * np, sq, sk]
         if alibi is None:
-            matmul_result = torch.baddbmm(
-                matmul_result,
-                query_layer.transpose(0, 1),   # [b * np, sq, hn]
-                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-                beta=0.0, alpha=(1.0/self.norm_factor))
+            q_trans = query_layer.transpose(0, 1).contiguous() * (1.0 / self.norm_factor)
+            k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
+            matmul_result = self.beta * matmul_result + torch.bmm(q_trans, k_trans)
         else:
-            matmul_result = torch.baddbmm(
-                matmul_result,
-                query_layer.transpose(0, 1),  # [b * np, sq, hn]
-                key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-                beta=self.beta, alpha=(1.0 / self.norm_factor))
+            q_trans = query_layer.transpose(0, 1).contiguous() * (1.0 / self.norm_factor)
+            k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
+            matmul_result = self.beta * matmul_result + torch.bmm(q_trans, k_trans)
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
@@ -442,7 +445,7 @@ class ParallelTransformerLayer(MegatronModule):
 
         self.bf16 = args.bf16
         self.fp32_residual_connection = args.fp32_residual_connection
-
+        self.sequence_parallel = args.sequence_parallel
         # Layernorm on the input data.
         self.input_layernorm = LayerNorm(
             args.hidden_size,
