@@ -386,6 +386,14 @@ def _add_logging_args(parser):
                        '      executed numerous times during each iteration. '
                        'Note that setting the level to 1 or 2 might '
                        'cause increase in iteration time.')
+    group.add_argument('--no-barrier-with-level-1-timing', action='store_false',
+                       help='If not set, use barrier with level 1 time '
+                       'measurements. Note that this is up to the user '
+                       'to make sure calling barrier with their timers '
+                       'will not result in hangs. This can happen if for '
+                       'example the user adds a level 1 timer that is not '
+                       'called by all ranks.',
+                       dest='barrier_with_L1_time')
     group.add_argument('--timing-log-option', type=str, default='flatten',
                        choices=['flatten', 'max', 'minmax', 'all'],
                        help='Options for logging timing:'

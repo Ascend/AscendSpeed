@@ -385,7 +385,7 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
         timers = get_timers()
 
         # Copy gradients from model params to main params.
-        timers('optimizer-copy-to-main-grad').start()
+        timers('optimizer-copy-to-main-grad', log_level=1).start()
         self._copy_model_grads_to_main_grads()
         timers('optimizer-copy-to-main-grad').stop()
 
@@ -394,7 +394,7 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
         if self.grad_scaler:
 
             # Unscale and check for inf/nan.
-            timers('optimizer-unscale-and-check-inf').start()
+            timers('optimizer-unscale-and-check-inf', log_level=1).start()
             found_inf_flag = self._unscale_main_grads_and_check_for_nan()
             timers('optimizer-unscale-and-check-inf').stop()
 
@@ -407,7 +407,7 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
                 return False, None, None
 
         # Clip the main gradients.
-        timers('optimizer-clip-main-grad').start()
+        timers('optimizer-clip-main-grad', log_level=1).start()
         grad_norm = None
         if self.clip_grad > 0.0:
             grad_norm = self.clip_grad_norm(self.clip_grad)
@@ -421,7 +421,7 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
         self.optimizer.step()
 
         # Update params from main params.
-        timers('optimizer-copy-main-to-model-params').start()
+        timers('optimizer-copy-main-to-model-params', log_level=1).start()
         self._copy_main_params_to_model_params()
         timers('optimizer-copy-main-to-model-params').stop()
 

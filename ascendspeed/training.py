@@ -178,7 +178,7 @@ def pretrain(train_valid_test_dataset_provider,
 
     # Model, optimizer, and learning rate.
     # 2、模型并行：定义模型架构，并切割模型
-    timers('model-and-optimizer-setup').start()
+    timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
         model_provider, teacher=False, data_post_process=data_post_process,
         build_train_valid_test_datasets_provider=train_valid_test_dataset_provider)
@@ -189,7 +189,7 @@ def pretrain(train_valid_test_dataset_provider,
 
     # Data stuff.
     # 3、构造train/val/test数据集
-    timers('train/valid/test-data-iterators-setup').start()
+    timers('train/valid/test-data-iterators-setup', log_level=0).start(barrier=True)
     if args.virtual_pipeline_model_parallel_size is not None:
         all_data_iterators = [
             build_train_valid_test_data_iterators(train_valid_test_dataset_provider)
@@ -233,7 +233,7 @@ def pretrain(train_valid_test_dataset_provider,
 
     # Print setup timing.
     print_rank_0('done with setup ...')
-    timers.log(['model-and-optimizer-setup', 'train/valid/test-data-iterators-setup'])
+    timers.log(['model-and-optimizer-setup', 'train/valid/test-data-iterators-setup'], barrier=True)
     print_rank_0('training ...')
 
     # 4、正式训练
@@ -598,10 +598,10 @@ def setup_model_and_optimizer(model_provider_func,
             # Extra barrier is added to make sure all ranks report the
             # max time.
             torch.distributed.barrier()
-            timers('load-checkpoint').start()
+            timers('load-checkpoint', log_level=0).start(barrier=True)
             args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
             torch.distributed.barrier()
-            timers('load-checkpoint').stop()
+            timers('load-checkpoint').stop(barrier=True)
             timers.log(['load-checkpoint'])
         else:
             args.iteration = 0
@@ -649,6 +649,9 @@ def train_step(forward_step_func, data_iterator,
         else:
             optimizer.zero_grad()
 
+    timers('forward-backward', log_level=1).start(
+        barrier=args.barrier_with_L1_time)
+
     if mpu.get_pipeline_model_parallel_world_size() > 1:
         if args.virtual_pipeline_model_parallel_size is not None:
             forward_backward_func = forward_backward_pipelining_with_interleaving
@@ -672,9 +675,11 @@ def train_step(forward_step_func, data_iterator,
     if args.mos or args.kd:
         args.teacher_forward = False
 
+    timers('forward-backward').stop()
+
     # All-reduce if needed.
     if not args.deepspeed and args.DDP_impl == 'local':
-        timers('backward-params-all-reduce').start()
+        timers('backward-params-all-reduce', log_level=1).start(barrier=args.barrier_with_L1_time)
         for model_module in model:
             model_module.allreduce_gradients()
         timers('backward-params-all-reduce').stop()
@@ -683,7 +688,7 @@ def train_step(forward_step_func, data_iterator,
     # that word_embeddings parameters stay in sync.
     # This should only run for models that support pipelined model parallelism
     # (BERT and GPT-2).
-    timers('backward-embedding-all-reduce').start()
+    timers('backward-embedding-all-reduce', log_level=1).start(barrier=args.barrier_with_L1_time)
     if not args.deepspeed:
         if (mpu.is_pipeline_first_stage(ignore_virtual=True) or
             mpu.is_pipeline_last_stage(ignore_virtual=True)) and \
@@ -705,7 +710,7 @@ def train_step(forward_step_func, data_iterator,
     timers('backward-embedding-all-reduce').stop()
 
     # Update parameters.
-    timers('optimizer').start()
+    timers('optimizer', log_level=1).start(barrier=args.barrier_with_L1_time)
     if args.deepspeed:
         increment = get_num_microbatches() * \
                     args.micro_batch_size * \
@@ -963,7 +968,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                 writer.add_scalar('optimizer/weight_abs_max', opt_stats_2[3], iteration)
 
     if iteration % args.log_interval == 0:
-        elapsed_time = timers('interval-time').elapsed()
+        elapsed_time = timers('interval-time').elapsed(barrier=True)
         elapsed_time_per_iteration = elapsed_time / total_iterations
         seq_len = args.seq_length
         if hasattr(args, 'actual_seq_length'):
@@ -1044,10 +1049,10 @@ def save_checkpoint_and_time(iteration, model, optimizer, lr_scheduler):
     # Extra barrier is added to make sure
     # all ranks report the max time.
     torch.distributed.barrier()
-    timers('save-checkpoint').start()
+    timers('save-checkpoint', log_level=0).start(barrier=True)
     save_checkpoint(iteration, model, optimizer, lr_scheduler)
     torch.distributed.barrier()
-    timers('save-checkpoint').stop()
+    timers('save-checkpoint').stop(barrier=True)
     checkpoint_throughput_calculator(model, timers('save-checkpoint').elapsed(reset=False))
     timers.log(['save-checkpoint'])
 
@@ -1076,7 +1081,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     # Iterations.
     iteration = args.iteration
 
-    timers('interval-time').start()
+    timers('interval-time', log_level=0).start()
     print_datetime('before the start of training step')
     report_memory_flag = True
     if args.random_ltd:
