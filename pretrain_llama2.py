@@ -13,7 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pretrain Llama."""
+"""Pretrain Llama2."""
 
 import math
 from functools import partial
@@ -33,7 +33,7 @@ from ascendspeed import get_timers
 from ascendspeed import get_tokenizer
 from ascendspeed import mpu
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
-from ascendspeed.model import LlamaModel, LlamaModelPipe
+from ascendspeed.model import Llama2Model, Llama2ModelPipe
 from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
@@ -52,7 +52,7 @@ def model_provider(pre_process=True, post_process=True):
                              enabled=args.zero_stage == 3,
                              mpu=mpu):
         if args.deepspeed and not args.no_pipeline_parallel:
-            model = LlamaModelPipe(parallel_output=True)
+            model = Llama2ModelPipe(parallel_output=True)
             # This is a hack to give us a reference to get_batch_pipe from within training.py
             # We need to call model.set_batch_fn after deepspeed.initialize
             model._megatron_batch_fn = get_batch_pipe
@@ -75,7 +75,7 @@ def model_provider(pre_process=True, post_process=True):
             # Attention mask must be bool.
             args.attn_mask = attention_mask.to(torch.bool)
         else:
-            model = LlamaModel(
+            model = Llama2Model(
                 parallel_output=True,
                 add_pooler=False,
                 pre_process=pre_process,
@@ -210,7 +210,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
         seq_length=args.seq_length,
         seed=args.seed,
         skip_warmup=(not args.mmap_warmup))
-    print_rank_0("> finished creating llama datasets ...")
+    print_rank_0("> finished creating llama2 datasets ...")
 
     return train_ds, valid_ds, test_ds
 
