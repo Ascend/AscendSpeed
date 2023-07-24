@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, HUAWEI CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 import torch
 
 from .utils import ensure_divisibility, GlobalMemoryBuffer
-
 
 # Intra-layer model parallel group that the current rank belongs to.
 _TENSOR_MODEL_PARALLEL_GROUP = None
@@ -47,6 +46,7 @@ _PIPELINE_GLOBAL_RANKS = None
 
 # Memory buffers to avoid dynamic memory allocation
 _GLOBAL_MEMORY_BUFFER = None
+
 
 def is_unitialized():
     """Useful for code segments that may be accessed with or without mpu initialization"""
@@ -84,23 +84,16 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
             tensor_model_parallel_size_))
         print('> initializing pipeline model parallel with size {}'.format(
             pipeline_model_parallel_size_))
-
     # Get world size and rank. Ensure some consistencies.
-    # 确保torch已经做了分布式初始化
     assert torch.distributed.is_initialized()
-    world_size = torch.distributed.get_world_size() # 得到全局进程的总数
+    world_size = torch.distributed.get_world_size()
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)
-
-    # 后者表示一个完整模型所占的gpu数，我们要保证前者能被后者整除
     ensure_divisibility(world_size,
                         tensor_model_parallel_size * pipeline_model_parallel_size)
-
-    # 根据TP_size和PP_size，求出DP_size
     data_parallel_size = world_size // (tensor_model_parallel_size *
                                         pipeline_model_parallel_size)
 
-    # 设置 tp、pp、dp的组数
     num_tensor_model_parallel_groups = world_size // tensor_model_parallel_size
     num_pipeline_model_parallel_groups = world_size // pipeline_model_parallel_size
     num_data_parallel_groups = world_size // data_parallel_size
@@ -111,10 +104,9 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
         _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = 0
         _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = virtual_pipeline_model_parallel_size_
 
-    # 获取当前进程的全局rank
     rank = torch.distributed.get_rank()
 
-    # Build the data-parallel groups. 设置DP组
+    # Build the data-parallel groups.
     global _DATA_PARALLEL_GROUP
     assert _DATA_PARALLEL_GROUP is None, \
         'data parallel group is already initialized'
@@ -130,7 +122,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
             if rank in ranks:
                 _DATA_PARALLEL_GROUP = group
 
-    # Build the model-parallel groups. 设置MP组
+    # Build the model-parallel groups.
     global _MODEL_PARALLEL_GROUP
     assert _MODEL_PARALLEL_GROUP is None, \
         'model parallel group is already initialized'
@@ -141,7 +133,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
         if rank in ranks:
             _MODEL_PARALLEL_GROUP = group
 
-    # Build the tensor model-parallel groups. 设置TP组
+    # Build the tensor model-parallel groups.
     global _TENSOR_MODEL_PARALLEL_GROUP
     assert _TENSOR_MODEL_PARALLEL_GROUP is None, \
         'tensor model parallel group is already initialized'
@@ -154,7 +146,6 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
 
     # Build the pipeline model-parallel groups and embedding groups
     # (first and last rank in each pipeline model-parallel group).
-    # 设置PP组与embedding组
     global _PIPELINE_MODEL_PARALLEL_GROUP
     global _PIPELINE_GLOBAL_RANKS
     assert _PIPELINE_MODEL_PARALLEL_GROUP is None, \
@@ -165,7 +156,7 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size,
                       num_pipeline_model_parallel_groups)
-        group = torch.distributed.new_group(ranks) # 设置PP组
+        group = torch.distributed.new_group(ranks)
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -175,10 +166,10 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
             embedding_ranks = [ranks[0], ranks[-1]]
         else:
             embedding_ranks = ranks
-        group = torch.distributed.new_group(embedding_ranks) # 设置embedding组
+        group = torch.distributed.new_group(embedding_ranks)
         if rank in embedding_ranks:
             _EMBEDDING_GROUP = group
-            
+
     # Initialize global memory buffer
     # This isn't really "parallel state" but there isn't another good place to
     # put this. If we end up with a more generic initialization of megatron-core
@@ -189,8 +180,8 @@ def initialize_model_parallel(tensor_model_parallel_size_=1,
 def model_parallel_is_initialized():
     """Check if model and data parallel groups are initialized."""
     if _TENSOR_MODEL_PARALLEL_GROUP is None or \
-        _PIPELINE_MODEL_PARALLEL_GROUP is None or \
-        _DATA_PARALLEL_GROUP is None:
+            _PIPELINE_MODEL_PARALLEL_GROUP is None or \
+            _DATA_PARALLEL_GROUP is None:
         return False
     return True
 
@@ -300,7 +291,7 @@ def is_pipeline_first_stage(ignore_virtual=False):
     """Return True if in the first pipeline model-parallel stage, False otherwise."""
     if not ignore_virtual:
         if get_virtual_pipeline_model_parallel_world_size() is not None and \
-            get_virtual_pipeline_model_parallel_rank() != 0:
+                get_virtual_pipeline_model_parallel_rank() != 0:
             return False
     return get_pipeline_model_parallel_rank() == 0
 
@@ -311,11 +302,11 @@ def is_pipeline_last_stage(ignore_virtual=False):
         virtual_pipeline_model_parallel_world_size = \
             get_virtual_pipeline_model_parallel_world_size()
         if virtual_pipeline_model_parallel_world_size is not None and \
-            get_virtual_pipeline_model_parallel_rank() != (
+                get_virtual_pipeline_model_parallel_rank() != (
                 virtual_pipeline_model_parallel_world_size - 1):
             return False
     return get_pipeline_model_parallel_rank() == (
-        get_pipeline_model_parallel_world_size() - 1)
+            get_pipeline_model_parallel_world_size() - 1)
 
 
 def get_virtual_pipeline_model_parallel_rank():
@@ -355,6 +346,7 @@ def get_pipeline_model_parallel_last_rank():
         "Pipeline parallel group is not initialized"
     last_rank_local = get_pipeline_model_parallel_world_size() - 1
     return _PIPELINE_GLOBAL_RANKS[last_rank_local]
+
 
 def get_pipeline_model_parallel_next_rank():
     assert _PIPELINE_GLOBAL_RANKS is not None, \

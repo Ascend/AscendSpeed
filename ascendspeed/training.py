@@ -39,6 +39,7 @@ from ascendspeed import update_num_microbatches
 from ascendspeed import mpu
 from ascendspeed import print_rank_0
 from ascendspeed import print_rank_last
+from ascendspeed.core import parallel_state
 from ascendspeed.checkpointing import load_checkpoint
 from ascendspeed.checkpointing import save_checkpoint
 from ascendspeed.model import Float16Module
@@ -75,7 +76,7 @@ def _initialize_optimized_pipeline():
         # An example config when pipeline-model-parallel-size is 4.
         # This theoretically reduces near 20% pipeline bubble.
         assert args.micro_batch_size == 4
-        assert args.global_batch_size // mpu.get_data_parallel_world_size() == 64
+        assert args.global_batch_size // parallel_state.get_data_parallel_world_size() == 64
         assert args.pipeline_model_parallel_size == 4
         args.manual_mbs = [1, 2, 3, 4, 5, 5, 5, 5, 5, 5, \
                            5, 5, 5, 4, 3, 2]
@@ -83,7 +84,7 @@ def _initialize_optimized_pipeline():
         # An example config when pipeline-model-parallel-size is 8
         # # This theoretically reduces near 30% pipeline bubble.
         assert args.micro_batch_size == 4
-        assert args.global_batch_size // mpu.get_data_parallel_world_size() == 96
+        assert args.global_batch_size // parallel_state.get_data_parallel_world_size() == 96
         assert args.pipeline_model_parallel_size == 8
         args.manual_mbs = [1, 2, 2, 3, 4, 5, 5, 5, 5, 5, 5, 5, \
                            5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 3, 2]
@@ -100,9 +101,9 @@ def _initialize_optimized_pipeline():
 
     # sanity check
     assert isinstance(args.manual_mbs, list), 'A proper manual-mbs has to be provided'
-    assert len(args.manual_mbs) == args.global_batch_size // mpu.get_data_parallel_world_size() \
+    assert len(args.manual_mbs) == args.global_batch_size // parallel_state.get_data_parallel_world_size() \
            // args.micro_batch_size, 'Check number of micro batches.'
-    assert sum(args.manual_mbs) * mpu.get_data_parallel_world_size() == args.global_batch_size, \
+    assert sum(args.manual_mbs) * parallel_state.get_data_parallel_world_size() == args.global_batch_size, \
         'Check either miro batch sizes or global batch sizes.'
 
 
@@ -336,22 +337,22 @@ def get_model(model_provider_func):
     args = get_args()
 
     # Build model.
-    if mpu.get_pipeline_model_parallel_world_size() > 1 and \
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1 and \
        args.virtual_pipeline_model_parallel_size is not None:
         model = []
         for i in range(args.virtual_pipeline_model_parallel_size):
-            mpu.set_virtual_pipeline_model_parallel_rank(i)
+            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
             # Set pre_process and post_process only after virtual rank is set.
-            pre_process = mpu.is_pipeline_first_stage()
-            post_process = mpu.is_pipeline_last_stage()
+            pre_process = parallel_state.is_pipeline_first_stage()
+            post_process = parallel_state.is_pipeline_last_stage()
             this_model = model_provider_func(
                 pre_process=pre_process,
                 post_process=post_process
             )
             model.append(this_model)
     else:
-        pre_process = mpu.is_pipeline_first_stage()
-        post_process = mpu.is_pipeline_last_stage()
+        pre_process = parallel_state.is_pipeline_first_stage()
+        post_process = parallel_state.is_pipeline_last_stage()
         model = model_provider_func(
             pre_process=pre_process,
             post_process=post_process
@@ -369,11 +370,11 @@ def get_model(model_provider_func):
             mpu.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print(' > number of parameters on (tensor, pipeline) '
               'model parallel rank ({}, {}): {}'.format(
-            mpu.get_tensor_model_parallel_rank(),
-            mpu.get_pipeline_model_parallel_rank(),
+            parallel_state.get_tensor_model_parallel_rank(),
+            parallel_state.get_pipeline_model_parallel_rank(),
             sum([sum([p.ds_numel if hasattr(p,'ds_id') else p.nelement() for p in model_module.parameters()])
                  for model_module in model])), flush=True)
 
@@ -393,7 +394,7 @@ def get_model(model_provider_func):
     if args.DDP_impl == 'torch':
         i = get_accelerator().current_device()
         model = [torchDDP(model_module, device_ids=[i], output_device=i,
-                          process_group=mpu.get_data_parallel_group())
+                          process_group=parallel_state.get_data_parallel_group())
                  for model_module in model]
         return model
 
@@ -537,12 +538,12 @@ def setup_model_and_optimizer(model_provider_func,
 
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
-        pp = mpu.get_pipeline_model_parallel_world_size()
+        pp = parallel_state.get_pipeline_model_parallel_world_size()
         if args.data_efficiency_curriculum_learning and build_train_valid_test_datasets_provider is not None:
             train_ds = None
             # Only need to build dataset on tp rank 0 since ascendspeed has the
             # broadcast_data() function that broadcast data from tp rank 0.
-            if mpu.get_tensor_model_parallel_rank() == 0:
+            if parallel_state.get_tensor_model_parallel_rank() == 0:
                 # Number of train/valid/test samples.
                 if args.train_samples:
                     train_samples = args.train_samples
@@ -585,9 +586,9 @@ def setup_model_and_optimizer(model_provider_func,
             # hack to get batch_fn from pretrain_gpt.py
             model.set_batch_fn(model.module._megatron_batch_fn)
 
-            assert model.grid.get_pipe_parallel_rank() == mpu.get_pipeline_model_parallel_rank()
-            assert model.grid.get_slice_parallel_rank() == mpu.get_tensor_model_parallel_rank()
-            assert model.grid.get_data_parallel_rank() == mpu.get_data_parallel_rank()
+            assert model.grid.get_pipe_parallel_rank() == parallel_state.get_pipeline_model_parallel_rank()
+            assert model.grid.get_slice_parallel_rank() == parallel_state.get_tensor_model_parallel_rank()
+            assert model.grid.get_data_parallel_rank() == parallel_state.get_data_parallel_rank()
         model = [model]
 
     # Compression has its own checkpoint loading path (e.g, loading both teacher and student models). So if compression is enabled, we skip the following checkpoint loading.
@@ -609,7 +610,7 @@ def setup_model_and_optimizer(model_provider_func,
         model[0].global_steps = student_global_steps
 
     # We only support local DDP with multiple micro-batches.
-    if len(model) > 1 or mpu.get_pipeline_model_parallel_world_size() > 1:
+    if len(model) > 1 or parallel_state.get_pipeline_model_parallel_world_size() > 1:
         assert args.DDP_impl == 'local'
 
     # get model without FP16 and/or TorchDDP wrappers
@@ -652,7 +653,7 @@ def train_step(forward_step_func, data_iterator,
     timers('forward-backward', log_level=1).start(
         barrier=args.barrier_with_L1_time)
 
-    if mpu.get_pipeline_model_parallel_world_size() > 1:
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
         if args.virtual_pipeline_model_parallel_size is not None:
             forward_backward_func = forward_backward_pipelining_with_interleaving
             assert get_num_microbatches() % args.pipeline_model_parallel_size == 0, \
@@ -690,12 +691,12 @@ def train_step(forward_step_func, data_iterator,
     # (BERT and GPT-2).
     timers('backward-embedding-all-reduce', log_level=1).start(barrier=args.barrier_with_L1_time)
     if not args.deepspeed:
-        if (mpu.is_pipeline_first_stage(ignore_virtual=True) or
-            mpu.is_pipeline_last_stage(ignore_virtual=True)) and \
-                mpu.get_pipeline_model_parallel_world_size() > 1:
-            if mpu.is_pipeline_first_stage(ignore_virtual=True):
+        if (parallel_state.is_pipeline_first_stage(ignore_virtual=True) or
+            parallel_state.is_pipeline_last_stage(ignore_virtual=True)) and \
+                parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                 unwrapped_model = model[0]
-            elif mpu.is_pipeline_last_stage(ignore_virtual=True):
+            elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 unwrapped_model = model[-1]
             unwrapped_model = unwrap_model(
                 unwrapped_model, (torchDDP, LocalDDP, Float16Module))
@@ -706,7 +707,7 @@ def train_step(forward_step_func, data_iterator,
                     grad = word_embeddings_weight.main_grad
                 else:
                     grad = word_embeddings_weight.grad
-                torch.distributed.all_reduce(grad, group=mpu.get_embedding_group())
+                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
     timers('backward-embedding-all-reduce').stop()
 
     # Update parameters.
@@ -742,7 +743,7 @@ def train_step(forward_step_func, data_iterator,
         else:
             skipped_iter = 1
 
-        if mpu.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             # Average loss across microbatches.
             loss_reduced = {}
             for key in losses_reduced[0]:
@@ -920,24 +921,24 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             if args.zero_stage > 0:
                 # ZeRO partiions optimizer states
                 opt_stats = get_accelerator().FloatTensor(opt_stats)
-                torch.distributed.all_reduce(opt_stats, group=mpu.get_data_parallel_group())
+                torch.distributed.all_reduce(opt_stats, group=parallel_state.get_data_parallel_group())
                 opt_stats_2 = get_accelerator().FloatTensor(opt_stats_2)
                 torch.distributed.all_reduce(opt_stats_2, op=torch.distributed.ReduceOp.MAX,
-                    group=mpu.get_data_parallel_group())
+                    group=parallel_state.get_data_parallel_group())
 
             if args.tensor_model_parallel_size > 1:
                 opt_stats = get_accelerator().FloatTensor(opt_stats)
-                torch.distributed.all_reduce(opt_stats, group=mpu.get_tensor_model_parallel_group())
+                torch.distributed.all_reduce(opt_stats, group=parallel_state.get_tensor_model_parallel_group())
                 opt_stats_2 = get_accelerator().FloatTensor(opt_stats_2)
                 torch.distributed.all_reduce(opt_stats_2, op=torch.distributed.ReduceOp.MAX,
-                    group=mpu.get_tensor_model_parallel_group())
+                    group=parallel_state.get_tensor_model_parallel_group())
 
             if args.pipeline_model_parallel_size > 1:
                 opt_stats = get_accelerator().FloatTensor(opt_stats)
-                torch.distributed.all_reduce(opt_stats, group=mpu.get_pipeline_model_parallel_group())
+                torch.distributed.all_reduce(opt_stats, group=parallel_state.get_pipeline_model_parallel_group())
                 opt_stats_2 = get_accelerator().FloatTensor(opt_stats_2)
                 torch.distributed.all_reduce(opt_stats_2, op=torch.distributed.ReduceOp.MAX,
-                    group=mpu.get_pipeline_model_parallel_group())
+                    group=parallel_state.get_pipeline_model_parallel_group())
 
             # print('step {} rank {} after sync opt_stats {}, {}'.format(iteration, torch.distributed.get_rank(), opt_stats_2, opt_stats))
             if writer and is_last_rank():
@@ -1093,7 +1094,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         update_num_microbatches(args.consumed_train_samples)
         if args.deepspeed:
             # inform deepspeed of any batch size changes
-            global_batch_size = mpu.get_data_parallel_world_size() * \
+            global_batch_size = parallel_state.get_data_parallel_world_size() * \
                                 args.micro_batch_size * \
                                 get_num_microbatches()
             model[0].set_train_batch_size(global_batch_size)
@@ -1109,7 +1110,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                        lr_scheduler)
         iteration += 1
         args.iteration = iteration
-        new_samples = mpu.get_data_parallel_world_size() * \
+        new_samples = parallel_state.get_data_parallel_world_size() * \
                                        args.micro_batch_size * \
                                        get_num_microbatches()
         args.consumed_train_samples += new_samples
@@ -1125,7 +1126,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
             if hasattr(args, 'data_efficiency_curriculum_learning_numel'):
                 act_mbsz = args.data_efficiency_curriculum_learning_numel / args.curriculum_seqlen
                 act_token = act_mbsz * args.actual_seq_length
-                args.consumed_train_tokens += mpu.get_data_parallel_world_size() * \
+                args.consumed_train_tokens += parallel_state.get_data_parallel_world_size() * \
                         get_num_microbatches() * act_token
             else:
                 args.consumed_train_tokens += new_samples * args.actual_seq_length
@@ -1229,7 +1230,7 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
                 print_rank_0('Evaluating iter {}/{}'.format(iteration,
                                                             args.eval_iters))
 
-            if mpu.get_pipeline_model_parallel_world_size() > 1:
+            if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 if args.virtual_pipeline_model_parallel_size is not None:
                     forward_backward_func = forward_backward_pipelining_with_interleaving
                 elif args.optimized_pipeline:
@@ -1249,7 +1250,7 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
                     forward_step_func, data_iterator, model, optimizer=None,
                     timers=None, forward_only=True)
             
-            if mpu.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 # Reduce across processes.
                 for loss_dict in loss_dicts:
                     for key in loss_dict:
@@ -1257,7 +1258,7 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
                             total_loss_dict[key] = total_loss_dict.get(
                                 key, get_accelerator().FloatTensor([0.0])) + loss_dict[key]
 
-            args.consumed_valid_samples += mpu.get_data_parallel_world_size() \
+            args.consumed_valid_samples += parallel_state.get_data_parallel_world_size() \
                                            * args.micro_batch_size \
                                            * get_num_microbatches()
     # Move model back to the train mode.
@@ -1345,7 +1346,7 @@ def build_train_valid_test_data_iterators(
             args.eval_iters * args.global_batch_size
 
     # Data loader only on rank 0 of each model parallel group.
-    if mpu.get_tensor_model_parallel_rank() == 0:
+    if parallel_state.get_tensor_model_parallel_rank() == 0:
 
         # Number of train/valid/test samples.
         if args.train_samples:
@@ -1401,8 +1402,8 @@ def build_train_valid_test_data_iterators(
 
     # Broadcast num tokens.
     torch.distributed.broadcast(flags,
-                                mpu.get_tensor_model_parallel_src_rank(),
-                                group=mpu.get_tensor_model_parallel_group())
+                                parallel_state.get_tensor_model_parallel_src_rank(),
+                                group=parallel_state.get_tensor_model_parallel_group())
     args.do_train = flags[0].item()
     num_valid_ds = flags[1].item()
     num_test_ds = flags[2].item()

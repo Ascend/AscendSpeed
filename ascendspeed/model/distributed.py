@@ -20,9 +20,9 @@ import torch
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from ascendspeed import get_args
-from ascendspeed import mpu
 from .module import MegatronModule
 from deepspeed.accelerator import get_accelerator
+from ascendspeed.core import parallel_state
 
 
 class MemoryBuffer:
@@ -191,9 +191,9 @@ class DistributedDataParallel(DistributedDataParallelBase):
 
         if self._grad_buffers is not None:
             for _, buffer_ in self._grad_buffers.items():
-                buffer_.data /= mpu.get_data_parallel_world_size()
+                buffer_.data /= parallel_state.get_data_parallel_world_size()
                 torch.distributed.all_reduce(
-                    buffer_.data, group=mpu.get_data_parallel_group())
+                    buffer_.data, group=parallel_state.get_data_parallel_group())
         else:
             # Otherwise, bucketize and all-reduce
             buckets = {}
@@ -211,9 +211,9 @@ class DistributedDataParallel(DistributedDataParallelBase):
                 bucket = buckets[tp]
                 grads = [param.grad.data for param in bucket]
                 coalesced = _flatten_dense_tensors(grads)
-                coalesced /= mpu.get_data_parallel_world_size()
+                coalesced /= parallel_state.get_data_parallel_world_size()
                 torch.distributed.all_reduce(
-                    coalesced, group=mpu.get_data_parallel_group())
+                    coalesced, group=parallel_state.get_data_parallel_group())
                 for buf, synced in zip(grads, _unflatten_dense_tensors(
                         coalesced, grads)):
                     buf.copy_(synced)

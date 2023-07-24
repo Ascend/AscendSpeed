@@ -18,7 +18,6 @@
    with some changes. """
 
 import numbers
-from ascendspeed.mpu.utils import make_viewless_tensor
 import torch
 from torch.nn.parameter import Parameter
 from torch.nn import init

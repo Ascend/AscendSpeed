@@ -15,7 +15,6 @@ WORLD_SIZE=$(($NPUS_PER_NODE*$NNODES))
 
 DATA_PATH=./dataset/llama_text_document
 CHECKPOINT_PATH=./ckpt
-rm -rf ./ckpt/*
 DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 
 # Main script

@@ -21,6 +21,7 @@ from deepspeed.accelerator import get_accelerator
 
 from ascendspeed import get_args
 from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 
 
 _FLOAT_TYPES = (torch.FloatTensor, get_accelerator().FloatTensor)
@@ -50,9 +51,9 @@ class MegatronModule(torch.nn.Module):
 
 
     def word_embeddings_weight(self):
-        if mpu.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             return self.language_model.embedding.word_embeddings.weight
-        if mpu.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             if not self.share_word_embeddings:
                 raise Exception('word_embeddings_weight() called for last '
                                 'stage, but share_word_embeddings is false')
@@ -85,8 +86,8 @@ class MegatronModule(torch.nn.Module):
         # 3. In the training loop, before an all-reduce between the grads of
         #    the two word_embeddings layers to ensure that every applied weight
         #    update is the same on both stages.
-        if mpu.is_pipeline_last_stage():
-            assert not mpu.is_pipeline_first_stage()
+        if parallel_state.is_pipeline_last_stage():
+            assert not parallel_state.is_pipeline_first_stage()
             self._word_embeddings_for_head_key = 'word_embeddings_for_head'
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
@@ -99,9 +100,9 @@ class MegatronModule(torch.nn.Module):
         # Ensure that first and last stages have the same initial parameter
         # values.
         if torch.distributed.is_initialized():
-            if mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage():
+            if parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage():
                 torch.distributed.all_reduce(self.word_embeddings_weight().data,
-                                             group=mpu.get_embedding_group())
+                                             group=parallel_state.get_embedding_group())
         else:
             print("WARNING! Distributed processes aren't initialized, so "
                   "word embeddings in the last layer are not initialized. "
@@ -164,10 +165,10 @@ class Float16Module(MegatronModule):
 
 
     def forward(self, *inputs, **kwargs):
-        if mpu.is_pipeline_first_stage():
+        if parallel_state.is_pipeline_first_stage():
             inputs = fp32_to_float16(inputs, self.float16_convertor)
         outputs = self.module(*inputs, **kwargs)
-        if mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             outputs = float16_to_fp32(outputs)
         return outputs
 

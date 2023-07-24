@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, HUAWEI CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,18 +27,21 @@ import torch.nn.init as init
 from torch.nn.parameter import Parameter
 from deepspeed.accelerator import get_accelerator
 
-from ascendspeed import get_args, mpu
-from ascendspeed.mpu.initialize import get_tensor_model_parallel_rank
-from ascendspeed.mpu.initialize import get_tensor_model_parallel_group
-from ascendspeed.mpu.initialize import get_tensor_model_parallel_world_size
-from ascendspeed.mpu.initialize import get_global_memory_buffer
+from ascendspeed import get_args
+from ascendspeed.core import parallel_state
+from ascendspeed.core.parallel_state import get_tensor_model_parallel_rank
+from ascendspeed.core.parallel_state import get_tensor_model_parallel_group
+from ascendspeed.core.parallel_state import get_tensor_model_parallel_world_size
+from ascendspeed.core.parallel_state import get_global_memory_buffer
+
 from ascendspeed.mpu.mappings import copy_to_tensor_model_parallel_region
 from ascendspeed.mpu.mappings import gather_from_tensor_model_parallel_region
 from ascendspeed.mpu.mappings import reduce_from_tensor_model_parallel_region
 from ascendspeed.mpu.mappings import scatter_to_tensor_model_parallel_region
 from ascendspeed.mpu.mappings import reduce_scatter_to_sequence_parallel_region
 from ascendspeed.mpu.random import get_cuda_rng_tracker
-from ascendspeed.mpu.utils import divide, split_tensor_along_last_dim, VocabUtility
+from ascendspeed.core.utils import divide
+from ascendspeed.core.tensor_parallel import VocabUtility
 from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 
 
@@ -169,7 +172,7 @@ class VocabParallelEmbedding(torch.nn.Module):
 
         # Allocate weights and initialize.
         args = get_args()
-        if mpu.is_pipeline_first_stage() and args.embed_layernorm:
+        if parallel_state.is_pipeline_first_stage() and args.embed_layernorm:
             self.norm = LayerNorm(embedding_dim)
 
         if args.use_cpu_initialization:

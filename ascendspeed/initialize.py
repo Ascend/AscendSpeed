@@ -27,9 +27,10 @@ from ascendspeed import get_adlr_autoresume
 from ascendspeed import get_args
 from ascendspeed import get_tensorboard_writer
 from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed.global_vars import set_global_variables
-from ascendspeed.mpu import (set_tensor_model_parallel_rank,
-                          set_tensor_model_parallel_world_size)
+from ascendspeed.core.parallel_state import (set_tensor_model_parallel_rank,
+                                             set_tensor_model_parallel_world_size)
 
 
 def initialize_megatron(extra_args_provider=None, args_defaults=None,
@@ -47,7 +48,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
     if not allow_no_cuda:
         # Make sure cuda is available.
-        assert get_accelerator().is_available(), 'ascendspeed requires accelerator.'
+        assert get_accelerator().is_available(), 'AscendSpeed requires accelerator.'
 
     # Parse args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.
@@ -60,7 +61,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
         args = get_args()
         # Pytorch distributed.
         _initialize_distributed()
-        
+
         # Random seeds for reproducibility.
         if args.rank == 0:
             print('> setting random seeds to {} ...'.format(args.seed))
@@ -68,13 +69,13 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
     args = get_args()
     if args.lazy_mpu_init:
-        args.use_cpu_initialization=True
+        args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals    
         set_tensor_model_parallel_world_size(args.tensor_model_parallel_size)
         # and return function for external DDP manager
         # to call when it has DDP initialized
-        set_tensor_model_parallel_rank(args.rank)    
+        set_tensor_model_parallel_rank(args.rank)
         return finish_mpu_init
     else:
         # MPU is the master. Complete initialization right away.
@@ -82,7 +83,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
         # Initialize memory buffers.
         _initialize_mem_buffs()
-        
+
         # Auto resume.
         _init_autoresume()
 
@@ -165,13 +166,13 @@ def _initialize_distributed():
             else:
                 args.local_rank = device
 
-            get_accelerator().set_device(device) # only do so when device_count > 0
+            get_accelerator().set_device(device)  # only do so when device_count > 0
 
         # Call the init process
         # 设置进程大组
         init_method = 'tcp://'
-        master_ip = os.getenv('MASTER_ADDR', 'localhost') # 获取rank=0进程的ip
-        master_port = os.getenv('MASTER_PORT', '6000') # 获取rank=0进程的端口
+        master_ip = os.getenv('MASTER_ADDR', 'localhost')  # 获取rank=0进程的ip
+        master_port = os.getenv('MASTER_PORT', '6000')  # 获取rank=0进程的端口
         init_method += master_ip + ':' + master_port
 
         if args.deepspeed or args.ds_inference:
@@ -186,12 +187,12 @@ def _initialize_distributed():
     # data-parallel communicators.
     # 2、制定DP/TP/PP分组策略，设置进程子组（subgroup）
     if device_count > 0:
-        if mpu.model_parallel_is_initialized():
+        if parallel_state.model_parallel_is_initialized():
             print('model parallel is already initialized')
         else:
-            mpu.initialize_model_parallel(args.tensor_model_parallel_size,
-                                          args.pipeline_model_parallel_size,
-                                          args.virtual_pipeline_model_parallel_size)
+            parallel_state.initialize_model_parallel(args.tensor_model_parallel_size,
+                                                     args.pipeline_model_parallel_size,
+                                                     args.virtual_pipeline_model_parallel_size)
 
     # 设置DeepSpeed ZeRO-R，对activation进行优化
     if args.deepspeed and args.deepspeed_activation_checkpointing:
@@ -215,7 +216,7 @@ def _set_random_seed(seed_):
         if get_accelerator().device_count() == 0:
             seed = seed_
         else:
-            seed = seed_ + (100 * mpu.get_pipeline_model_parallel_rank())
+            seed = seed_ + (100 * parallel_state.get_pipeline_model_parallel_rank())
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -243,12 +244,12 @@ def _initialize_mem_buffs():
     if args.distribute_checkpointed_activations:
         mpu.init_checkpointed_activations_memory_buffer()
 
+
 def _is_rank_0():
     """Check whether it is rank 0. For AML, check if it is rank 0 of a node"""
     if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0 or (
-            'AZUREML_EXPERIMENT_ID' in os.environ and torch.distributed.get_rank() % get_accelerator().device_count() == 0
-            ):
+        if torch.distributed.get_rank() == 0 or \
+                torch.distributed.get_rank() % get_accelerator().device_count() == 0:
             return True
         else:
             return False

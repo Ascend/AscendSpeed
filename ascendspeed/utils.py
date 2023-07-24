@@ -28,7 +28,7 @@ if get_accelerator().device_name() == 'cuda':
 from ascendspeed import get_args
 from ascendspeed import print_rank_0
 from ascendspeed import get_adlr_autoresume
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed.model.module import param_is_not_shared
 from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
 from ascendspeed import get_num_microbatches
@@ -82,7 +82,7 @@ def calc_params_l2_norm(model):
     # Sum across all model-parallel GPUs.
     torch.distributed.all_reduce(norm_2,
                                  op=torch.distributed.ReduceOp.SUM,
-                                 group=mpu.get_model_parallel_group())
+                                 group=parallel_state.get_model_parallel_group())
     return norm_2.item() ** 0.5
 
 
@@ -91,9 +91,9 @@ def average_losses_across_data_parallel_group(losses):
     averaged_losses = torch.cat(
         [loss.clone().detach().view(1) for loss in losses])
     torch.distributed.all_reduce(averaged_losses,
-                                 group=mpu.get_data_parallel_group())
+                                 group=parallel_state.get_data_parallel_group())
     averaged_losses = averaged_losses / \
-        torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
+        torch.distributed.get_world_size(group=parallel_state.get_data_parallel_group())
 
     return averaged_losses
 
@@ -110,7 +110,7 @@ def report_memory(name):
         get_accelerator().memory_reserved() / mega_bytes)
     string += ' | max reserved: {}'.format(
         get_accelerator().max_memory_reserved() / mega_bytes)
-    if mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print("[Rank {}] {}".format(torch.distributed.get_rank(), string),
               flush=True)
 
@@ -252,7 +252,7 @@ def get_ltor_masks_and_position_ids(data,
 
 
 def get_parameters_in_billions(model):
-    gpus_per_model = torch.distributed.get_world_size(group=mpu.get_model_parallel_group())
+    gpus_per_model = torch.distributed.get_world_size(group=parallel_state.get_model_parallel_group())
 
     approx_parameters_in_billions = sum([sum([p.ds_numel if hasattr(p,'ds_id') else  p.nelement() for p in model_module.parameters()])
                                         for model_module in model])
@@ -260,7 +260,7 @@ def get_parameters_in_billions(model):
     return approx_parameters_in_billions*gpus_per_model/(1e9)
 
 def throughput_calculator(model, args, iteration_time, total_iterations):
-    gpus_per_model = torch.distributed.get_world_size(group = mpu.get_model_parallel_group())
+    gpus_per_model = torch.distributed.get_world_size(group = parallel_state.get_model_parallel_group())
     batch_size = args.micro_batch_size * get_num_microbatches() * args.data_parallel_size
     samples_per_model = batch_size * args.seq_length
     model_replica_count = torch.distributed.get_world_size() / gpus_per_model
