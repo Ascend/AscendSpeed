@@ -21,9 +21,9 @@ from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 from ascendspeed import get_args
 from ascendspeed import get_num_microbatches
 from ascendspeed import get_timers
-from ascendspeed import mpu
 from ascendspeed import p2p_communication
 from ascendspeed import print_rank_0
+from ascendspeed.core import parallel_state
 from ascendspeed.utils import unwrap_model
 from ascendspeed.model import DistributedDataParallel as LocalDDP
 from ascendspeed.model import Float16Module
@@ -49,7 +49,7 @@ def set_npu_overflow_flag():
 
 def get_forward_backward_func():
     args = get_args()
-    if mpu.get_pipeline_model_parallel_world_size() > 1:
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
         if args.virtual_pipeline_model_parallel_size is not None:
             forward_backward_func = forward_backward_pipelining_with_interleaving
         else:
@@ -84,7 +84,7 @@ def forward_step(forward_step_func, data_iterator, model, input_tensor, losses_r
     # Changing this API requires changing it in all models/tasks. Instead,
     # it's recommended to use args to pass additional arguments.
     output_tensor, loss_func = forward_step_func(data_iterator, model)
-    if mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         output_tensor = loss_func(output_tensor)
         loss, loss_reduced = output_tensor
         if not args.no_pipeline_parallel:
@@ -195,8 +195,8 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
     if not forward_only:
         output_tensor_grads = [[] for _ in range(len(model))]
 
-    pipeline_parallel_size = mpu.get_pipeline_model_parallel_world_size()
-    pipeline_parallel_rank = mpu.get_pipeline_model_parallel_rank()
+    pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
+    pipeline_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
 
     # Compute number of warmup and remaining microbatches.
     num_model_chunks = len(model)
@@ -237,9 +237,9 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
         (run set_virtual_pipeline_model_parallel_rank() before calling
         forward_step())."""
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
-        mpu.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
+        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
-        if mpu.is_pipeline_first_stage():
+        if parallel_state.is_pipeline_first_stage():
             if len(input_tensors[model_chunk_id]) == \
                     len(output_tensors[model_chunk_id]):
                 input_tensors[model_chunk_id].append(None)
@@ -257,9 +257,9 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
         (run set_virtual_pipeline_model_parallel_rank() before calling
         backward_step())."""
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=False)
-        mpu.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
+        parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
-        if mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             if len(output_tensor_grads[model_chunk_id]) == 0:
                 output_tensor_grads[model_chunk_id].append(None)
         input_tensor = input_tensors[model_chunk_id].pop(0)
@@ -274,7 +274,7 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
         return input_tensor_grad
 
     # Run warmup forward passes.
-    mpu.set_virtual_pipeline_model_parallel_rank(0)
+    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
     input_tensors[0].append(
         p2p_communication.recv_forward(timers))
     for k in range(num_warmup_microbatches):
@@ -283,14 +283,14 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
         # Determine if tensor should be received from previous stage.
         next_forward_model_chunk_id = get_model_chunk_id(k+1, forward=True)
         recv_prev = True
-        if mpu.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             if next_forward_model_chunk_id == 0:
                 recv_prev = False
         if k == (num_microbatches - 1):
             recv_prev = False
 
         # Don't send tensor downstream if on last stage.
-        if mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             output_tensor = None
 
         # Send and receive tensors as appropriate (send tensors computed
@@ -299,7 +299,7 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
                 not all_warmup_microbatches:
             input_tensor_grad = None
             recv_next = True
-            if mpu.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 recv_next = False
             input_tensor, output_tensor_grad = \
                 p2p_communication.send_forward_backward_recv_forward_backward(
@@ -329,19 +329,19 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
         # Determine if current stage has anything to send in either direction,
         # otherwise set tensor to None.
         forward_model_chunk_id = get_model_chunk_id(forward_k, forward=True)
-        mpu.set_virtual_pipeline_model_parallel_rank(forward_model_chunk_id)
-        if mpu.is_pipeline_last_stage():
+        parallel_state.set_virtual_pipeline_model_parallel_rank(forward_model_chunk_id)
+        if parallel_state.is_pipeline_last_stage():
             output_tensor = None
 
         backward_model_chunk_id = get_model_chunk_id(backward_k, forward=False)
-        mpu.set_virtual_pipeline_model_parallel_rank(backward_model_chunk_id)
-        if mpu.is_pipeline_first_stage():
+        parallel_state.set_virtual_pipeline_model_parallel_rank(backward_model_chunk_id)
+        if parallel_state.is_pipeline_first_stage():
             input_tensor_grad = None
 
         # Determine if peers are sending, and where in data structure to put
         # received tensors.
         recv_prev = True
-        if mpu.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
             # First stage is ahead of last stage by (pipeline_parallel_size - 1).
             next_forward_model_chunk_id = get_model_chunk_id(
                 forward_k - (pipeline_parallel_size - 1), forward=True)
@@ -353,7 +353,7 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
                                                              forward=True)
 
         recv_next = True
-        if mpu.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             # Last stage is ahead of first stage by (pipeline_parallel_size - 1).
             next_backward_model_chunk_id = get_model_chunk_id(
                 backward_k - (pipeline_parallel_size - 1), forward=False)
@@ -393,7 +393,7 @@ def forward_backward_pipelining_with_interleaving(forward_step_func, data_iterat
             input_tensor_grad = backward_step_helper(k)
             next_backward_model_chunk_id = get_model_chunk_id(k+1, forward=False)
             recv_next = True
-            if mpu.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 if next_backward_model_chunk_id == (num_model_chunks - 1):
                     recv_next = False
             if k == (num_microbatches - 1):
@@ -421,8 +421,8 @@ def forward_backward_pipelining_without_interleaving(forward_step_func, data_ite
     # Compute number of warmup microbatches.
     num_microbatches = get_num_microbatches()
     num_warmup_microbatches = \
-        (mpu.get_pipeline_model_parallel_world_size() -
-         mpu.get_pipeline_model_parallel_rank() - 1)
+        (parallel_state.get_pipeline_model_parallel_world_size() -
+         parallel_state.get_pipeline_model_parallel_rank() - 1)
     num_warmup_microbatches = min(
         num_warmup_microbatches,
         num_microbatches)
@@ -530,8 +530,8 @@ def optimized_forward_backward_pipelining(forward_step_func, data_iterator,
     # Compute number of warmup microbatches.
     num_microbatches = get_num_microbatches()
     num_warmup_microbatches = \
-        (mpu.get_pipeline_model_parallel_world_size() -
-         mpu.get_pipeline_model_parallel_rank() - 1)
+        (parallel_state.get_pipeline_model_parallel_world_size() -
+         parallel_state.get_pipeline_model_parallel_rank() - 1)
     num_warmup_microbatches = min(
         num_warmup_microbatches,
         num_microbatches)

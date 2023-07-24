@@ -27,9 +27,10 @@ from ascendspeed import get_adlr_autoresume
 from ascendspeed import get_args
 from ascendspeed import get_tensorboard_writer
 from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed.global_vars import set_global_variables
-from ascendspeed.mpu import (set_tensor_model_parallel_rank,
-                             set_tensor_model_parallel_world_size)
+from ascendspeed.core.parallel_state import (set_tensor_model_parallel_rank,
+                                             set_tensor_model_parallel_world_size)
 
 
 def initialize_megatron(extra_args_provider=None, args_defaults=None,
@@ -186,12 +187,12 @@ def _initialize_distributed():
     # data-parallel communicators.
     # 2、制定DP/TP/PP分组策略，设置进程子组（subgroup）
     if device_count > 0:
-        if mpu.model_parallel_is_initialized():
+        if parallel_state.model_parallel_is_initialized():
             print('model parallel is already initialized')
         else:
-            mpu.initialize_model_parallel(args.tensor_model_parallel_size,
-                                          args.pipeline_model_parallel_size,
-                                          args.virtual_pipeline_model_parallel_size)
+            parallel_state.initialize_model_parallel(args.tensor_model_parallel_size,
+                                                     args.pipeline_model_parallel_size,
+                                                     args.virtual_pipeline_model_parallel_size)
 
     # 设置DeepSpeed ZeRO-R，对activation进行优化
     if args.deepspeed and args.deepspeed_activation_checkpointing:
@@ -215,7 +216,7 @@ def _set_random_seed(seed_):
         if get_accelerator().device_count() == 0:
             seed = seed_
         else:
-            seed = seed_ + (100 * mpu.get_pipeline_model_parallel_rank())
+            seed = seed_ + (100 * parallel_state.get_pipeline_model_parallel_rank())
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)

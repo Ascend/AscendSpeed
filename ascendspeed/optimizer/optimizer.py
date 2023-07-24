@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, HUAWEI CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import torch
 
 from ascendspeed import get_timers
 from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed import print_rank_0
 from deepspeed.accelerator import get_accelerator
 from .clip_grads import clip_grad_norm_fp32, count_zeros_fp32
@@ -343,7 +344,7 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
         # Update across all model parallel instances.
         torch.distributed.all_reduce(self.found_inf,
                                      op=torch.distributed.ReduceOp.MAX,
-                                     group=mpu.get_model_parallel_group())
+                                     group=parallel_state.get_model_parallel_group())
 
         # Check for nan.
         found_inf_flag = (self.found_inf.item() > 0)

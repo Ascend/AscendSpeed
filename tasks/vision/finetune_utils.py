@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from ascendspeed import get_args
 from ascendspeed import print_rank_0
 from ascendspeed import get_timers
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed.checkpointing import load_checkpoint
 from ascendspeed.checkpointing import save_checkpoint
 from ascendspeed.training import evaluate_and_print_results
@@ -68,8 +68,8 @@ def build_data_loader(dataset, micro_batch_size, num_workers, drop_last):
     """Data loader. Note that batch-size is the local (per GPU) batch-size."""
 
     # Sampler.
-    world_size = mpu.get_data_parallel_world_size()
-    rank = mpu.get_data_parallel_rank()
+    world_size = parallel_state.get_data_parallel_world_size()
+    rank = parallel_state.get_data_parallel_rank()
     sampler = torch.utils.data.distributed.DistributedSampler(
         dataset, num_replicas=world_size, rank=rank
     )

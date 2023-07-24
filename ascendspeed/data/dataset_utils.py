@@ -28,9 +28,9 @@ import torch
 
 from ascendspeed import (
     get_args,
-    mpu,
     print_rank_0
 )
+from ascendspeed.core import parallel_state
 from ascendspeed.data.blendable_dataset import BlendableDataset
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
 from deepspeed.accelerator import get_accelerator
@@ -729,11 +729,11 @@ def get_samples_mapping(indexed_dataset,
     # parallel case
     if get_accelerator().device_count() > 0: # Skip when CPU-only
         counts = get_accelerator().LongTensor([1])
-        torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-        torch.distributed.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
+        torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
+        torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
         assert counts[0].item() == (
             torch.distributed.get_world_size() //
-            torch.distributed.get_world_size(group=mpu.get_tensor_model_parallel_group()))
+            torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
 
     # Load indexed dataset.
     print_rank_0(' > loading indexed mapping from {}'.format(

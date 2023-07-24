@@ -28,6 +28,7 @@ from deepspeed.pipe import PipelineModule, LayerSpec
 
 from ascendspeed import get_args
 from ascendspeed import mpu
+from ascendspeed.core import tensor_parallel, parallel_state, utils
 from ascendspeed.model.module import MegatronModule, float16_to_fp32, fp32_to_float16
 from ascendspeed.model.enums import AttnMaskType, AttnType
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal, attention_mask_func
@@ -315,12 +316,12 @@ class Llama2ParallelAttention(MegatronModule):
         projection_size = args.kv_channels * args.num_attention_heads
 
         # Per attention head and per partition values.
-        world_size = mpu.get_tensor_model_parallel_world_size()
-        self.hidden_size_per_partition = mpu.divide(projection_size,
+        world_size = parallel_state.get_tensor_model_parallel_world_size()
+        self.hidden_size_per_partition = utils.divide(projection_size,
                                                     world_size)
-        self.hidden_size_per_attention_head = mpu.divide(
+        self.hidden_size_per_attention_head = utils.divide(
             projection_size, args.num_attention_heads)
-        self.num_attention_heads_per_partition = mpu.divide(
+        self.num_attention_heads_per_partition = utils.divide(
             args.num_attention_heads, world_size)
 
         # Strided linear layer.
@@ -385,7 +386,7 @@ class Llama2ParallelAttention(MegatronModule):
             # [sq, b, 3 * h] --> 3 [sq, b, h]
             (query_layer,
              key_layer,
-             value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
+             value_layer) = utils.split_tensor_along_last_dim(mixed_x_layer, 3)
 
         # ==================================
         # Rotary Position Embedding
@@ -596,9 +597,9 @@ class Llama2ParallelTransformer(MegatronModule):
         self.checkpoint_num_layers = args.checkpoint_num_layers
 
         # Number of layers.
-        assert args.num_layers % mpu.get_pipeline_model_parallel_world_size() == 0, \
+        assert args.num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0, \
             'num_layers must be divisible by pipeline_model_parallel_size'
-        self.num_layers = args.num_layers // mpu.get_pipeline_model_parallel_world_size()
+        self.num_layers = args.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
 
         # Transformer layers.
         def build_layer(layer_number):
@@ -622,12 +623,12 @@ class Llama2ParallelTransformer(MegatronModule):
             # layers to stages like (each list is a model chunk):
             # Stage 0: [0, 1]  [4, 5]
             # Stage 1: [2, 3]  [6, 7]
-            offset = mpu.get_virtual_pipeline_model_parallel_rank() * (
+            offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
                     args.num_layers // args.virtual_pipeline_model_parallel_size) + \
-                     (mpu.get_pipeline_model_parallel_rank() * self.num_layers)
+                     (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
-            offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
+            offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = []
         # Build the layers
@@ -748,7 +749,7 @@ def CrossEntropy(output, labels):
     labels, loss_mask = labels[0], labels[1]
 
     args = get_args()
-    losses = mpu.vocab_parallel_cross_entropy(output.contiguous().float(), labels)
+    losses = tensor_parallel.vocab_parallel_cross_entropy(output.contiguous().float(), labels)
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
@@ -813,9 +814,9 @@ class Llama2ModelPipe(PipelineModule, MegatronModule):
             interval = 0
 
         from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
-        topo = PipeModelDataParallelTopology(num_pp=mpu.get_pipeline_model_parallel_world_size(),
-                                             num_mp=mpu.get_tensor_model_parallel_world_size(),
-                                             num_dp=mpu.get_data_parallel_world_size())
+        topo = PipeModelDataParallelTopology(num_pp=parallel_state.get_pipeline_model_parallel_world_size(),
+                                             num_mp=parallel_state.get_tensor_model_parallel_world_size(),
+                                             num_dp=parallel_state.get_data_parallel_world_size())
 
         super().__init__(layers=self.specs,
                          loss_fn=CrossEntropy,
@@ -898,9 +899,9 @@ class Llama2Model(MegatronModule):
             else:
                 if self.fp16_lm_cross_entropy:
                     assert hidden_states.dtype == torch.half
-                    loss = mpu.vocab_parallel_cross_entropy(hidden_states, labels)
+                    loss = tensor_parallel.vocab_parallel_cross_entropy(hidden_states, labels)
                 else:
-                    loss = mpu.vocab_parallel_cross_entropy(hidden_states.float(), labels)
+                    loss = tensor_parallel.vocab_parallel_cross_entropy(hidden_states.float(), labels)
                 return loss
 
         return hidden_states

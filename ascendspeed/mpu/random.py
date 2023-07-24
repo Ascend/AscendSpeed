@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, HUAWEI CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,10 +27,10 @@ from torch.utils.checkpoint import detach_variable
 from ascendspeed import get_args
 from ascendspeed.memory import allocate_mem_buff
 
-from .initialize import get_data_parallel_rank
-from .initialize import get_tensor_model_parallel_group
-from .initialize import get_tensor_model_parallel_rank
-from .initialize import get_tensor_model_parallel_world_size
+from ascendspeed.core.parallel_state import get_data_parallel_rank
+from ascendspeed.core.parallel_state import get_tensor_model_parallel_group
+from ascendspeed.core.parallel_state import get_tensor_model_parallel_rank
+from ascendspeed.core.parallel_state import get_tensor_model_parallel_world_size
 
 
 # Default name for the model parallel rng tracker.

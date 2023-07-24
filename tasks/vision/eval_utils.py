@@ -19,7 +19,7 @@ import os
 import torch
 from ascendspeed import get_args
 from ascendspeed import print_rank_0
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from tasks.vision.finetune_utils import build_data_loader
 from tasks.vision.finetune_utils import process_batch
 from torchvision import datasets, transforms
@@ -49,7 +49,7 @@ def accuracy_func_provider():
         dataset,
         args.micro_batch_size,
         num_workers=args.num_workers,
-        drop_last=(mpu.get_data_parallel_world_size() > 1),
+        drop_last=(parallel_state.get_data_parallel_world_size() > 1),
     )
 
     def metrics_func(model, epoch):
@@ -87,7 +87,7 @@ def calculate_correct_answers(model, dataloader, epoch):
 
     # Reduce.
     unreduced = get_accelerator().LongTensor([correct, total])
-    torch.distributed.all_reduce(unreduced, group=mpu.get_data_parallel_group())
+    torch.distributed.all_reduce(unreduced, group=parallel_state.get_data_parallel_group())
 
     # Print on screen.
     correct_ans = unreduced[0].item()

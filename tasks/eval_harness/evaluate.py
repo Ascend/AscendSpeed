@@ -23,7 +23,7 @@ import torch
 from ascendSpeed import get_args
 from ascendSpeed import print_rank_0
 from ascendSpeed import get_tokenizer
-from ascendSpeed import mpu
+from ascendspeed.core import parallel_state
 from ascendSpeed.training import setup_model_and_optimizer, get_model
 from ascendSpeed.mpu.mappings import gather_from_tensor_model_parallel_region
 
@@ -57,14 +57,14 @@ class EvalHarnessAdaptor(GPT2LM):
         self.is_main = args.rank == 0
         self.is_local_main = args.local_rank == 0
         self._device = get_accelerator().current_device_name()
-        self.is_model_parallel = mpu.get_tensor_model_parallel_world_size() > 1
-        self.is_pipe_parallel = mpu.get_pipeline_model_parallel_world_size() > 1
-        self.is_data_parallel = mpu.get_data_parallel_world_size() > 1
+        self.is_model_parallel = parallel_state.get_tensor_model_parallel_world_size() > 1
+        self.is_pipe_parallel = parallel_state.get_pipeline_model_parallel_world_size() > 1
+        self.is_data_parallel = parallel_state.get_data_parallel_world_size() > 1
         self.adaptive_seq_len = args.adaptive_seq_len
         if self.is_data_parallel and args.moe_expert_parallel_size == 1: # For MoE model, allow a "fake data parallel" in order to partition model into multiple gpus 
             raise NotImplementedError("Data parallelism is currently not supported for evaluation")
 
-        self.is_last_stage = True if not self.is_pipe_parallel else mpu.is_pipeline_last_stage()  # only the last stage of the pipeline model will receive the logits
+        self.is_last_stage = True if not self.is_pipe_parallel else parallel_state.is_pipeline_last_stage()  # only the last stage of the pipeline model will receive the logits
 
     @property
     def max_length(self):
@@ -179,7 +179,7 @@ class EvalHarnessAdaptor(GPT2LM):
                             self.cache_hook.add_partial("loglikelihood", cache_key, answer)
                         res.append(answer)
 
-        if not mpu.is_pipeline_last_stage():
+        if not parallel_state.is_pipeline_last_stage():
             # @HACK: To make the eval harness happy on threads that don't have access to the results.
             #        We just randomly generate some data.
             res = [(np.random.rand(), np.random.rand()>0.5) for _ in requests]
@@ -271,7 +271,7 @@ class EvalHarnessAdaptor(GPT2LM):
             output = self.model(*self.create_model_inputs(inps)[0])
             send_forward(output)
 
-        if mpu.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage():
             return gather_from_tensor_model_parallel_region(output)[..., :self.tokenizer.vocab_size]
         else:
             return None
@@ -378,7 +378,7 @@ def load_ds_checkpoint_and_setup_megatron(extra_args_provider):
     else:
         model = get_model(model_provider)[0]
         # Initialize ascendspeed model using the parsed state dict.
-        sd = _create_rank_checkpoint(ds_checkpoint, None, mpu.get_tensor_model_parallel_rank(), mpu.get_pipeline_model_parallel_rank(), True)
+        sd = _create_rank_checkpoint(ds_checkpoint, None, parallel_state.get_tensor_model_parallel_rank(), parallel_state.get_pipeline_model_parallel_rank(), True)
 
         model.load_state_dict(sd['model'], strict=True)
 
@@ -423,7 +423,7 @@ def main():
     adaptor = EvalHarnessAdaptor(model, tokenizer)
     results = evaluator.evaluate(adaptor, task_dict, False, args.num_fewshot, None)
 
-    if mpu.is_pipeline_last_stage() and mpu.get_tensor_model_parallel_rank() == 0:
+    if parallel_state.is_pipeline_last_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
         print(json.dumps(results, indent=2))
         with open(args.results_path, 'w') as outfile:
             json.dump(results, outfile, indent = 4)
