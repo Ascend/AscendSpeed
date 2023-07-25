@@ -30,6 +30,7 @@ from ascendspeed import (get_args,
                       print_rank_0,
                       update_num_microbatches,
                       utils)
+from ascendspeed.core import parallel_state
 
 _CHECKPOINT_VERSION = None
 
@@ -96,15 +97,15 @@ def get_checkpoint_name(checkpoints_path, iteration,
     else:
         directory = 'iter_{:07d}'.format(iteration)
     # Use both the tensor and pipeline MP rank.
-    if mpu.get_pipeline_model_parallel_world_size() == 1:
+    if parallel_state.get_pipeline_model_parallel_world_size() == 1:
         return os.path.join(checkpoints_path, directory,
                             'mp_rank_{:02d}'.format(
-                                mpu.get_tensor_model_parallel_rank()),
+                                parallel_state.get_tensor_model_parallel_rank()),
                             'model_optim_rng.pt')
     return os.path.join(checkpoints_path, directory,
                         'mp_rank_{:02d}_{:03d}'.format(
-                            mpu.get_tensor_model_parallel_rank(),
-                            mpu.get_pipeline_model_parallel_rank()),
+                            parallel_state.get_tensor_model_parallel_rank(),
+                            parallel_state.get_pipeline_model_parallel_rank()),
                         'model_optim_rng.pt')
 
 
@@ -125,7 +126,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     print_rank_0('saving checkpoint at iteration {:7d} to {}'.format(
         iteration, args.save))
 
-    if not torch.distributed.is_initialized() or mpu.get_data_parallel_rank() == 0 \
+    if not torch.distributed.is_initialized() or parallel_state.get_data_parallel_rank() == 0 \
         or args.deepspeed:
 
         # Arguments, iteration, and model.
@@ -141,7 +142,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
                 state_dict['model'] = model[0].state_dict_for_save_checkpoint()
             else:
                 for i in range(len(model)):
-                    mpu.set_virtual_pipeline_model_parallel_rank(i)
+                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     state_dict['model%d' % i] = model[i].state_dict_for_save_checkpoint()
 
             # Optimizer stuff.
@@ -387,7 +388,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
             model[0].load_state_dict(state_dict['model'], strict=strict)
         else:
             for i in range(len(model)):
-                mpu.set_virtual_pipeline_model_parallel_rank(i)
+                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 model[i].load_state_dict(state_dict['model%d' % i], strict=strict)
 
     # Fix up query/key/value matrix ordering if needed
@@ -457,7 +458,7 @@ def load_biencoder_checkpoint(model, only_query_model=False,
         iteration = int(f.read().strip())
 
     checkpoint_name = get_checkpoint_name(load_path, iteration, False)
-    if mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print('global rank {} is loading checkpoint {}'.format(
             torch.distributed.get_rank(), checkpoint_name))
 
@@ -473,7 +474,7 @@ def load_biencoder_checkpoint(model, only_query_model=False,
     model[0].load_state_dict(ret_state_dict)
     torch.distributed.barrier()
 
-    if mpu.get_data_parallel_rank() == 0:
+    if parallel_state.get_data_parallel_rank() == 0:
         print(' successfully loaded {}'.format(checkpoint_name))
 
     return model

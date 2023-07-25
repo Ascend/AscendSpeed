@@ -1,28 +1,15 @@
-# coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Utility functions used throughout AscendSpeed core"""
 
 from functools import reduce
 import operator
 
 import torch
 
-
 def ensure_divisibility(numerator, denominator):
     """Ensure that numerator is divisible by the denominator."""
-    assert numerator % denominator == 0, '{} is not divisible by {}'.format(
-        numerator, denominator)
+    assert numerator % denominator == 0, "{} is not divisible by {}".format(
+        numerator, denominator
+    )
 
 
 def divide(numerator, denominator):
@@ -31,11 +18,11 @@ def divide(numerator, denominator):
     ensure_divisibility(numerator, denominator)
     return numerator // denominator
 
+
 class GlobalMemoryBuffer:
     """Global buffer to avoid dynamic memory allocations.
     Caller should ensure that buffers of the same name
-    are not used concurrently.
-    """
+    are not used concurrently."""
 
     def __init__(self):
         self.buffer = {}
@@ -51,6 +38,7 @@ class GlobalMemoryBuffer:
                             requires_grad=False)
 
         return self.buffer[(name, dtype)][0:required_len].view(*tensor_shape)
+
 
 def _kernel_make_viewless_tensor(inp, requires_grad):
     '''Make a viewless tensor.
@@ -71,6 +59,7 @@ def _kernel_make_viewless_tensor(inp, requires_grad):
         out.set_(inp.data)
     return out
 
+
 class MakeViewlessTensor(torch.autograd.Function):
     '''
     Autograd function to make a viewless tensor.
@@ -86,6 +75,7 @@ class MakeViewlessTensor(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output, None
+
 
 def make_viewless_tensor(inp, requires_grad, keep_graph):
     '''
@@ -107,6 +97,7 @@ def make_viewless_tensor(inp, requires_grad, keep_graph):
     else:
         return _kernel_make_viewless_tensor(inp, requires_grad)
 
+
 def split_tensor_along_last_dim(tensor, num_partitions,
                                 contiguous_split_chunks=False):
     """Split a tensor along its last dimension.
@@ -126,22 +117,3 @@ def split_tensor_along_last_dim(tensor, num_partitions,
         return tuple(chunk.contiguous() for chunk in tensor_list)
 
     return tensor_list
-
-
-class VocabUtility:
-    """Split the vocabulary into `world_size` chunks amd return the
-        first and last index of the vocabulary belonging to the `rank`
-        partition: Note that indecies in [fist, last)"""
-
-    @staticmethod
-    def vocab_range_from_per_partition_vocab_size(per_partition_vocab_size,
-                                                  rank, world_size):
-        index_f = rank * per_partition_vocab_size
-        index_l = index_f + per_partition_vocab_size
-        return index_f, index_l
-
-    @staticmethod
-    def vocab_range_from_global_vocab_size(global_vocab_size, rank, world_size):
-        per_partition_vocab_size = divide(global_vocab_size, world_size)
-        return VocabUtility.vocab_range_from_per_partition_vocab_size(
-            per_partition_vocab_size, rank, world_size)

@@ -27,6 +27,7 @@ from deepspeed.moe.layer import MoE
 
 from ascendspeed import get_args
 from ascendspeed import mpu
+from ascendspeed.core import utils, parallel_state
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.model import LayerNorm
 from ascendspeed.model.enums import AttnMaskType, LayerType, AttnType
@@ -149,12 +150,12 @@ class ParallelAttention(MegatronModule):
         projection_size = args.kv_channels * args.num_attention_heads
 
         # Per attention head and per partition values.
-        world_size = mpu.get_tensor_model_parallel_world_size()
-        self.hidden_size_per_partition = mpu.divide(projection_size,
+        world_size = parallel_state.get_tensor_model_parallel_world_size()
+        self.hidden_size_per_partition = utils.divide(projection_size,
                                                     world_size)
-        self.hidden_size_per_attention_head = mpu.divide(
+        self.hidden_size_per_attention_head = utils.divide(
             projection_size, args.num_attention_heads)
-        self.num_attention_heads_per_partition = mpu.divide(
+        self.num_attention_heads_per_partition = utils.divide(
             args.num_attention_heads, world_size)
 
         # Strided linear layer.
@@ -242,7 +243,7 @@ class ParallelAttention(MegatronModule):
             # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
             (query_layer,
              key_layer,
-             value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
+             value_layer) = utils.split_tensor_along_last_dim(mixed_x_layer, 3)
         else:
             # Attention heads [sk, b, h] --> [sk, b, (np * 2 * hn)]
             mixed_kv_layer, _ = self.key_value(encoder_output)
@@ -255,7 +256,7 @@ class ParallelAttention(MegatronModule):
 
             # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
             (key_layer,
-             value_layer) = mpu.split_tensor_along_last_dim(mixed_kv_layer, 2)
+             value_layer) = utils.split_tensor_along_last_dim(mixed_kv_layer, 2)
 
             # Attention head [sq, b, h] --> [sq, b, hp]
             query_layer, _ = self.query(hidden_states)
@@ -630,8 +631,8 @@ class ParallelTransformerLayer(MegatronModule):
             num_attention_heads, -1, -1)
 
         # Select the part of the tensor that corresponds to our tensor parallel index.
-        tp_world_size = mpu.get_tensor_model_parallel_world_size()
-        tp_index = mpu.get_tensor_model_parallel_rank()
+        tp_world_size = parallel_state.get_tensor_model_parallel_world_size()
+        tp_index = parallel_state.get_tensor_model_parallel_rank()
         alibi = alibi.reshape((tp_world_size, -1, *alibi.shape[1:]))[tp_index]
 
         alibi = alibi.repeat(batch_size, 1, 1)
@@ -699,9 +700,9 @@ class ParallelTransformer(MegatronModule):
         self.checkpoint_num_layers = args.checkpoint_num_layers
 
         # Number of layers.
-        assert args.num_layers % mpu.get_pipeline_model_parallel_world_size() == 0, \
+        assert args.num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0, \
             'num_layers must be divisible by pipeline_model_parallel_size'
-        self.num_layers = args.num_layers // mpu.get_pipeline_model_parallel_world_size()
+        self.num_layers = args.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
 
         # Transformer layers.
         def build_layer(layer_number, n_e):
@@ -728,12 +729,12 @@ class ParallelTransformer(MegatronModule):
             # layers to stages like (each list is a model chunk):
             # Stage 0: [0, 1]  [4, 5]
             # Stage 1: [2, 3]  [6, 7]
-            offset = mpu.get_virtual_pipeline_model_parallel_rank() * (
+            offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
                 args.num_layers // args.virtual_pipeline_model_parallel_size) + \
-                (mpu.get_pipeline_model_parallel_rank() * self.num_layers)
+                (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
-            offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
+            offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
             
         assert len(num_experts) == 1 or len(num_experts) == args.num_layers // args.expert_interval, \
         'num_experts must be either a single value or a list of the same length as the number of MoE layers'

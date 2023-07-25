@@ -4,7 +4,8 @@ import time
 import numpy as np
 import torch
 
-from ascendspeed import print_rank_0, mpu, logging
+from ascendspeed import print_rank_0, logging
+from ascendspeed.core import parallel_state
 from ascendspeed.data.blendable_dataset import BlendableDataset
 from ascendspeed.data.dataset_utils import get_datasets_weights_and_num_samples, get_split_by_range_, \
     get_train_valid_test_split_
@@ -441,11 +442,11 @@ def _build_index_mappings(
     # device_index=rank which is not the case for model
     # parallel case
     counts = torch.cuda.LongTensor([1])
-    torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-    torch.distributed.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
+    torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
+    torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
     assert counts[0].item() == (
         torch.distributed.get_world_size() //
-        torch.distributed.get_world_size(group=mpu.get_tensor_model_parallel_group()))
+        torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
 
     # Load mappings.
     start_time = time.time()

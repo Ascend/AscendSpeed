@@ -3,7 +3,7 @@ import torch
 import torch.distributed as dist
 
 from ascendspeed import get_args
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed.checkpointing import load_biencoder_checkpoint
 from ascendspeed.data.orqa_wiki_dataset import get_open_retrieval_wiki_dataset
 from ascendspeed.data.orqa_wiki_dataset import get_open_retrieval_batch
@@ -35,8 +35,8 @@ class IndexBuilder(object):
         self.batch_size = args.indexer_batch_size
 
         self.load_attributes()
-        self.is_main_builder = mpu.get_data_parallel_rank() == 0
-        self.num_total_builders = mpu.get_data_parallel_world_size()
+        self.is_main_builder = parallel_state.get_data_parallel_rank() == 0
+        self.num_total_builders = parallel_state.get_data_parallel_world_size()
         self.iteration = self.total_processed = 0
 
     def load_attributes(self):

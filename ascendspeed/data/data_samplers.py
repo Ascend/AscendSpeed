@@ -19,7 +19,7 @@
 import torch
 import random
 from ascendspeed import get_args
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 
 
 def build_pretraining_data_loader(dataset, consumed_samples):
@@ -36,22 +36,22 @@ def build_pretraining_data_loader(dataset, consumed_samples):
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=args.micro_batch_size,
-                data_parallel_rank=mpu.get_data_parallel_rank(),
-                data_parallel_size=mpu.get_data_parallel_world_size())
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size())
         else:
             batch_sampler = MegatronPretrainingSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
                 micro_batch_size=args.micro_batch_size,
-                data_parallel_rank=mpu.get_data_parallel_rank(),
-                data_parallel_size=mpu.get_data_parallel_world_size())
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size())
     elif args.dataloader_type == 'cyclic':
         batch_sampler = MegatronPretrainingRandomSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=args.micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size())
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size())
     else:
         raise Exception('{} dataloader type is not supported.'.format(
                 args.dataloader_type))

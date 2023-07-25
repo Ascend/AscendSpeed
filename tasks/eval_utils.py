@@ -23,7 +23,7 @@ import torch
 
 from ascendspeed import get_args
 from ascendspeed import print_rank_last, is_last_rank
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed.schedules import get_forward_backward_func
 from tasks.finetune_utils import build_data_loader
 from tasks.finetune_utils import process_batch
@@ -41,7 +41,7 @@ def accuracy_func_provider(single_dataset_provider):
         dataset = single_dataset_provider(datapath)
         dataloader = build_data_loader(
             dataset, args.orig_micro_batch_size, num_workers=args.num_workers,
-            drop_last=(mpu.get_data_parallel_world_size() > 1))
+            drop_last=(parallel_state.get_data_parallel_world_size() > 1))
         dataloaders.append((dataset.dataset_name, dataloader))
 
     def metrics_func(model, epoch, output_predictions=False):
@@ -49,7 +49,7 @@ def accuracy_func_provider(single_dataset_provider):
         correct = 0
         total = 0
         if output_predictions:
-            assert mpu.get_data_parallel_world_size() == 1
+            assert parallel_state.get_data_parallel_world_size() == 1
             named_predictions = []
             names = 'predictions'
         for name, dataloader in dataloaders:
@@ -155,7 +155,7 @@ def calculate_correct_answers(name, model, dataloader,
         predicted = []
         if output_predictions:
             # This option is only possible when data parallel size is 1.
-            assert mpu.get_data_parallel_world_size() == 1
+            assert parallel_state.get_data_parallel_world_size() == 1
             softmaxes = []
             labels = []
             ids = []
@@ -190,26 +190,26 @@ def calculate_correct_answers(name, model, dataloader,
     args.global_batch_size = saved_global_batch_size
 
     # Reduce.
-    if mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         if args.finetune and args.task in ['CoLA', 'STS-B']:
             if args.task == 'CoLA':
                 labels = get_accelerator().LongTensor(labels)
                 predicted = get_accelerator().LongTensor(predicted)
                 labels_gather = [torch.zeros(len(labels), dtype=torch.long,
-                    device=labels.device) for _ in range(mpu.get_data_parallel_world_size())]
+                    device=labels.device) for _ in range(parallel_state.get_data_parallel_world_size())]
                 predicted_gather = [torch.zeros(len(predicted), dtype=torch.long,
-                    device=predicted.device) for _ in range(mpu.get_data_parallel_world_size())]
+                    device=predicted.device) for _ in range(parallel_state.get_data_parallel_world_size())]
             else:
                 labels = get_accelerator().FloatTensor(labels)
                 predicted = get_accelerator().FloatTensor(predicted)
                 labels_gather = [torch.zeros(len(labels), dtype=torch.float,
-                    device=labels.device) for _ in range(mpu.get_data_parallel_world_size())]
+                    device=labels.device) for _ in range(parallel_state.get_data_parallel_world_size())]
                 predicted_gather = [torch.zeros(len(predicted), dtype=torch.float,
-                    device=predicted.device) for _ in range(mpu.get_data_parallel_world_size())]
+                    device=predicted.device) for _ in range(parallel_state.get_data_parallel_world_size())]
             torch.distributed.all_gather(labels_gather, labels,
-                group=mpu.get_data_parallel_group())
+                group=parallel_state.get_data_parallel_group())
             torch.distributed.all_gather(predicted_gather, predicted,
-                group=mpu.get_data_parallel_group())
+                group=parallel_state.get_data_parallel_group())
 
             labels_gather = sum([x.data.cpu().numpy().tolist() for x in labels_gather], [])
             predicted_gather = sum([x.data.cpu().numpy().tolist() for x in predicted_gather], [])
@@ -239,7 +239,7 @@ def calculate_correct_answers(name, model, dataloader,
         else:
             unreduced = get_accelerator().LongTensor([correct, total])
             torch.distributed.all_reduce(unreduced,
-                                         group=mpu.get_data_parallel_group())
+                                         group=parallel_state.get_data_parallel_group())
 
             # Print on screen.
 

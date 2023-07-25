@@ -19,7 +19,7 @@ from functools import partial
 import torch
 
 from ascendspeed import get_args
-from ascendspeed import mpu
+from ascendspeed.core import tensor_parallel, parallel_state
 from .module import MegatronModule, fp32_to_float16
 
 from .enums import AttnMaskType
@@ -58,9 +58,9 @@ def post_language_model_processing(lm_output, labels, logit_weights,
     else:
         if fp16_lm_cross_entropy:
             assert output.dtype == torch.half
-            loss = mpu.vocab_parallel_cross_entropy(output, labels)
+            loss = tensor_parallel.vocab_parallel_cross_entropy(output, labels)
         else:
-            loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
+            loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
         return loss
 
 
@@ -183,7 +183,7 @@ def get_cross_entropy(is_prefix: bool):
 
         args = get_args()
 
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous().float(), labels)
+        losses = tensor_parallel.vocab_parallel_cross_entropy(output.contiguous().float(), labels)
 
         if is_prefix:
             micro_batch_size, sequence_length = loss_mask.shape
@@ -318,9 +318,9 @@ class GPTModelPipe(PipelineModule,MegatronModule):
             interval = 0
 
         from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
-        topo = PipeModelDataParallelTopology(num_pp=mpu.get_pipeline_model_parallel_world_size(),
-                                             num_mp=mpu.get_tensor_model_parallel_world_size(),
-                                             num_dp=mpu.get_data_parallel_world_size())
+        topo = PipeModelDataParallelTopology(num_pp=parallel_state.get_pipeline_model_parallel_world_size(),
+                                             num_mp=parallel_state.get_tensor_model_parallel_world_size(),
+                                             num_dp=parallel_state.get_data_parallel_world_size())
 
         # here one can extend the regex to include more layers to be counted towards partitioning,
         # e.g. 'type:transformer|embedding' will add up all the transformer blocks and also the first

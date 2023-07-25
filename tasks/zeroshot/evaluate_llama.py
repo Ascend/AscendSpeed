@@ -22,7 +22,7 @@ import torch
 from ascendspeed import get_args
 from ascendspeed import print_rank_0, is_last_rank, print_rank_last
 from ascendspeed import get_tokenizer
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.checkpointing import load_checkpoint
 from ascendspeed.model import GPTModel, LlamaModel
 from ascendspeed.training import get_model
@@ -61,11 +61,11 @@ def get_llama_model_provider(eval_metric):
                                       'is not supported.'.format(eval_metric))
        
         args = get_args()
-        with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group(),
+        with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                                 remote_device=None if args.remote_device == 'none' else args.remote_device,
                                 config_dict_or_path=args.deepspeed_config,
                                 enabled=args.zero_stage == 3,
-                                mpu=mpu):
+                                mpu=parallel_state):
             model = LlamaModel(
                 parallel_output=parallel_output,
                 add_pooler=False,
@@ -120,10 +120,10 @@ def forward_step(batch, model, eval_metric):
 
     send_forward(output)
 
-    if mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         # For loss, return the unreduced loss.
         if eval_metric == 'loss':
-            losses = mpu.vocab_parallel_cross_entropy(
+            losses = tensor_parallel.vocab_parallel_cross_entropy(
                 output.contiguous().float(), labels.contiguous())
             loss = torch.sum(
                 losses.view(-1) * loss_mask.contiguous().view(-1).float())
@@ -198,7 +198,7 @@ def custom_forwrad(batch, model):
     )
     send_forward(outputs)
     outputs = outputs.reshape(-1, mutil_choice_number, outputs.shape[-2], outputs.shape[-1])
-    if mpu.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage():
         for i, logits in enumerate(outputs):
             preds = []
             for choice in range(mutil_choice_number):
@@ -233,9 +233,9 @@ def evaluate(data_loader, model, eval_metric):
                 output = custom_forwrad(batch, model)
 
             # Reduce across processes.
-            if mpu.is_pipeline_last_stage():
+            if parallel_state.is_pipeline_last_stage():
                 torch.distributed.all_reduce(output,
-                                             group=mpu.get_data_parallel_group())
+                                             group=parallel_state.get_data_parallel_group())
 
                 total_output += output
 

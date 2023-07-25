@@ -32,6 +32,7 @@ from ascendspeed import print_rank_0
 from ascendspeed import get_timers
 from ascendspeed import get_tokenizer
 from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
 from ascendspeed.model import Llama2Model, Llama2ModelPipe
 from ascendspeed.training import pretrain
@@ -46,11 +47,11 @@ def model_provider(pre_process=True, post_process=True):
     see_memory_usage(f"Before Building Model ...", force=True)
 
     args = get_args()
-    with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group(),
+    with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                              remote_device=None if args.remote_device == 'none' else args.remote_device,
                              config_dict_or_path=args.deepspeed_config,
                              enabled=args.zero_stage == 3,
-                             mpu=mpu):
+                             mpu=parallel_state):
         if args.deepspeed and not args.no_pipeline_parallel:
             model = Llama2ModelPipe(parallel_output=True)
             # This is a hack to give us a reference to get_batch_pipe from within training.py
@@ -215,6 +216,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     return train_ds, valid_ds, test_ds
 
 if __name__ == "__main__":
+    torch.npu.set_compile_mode(jit_compile=True)
     pretrain(train_valid_test_datasets_provider,
              model_provider,
              forward_step,
