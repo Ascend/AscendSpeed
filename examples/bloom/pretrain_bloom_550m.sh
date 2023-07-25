@@ -2,6 +2,7 @@
 
 export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
+export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # output data path
@@ -81,7 +82,7 @@ TRANSFORMERS_OFFLINE=1  \
     --fp16 \
     --seed 42 \
     --position-embedding-type alibi \
-    --optimizer fused_adam \
+    --optimizer adam \
     --adam-beta1 0.9 \
     --adam-beta2 0.95 \
     --adam-eps 1e-8 \
