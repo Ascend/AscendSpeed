@@ -8,12 +8,26 @@ BLOOM model is from: [A 176B-Parameter Open-Access Multilingual Language Model](
 
 # Contents
 
-TODO：需要更新二级 content.
 - [Contents](#contents)
-- [Evaluation and Tasks](#evaluation-and-tasks)
-  - [Dataset](#datastes)
-  - [LLama Evaluation](#llama-evaluation)
-  - [Zero-shot Task](#zeroshot-task)
+
+- [Pre-Training](#pre-training)
+  - [Datasets](#datasets)
+  
+  - [Script](#script)
+  
+  - [Performance](#performance)
+  	- [Machine performance](#machine-performance)
+  	- [Accuracy of the loss](#accuracy-of-the-loss)
+  
+- [Fine-tune and Evaluation](#fine-tune-and-evaluation)
+
+- [Inference](#inference)
+  - [Model weights](#model-weights)
+  - [Script](#script)
+  - [Samples](#samples)
+  
+- [Citation](#citation)
+
 
 ## Pre-Training
 
@@ -21,28 +35,71 @@ BLOOM's architecture is very similar to GPT3 with a few added improvements as wi
 
 Here's a quick summary of training bloom:
 
-|               |                             |
-| :-----        | :-------------              |
-| Hardware      | 96 64GB Altas 910B NPUs     |
-| Software      | AscendSpeed                 |
-| Architecture  | GPT3 w/ extras              |
-| Dataset       | xxxxxxxxxx                  |
-| Training time | xxxxxxxxxx                  |
+|              |                         |
+| :----------: | :---------------------: |
+|   Hardware   | 96 64GB Altas 910B NPUs |
+|   Software   |       AscendSpeed       |
+| Architecture |     GPT3 w/ extras      |
+|   Dataset    |        Oscar-1GB        |
 
 ### Datasets
 
-TODO: change the context xxxx. Another important feature from Megatron-LM is the efficient data loader. During start up of the initial training each data set is split into samples of the requested sequence length (2048 for BLOOM) and index is created to number each sample. Based on the training parameters the number of epochs for a dataset is calculated and an ordering for that many epochs is created and then shuffled. For example, if a dataset has 10 samples and should be gone through twice, the system first lays out the samples indices in order [0, ..., 9, 0, ..., 9] and then shuffles that order to create the final global order for the dataset. Notice that this means that training will not simply go through the entire dataset and then repeat, it is possible to see the same sample twice before seeing another sample at all, but at the end of training the model will have seen each sample twice. This helps ensure a smooth training curve through the entire training process. These indices, including the offsets into the base dataset of each sample, are saved to a file to avoid recomputing them each time a training process is started. Several of these datasets can then be blended with varying weights into the final data seen by the training process.
-
-- 46 Languages in 1.5TB of deduplicated massively cleaned up text, converted into 350B unique tokens
-- Vocabulary size of the model is 250,680 tokens
-- For full details please see The BigScience Corpus A 1.6TB Composite Multilingual Dataset
+**OSCAR** or Open Super-large Crawled ALMAnaCH coRpus is a huge multilingual corpus obtained by language classification and filtering of the Common Crawl corpus using the goclassy architecture. The dataset used for training multilingual models such as BART incorporates 138 GB of text.The Oscar-1GB dataset was used for this Bloom-7B1 pre-training, and the data was processed into FastChat dialog format.
 
 ### Script
 
-To launch the environment use ``:
+1.Install AscendSpeed requirement environment.
 
-```Shell
-source $six_ALL_CCFRWORK/code/tr11-176B-ml/bigscience/train/tr11-176B-ml/start-tr11-176B-ml
+2.Download Oscar-1GB dataset:https://www.huggingface.co/bigscience/misc-test-data/resolve/main/stas/oscar-1GB.jsonl.xz
+
+3.Config Bloom-7B1 pre-training script : AscendSpeed/examples/bloom/pretrain_bloom_7b1.sh
+
+```bash
+# add HCCL_OP_BASE_FFTS_MODE_ENABLE
+export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
+
+# modify the script according to your own conda and ascend-toolkit path
+export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH # line 3
+source /usr/local/Ascend/ascend-toolkit/set_env.sh # line 5
+
+# modify script orign dataset path according to your own dataset path
+TOKENIZER_NAME_OR_PATH=./dataset/bloom_vocab/vocab_file/ # line 34
+DATA_PATH=./dataset/oscar_data_1g/my-gpt2_text_document # line 35
+
+# Bloom-7B1 configuration parameters are consistent with the original script configuration
+# PP=1, TP=8, micro_bs=4
+MICRO_BATCH_SIZE=4 # micro_bs in Line 19
+--tensor-model-parallel-size 8 # TP in Line 77
+--pipeline-model-parallel-size 1 # PP in Line 78
+
+# DeepSpeed config in Line 40 ~ Line59
+cat <<EOT > $config_json
+{
+  "train_micro_batch_size_per_gpu": $MICRO_BATCH_SIZE,
+  "train_batch_size": $GLOBAL_BATCH_SIZE,
+  "gradient_clipping": 1.0,
+  "zero_optimization": {
+    "stage": $ZERO_STAGE
+  },
+  "fp16": {
+    "enabled": true,
+    "loss_scale": 0,
+    "loss_scale_window": 500,
+    "hysteresis": 2,
+    "min_loss_scale": 1,
+    "initial_scale_power": 12
+  },
+  "steps_per_print": 2000,
+  "wall_clock_breakdown": false
+}
+EOT
+
+```
+
+4.Launch Bloom-7B1 pre-training script : AscendSpeed/examples/bloom/pretrain_bloom_7b1.sh
+
+```bash
+bash examples/bloom/pretrain_bloom_7b1.sh
 ```
 
 There is an hourly pulse checking script running that checks that the training is either running or scheduled.
@@ -50,24 +107,62 @@ There is an hourly pulse checking script running that checks that the training i
 The Training log will look like these:
 
 ```Shell
-XXXXX
+TODO
 ```
 
-### performance
+### Performance
 
-#### machine performance
+#### Machine performance
 
-The performance of the NPUs in XXXXX(configuration) and GPUs is:
+The performance of the NPUs in **Ascend910 B1 64GB** and GPUs is **A100**:
 
-TODO：通过表格呈现吞吐性能，还有并行配置
+|   Model   | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
+| :-------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
+| Bloom-7B1 |       995        |             1.16              |           2386.12            |           20.68           |                5.02                 |
+
+Notes: 
+
+- Bloom-7B1 model trained on oscar-1GB on a single machine with 8 NPUs
+
+Here's a hardware summary of pre-training Bloom-7B:
+
+| Hardware |                      Value                      |
+| :------: | :---------------------------------------------: |
+|   CPU    | 4xKunPeng920@3.0GHz，64 Core Pre Socket 256CPUS |
+|   RAM    |                  32x32 GB DDR4                  |
+|   NPU    |               8 x Ascend910B1 64G               |
+
+Here's a software summary of pre-training Bloom-7B:
+
+|         Software          |                 Version                 |
+| :-----------------------: | :-------------------------------------: |
+|            OS             |       Euler OS release 2.0(SP10)        |
+|           uname           |                 aarch64                 |
+|          Python           |                  3.7.5                  |
+|          driver           |              23.0.RC2.b130              |
+|         firmware          |              23.0.RC2.b130              |
+|           CANN            |                 6.3.RC2                 |
+| binary arithmetic package | Ascend-ccann-kernels-910b_6.3.RC2_linux |
+|           torch           |                 1.11.0                  |
+|         torch_npu         |           1.11.0.dev20230713            |
+|         deepspeed         |                  0.9.2                  |
+|       deepspeed-npu       |                   0.1                   |
+|       transformers        |                 4.30.2                  |
+|        Ascendspeed        |                2023-7-21                |
+
+
 
 #### Accuracy of the loss
 
-NPU vs GPU loss. XXXX(Explain more).
+NPU vs GPU loss.
+
+The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
 
 ![NPU-LOSS](./images/7b_lm_loss.png)
 
-NPU vs GPU loss relative error. XXXX(Explain more).
+NPU vs GPU loss relative error.
+
+The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
 
 ![NPU-Relative-Error](./images/relative_error.png)
 
@@ -79,7 +174,7 @@ TODO：提供微调的方式，先加载权重，再微调脚本，跟预训练�
 
 We support AscendSpeed Inference for text generation with BLOOM 7B1.
 
-#### Model weights
+### Model weights
 
 Download the BLOOM model checkpoint from [here](TODO: XXXXX), make sure all chunks are downloaded completely, then use the following command to merge them into a single archive file and extract it:
 
@@ -117,7 +212,7 @@ TODO: XXXX
 
 <details>
 <summary><b>Left-To-Right Generation Examples</b></summary>
-    
+
 #### Example 1
 Input: Who is the greatest artist? The greatest artist is ?
 
@@ -125,7 +220,7 @@ Output: TODO: XXXX.
 
 #### Example 2 (Chinese)
 Input: 问题：冬天，中国哪座城市最适合避寒？问题描述：能推荐一些国内适合冬天避寒的城市吗？回答用户：旅游爱好者 回答：?
-  
+
 Output: 问题: XXXX.
 </details>
 
