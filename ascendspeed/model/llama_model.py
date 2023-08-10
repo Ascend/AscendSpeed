@@ -237,32 +237,25 @@ class LlamaParallelMLP(MegatronModule):
         super(LlamaParallelMLP, self).__init__()
         args = get_args()
         self.init_method = init_method
+        self.layer_fusion = args.mlp_layer_fusion
         self.output_layer_init_method = output_layer_init_method
-
+        self.col_parallel_linear = partial(
+            mpu.ColumnParallelLinear,
+            input_size=args.hidden_size,
+            bias=False,
+            gather_output=False,
+            init_method=self.init_method,
+            skip_bias_add=True,
+            moe=moe,
+            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
+            sequence_parallel_enabled=args.sequence_parallel
+        )
         # Project to intermediate.
-        self.gate_proj = mpu.ColumnParallelLinear(
-            args.hidden_size,
-            args.ffn_hidden_size,
-            bias=False,
-            gather_output=False,
-            init_method=self.init_method,
-            skip_bias_add=True,
-            moe=moe,
-            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
-            sequence_parallel_enabled=args.sequence_parallel
-        )
-
-        self.up_proj = mpu.ColumnParallelLinear(
-            args.hidden_size,
-            args.ffn_hidden_size,
-            bias=False,
-            gather_output=False,
-            init_method=self.init_method,
-            skip_bias_add=True,
-            moe=moe,
-            enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
-            sequence_parallel_enabled=args.sequence_parallel
-        )
+        if self.layer_fusion:
+            self.proj = self.col_parallel_linear(output_size=args.ffn_hidden_size*2)
+        else:
+            self.gate_proj = self.col_parallel_linear(output_size=args.ffn_hidden_size)
+            self.up_proj = self.col_parallel_linear(output_size=args.ffn_hidden_size)
 
         self.activation_func = F.silu
 
@@ -279,7 +272,14 @@ class LlamaParallelMLP(MegatronModule):
             sequence_parallel_enabled=args.sequence_parallel)
 
     def forward(self, hidden_states):
-        intermediate_parallel = self.activation_func(self.gate_proj(hidden_states)[0]) * self.up_proj(hidden_states)[0]
+        if self.layer_fusion:
+            gate_and_up_proj = self.proj(hidden_states)[0]
+            (gate, up_proj) = utils.split_tensor_along_last_dim(
+                gate_and_up_proj, 2, contiguous_split_chunks=True)
+            intermediate_parallel = self.activation_func(gate) * up_proj
+        else:
+            intermediate_parallel = self.activation_func(
+                self.gate_proj(hidden_states)[0]) * self.up_proj(hidden_states)[0]
 
         output, _ = self.down_proj(intermediate_parallel)
         return output

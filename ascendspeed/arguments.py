@@ -363,7 +363,9 @@ def _add_network_size_args(parser):
     group.add_argument('--bert-no-binary-head', action='store_false',
                        help='Disable BERT binary head.',
                        dest='bert_binary_head')
-
+    group.add_argument('--mlp-layer-fusion', action='store_true',
+                       help='Fuse gate and upprojection in MLP for llama families, '
+                       'e.g. llama or internlm')
     return parser
 
 
@@ -561,7 +563,6 @@ def _add_training_args(parser):
                        help='Use Tutel optimization for MoE')
     group.add_argument('--inference', action='store_true',
                        help='Very basic inference mode: not allocating optim/lr - requires ZERO_STAGE=0')
-
     return parser
 
 
