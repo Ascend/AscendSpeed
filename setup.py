@@ -48,6 +48,25 @@ def req_file(filename):
 
 
 install_requires = req_file("requirements.txt")
+cmd_class={}
+exts = []
+try:
+    from torch_npu.utils import cpp_extension
+    from torch.utils.cpp_extension import BuildExtension
+    ext_ops = cpp_extension.NpuExtension(
+        name="ascendspeed_ops_internel",
+        sources=["ascendspeed/ops/FlashAttention.cpp"],
+        extra_compile_args=[
+        '-Wno-sign-compare',
+        '-Wno-deprecated-declarations',
+        '-Wno-return-type',
+        '-D__FILENAME__=\"$(notdir $(abspath $<))\"'
+    ],
+    )
+    exts.append(ext_ops)
+    cmd_class={"build_ext": BuildExtension.with_options(use_ninja=False)}
+except Exception:
+    print('Can not find any torch_npu, ops setup failed')
 
 setuptools.setup(
     package_data={'ascendspeed':['ascendspeed/data/Makefile']},
@@ -89,5 +108,7 @@ setuptools.setup(
     include_package_data=True,
     zip_safe=False,
     # PyPI package information.
-    keywords=__keywords__
+    keywords=__keywords__,
+    cmdclass=cmd_class,
+    ext_modules=exts
 )
