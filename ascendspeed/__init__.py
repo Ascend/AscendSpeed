@@ -42,7 +42,9 @@ from .global_vars import get_tensorboard_writer
 from .global_vars import get_adlr_autoresume
 from .global_vars import get_timers
 from .initialize  import initialize_megatron
-
+from .ops import FlashAttention
+from .ops import npu_flash_attention
+from .ops import npu_flash_attention_grad
 
 def print_rank_0(message):
     """If distributed is initialized, print only on rank 0."""
