@@ -53,6 +53,7 @@ exts = []
 try:
     from torch_npu.utils import cpp_extension
     from torch.utils.cpp_extension import BuildExtension
+    import imp
     ext_ops = cpp_extension.NpuExtension(
         name="ascendspeed_ops_internel",
         sources=["ascendspeed/ops/FlashAttention.cpp"],
@@ -60,7 +61,8 @@ try:
         '-Wno-sign-compare',
         '-Wno-deprecated-declarations',
         '-Wno-return-type',
-        '-D__FILENAME__=\"$(notdir $(abspath $<))\"'
+        '-D__FILENAME__=\"$(notdir $(abspath $<))\"',
+        '-I'+imp.find_module('torch_npu')[1]+'/include/third_party/acl/inc'
     ],
     )
     exts.append(ext_ops)
