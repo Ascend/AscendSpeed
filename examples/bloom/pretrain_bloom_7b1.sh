@@ -2,6 +2,7 @@
 
 export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
+export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # output data path
@@ -60,10 +61,6 @@ EOT
 
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --rdzv_endpoint $MASTER_ADDR:$MASTER_PORT --rdzv_backend c10d --max_restarts 0 --tee 3"
 
-    #--abort-on-unmet-fused-kernel-constraints \
-    #--train-weighted-split-paths-path $TRAIN_DATA_PATH \
-    #--valid-weighted-split-paths-path $VALID_DATA_PATH \
-    # --exit-duration-in-mins 5990 \
 TRANSFORMERS_OFFLINE=1  \
     python -m torch.distributed.run $DISTRIBUTED_ARGS \
     pretrain_bloom.py \
@@ -89,7 +86,7 @@ TRANSFORMERS_OFFLINE=1  \
     --fp16 \
     --seed 42 \
     --position-embedding-type alibi \
-    --optimizer fused_adam \
+    --optimizer adam \
     --adam-beta1 0.9 \
     --adam-beta2 0.95 \
     --adam-eps 1e-8 \

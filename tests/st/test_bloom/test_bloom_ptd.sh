@@ -3,6 +3,7 @@
 
 export LD_LIBRARY_PATH=/usr/local:/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
+export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 CHECKPOINT_PATH='./ckpt'
