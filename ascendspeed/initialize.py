@@ -22,6 +22,8 @@ import numpy as np
 import torch
 import deepspeed
 from deepspeed.accelerator import get_accelerator
+from deepspeed.runtime.pipe.engine import PipelineEngine
+from deepspeed import initialize
 
 from ascendspeed import get_adlr_autoresume
 from ascendspeed import get_args
@@ -38,9 +40,9 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
     """Set global variables, initialize distributed, and
     set autoresume and random seeds.
     `allow_no_cuda` should not be set unless using ascendspeed for cpu only
-    data processing. In general this arg should not be set unless you know 
+    data processing. In general this arg should not be set unless you know
     what you are doing.
-    Returns a function to finalize distributed env initialization 
+    Returns a function to finalize distributed env initialization
     (optionally, only when args.lazy_mpu_init == True)
     """
     if not args_defaults:
@@ -71,7 +73,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
     if args.lazy_mpu_init:
         args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff
-        # We only set basic DDP globals    
+        # We only set basic DDP globals
         set_tensor_model_parallel_world_size(args.tensor_model_parallel_size)
         # and return function for external DDP manager
         # to call when it has DDP initialized
@@ -255,3 +257,14 @@ def _is_rank_0():
             return False
     else:
         return True
+
+
+def adaptor_deepspeed_initialize(*largs, **kwargs):
+    return_items = initialize(*largs, **kwargs)
+    args = kwargs.get('args')
+    if args is not None:
+        if isinstance(return_items[0], PipelineEngine):
+            return_items[0].is_pipe_partitioned = return_items[0].is_pipe_partitioned and not args.sequence_parallel
+            return_items[0].is_grad_partitioned = return_items[0].is_grad_partitioned and not args.sequence_parallel
+
+    return tuple(return_items)

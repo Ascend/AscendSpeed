@@ -13,14 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import copy
-from functools import wraps
+import logging
 
 import torch
-import torch_npu
-from torch_npu.contrib import transfer_to_npu
+import deepspeed
+try:
+    import torch_npu
+    from torch_npu.contrib import transfer_to_npu
+    import deepspeed_npu
+except Exception as e:
+    logging.warning("Warning: You did not install torch_npu or deepspeed_npu")
 from torch import distributed as dist
-import deepspeed_npu
 from deepspeed.accelerator import get_accelerator
 from .package_info import (
     __description__,
@@ -41,7 +44,8 @@ from .global_vars import get_tokenizer
 from .global_vars import get_tensorboard_writer
 from .global_vars import get_adlr_autoresume
 from .global_vars import get_timers
-from .initialize  import initialize_megatron
+from .initialize  import initialize_megatron, adaptor_deepspeed_initialize
+
 
 def print_rank_0(message):
     """If distributed is initialized, print only on rank 0."""
@@ -51,9 +55,10 @@ def print_rank_0(message):
     else:
         print(message, flush=True)
 
+
 def is_last_rank():
-    return torch.distributed.get_rank() == (
-        torch.distributed.get_world_size() - 1)
+    return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
+
 
 def print_rank_last(message):
     """If distributed is initialized, print only on last rank."""
@@ -63,18 +68,25 @@ def print_rank_last(message):
     else:
         print(message, flush=True)
 
+
 def is_aml():
     # Are we running inside an Azure Machine Learning (AML) environment?
     return 'AZUREML_EXPERIMENT_ID' in os.environ
+
 
 def is_rank_0():
     """Check whether it is rank 0. For AML, check if it is rank 0 of a node"""
     if torch.distributed.is_initialized():
         if torch.distributed.get_rank() == 0 or (
-            is_aml() and torch.distributed.get_rank() % get_accelerator().device_count() == 0
-            ):
+                is_aml() and torch.distributed.get_rank() % get_accelerator().device_count() == 0
+        ):
             return True
         else:
             return False
     else:
         return True
+
+
+# Fixed an bug where deepspeed PipelineEngine is incompatible with Sequence Parallel.
+# When Sequence Parallel is used, PipelineEngine cannot be used, Otherwise, precision problems occur.
+deepspeed.initialize = adaptor_deepspeed_initialize

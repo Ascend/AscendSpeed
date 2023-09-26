@@ -22,7 +22,6 @@ DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $
 python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        pretrain_llama.py \
        --DDP-impl local \
-       --use-contiguous-buffers-in-ddp \
        --tensor-model-parallel-size 4 \
        --pipeline-model-parallel-size 2 \
        --num-layers 30 \

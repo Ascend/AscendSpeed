@@ -116,9 +116,10 @@ TODO
 
 The performance of the NPUs in **Ascend910 B1 64GB** and GPUs is **A100**:
 
-|   Model   | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
-| :-------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
-| Bloom-7B1 |       995        |             1.16              |           2386.12            |           20.68           |                5.02                 |
+|  Device  |   Model   | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
+| :------: | :-------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
+|   GPUs   | Bloom-7B1 |       995        |             1.23              |           2540.23            |           19.44           |                5.68                 |
+|   NPUs   | Bloom-7B1 |       995        |             1.26              |           2588.03            |           19.07           |                5.91                 |
 
 Notes: 
 
@@ -175,6 +176,22 @@ TODO：提供微调的方式，先加载权重，再微调脚本，跟预训练�
 We support AscendSpeed Inference for text generation with BLOOM 7B1.
 
 ### Model weights
+
+We provide scripts that support converting pretrained weights into weights that AscendSpeed can load and used for inference. Download the BLOOM-176B checkpoint from [here](https://huggingface.co/bigscience/bloom/tree/main), make sure all chunks are downloaded completely, then use the following command to convert them into checkpoints that AscendSpeed can load. `--partition-layers` specifies the partitioning strategy under the pipeline parallel strategy, you can also modify it to a different strategy, but the sum of all elements of `--partition layers` should be equal to 70 and the number of elements in `--partition-layers` should be equal to `--pipeline-model-parallel-size`.
+
+```shell
+#!/bin/bash
+
+SCRIPT_PATH=./tasks/ckpt_convert/bloom/convert_weights_from_huggingface.py
+python $SCRIPT_PATH \
+    --input-model-dir "your huggingface checkpoint path" \
+    --output-model-dir "your ascendspeed checkpoint path" \
+    --tensor-model-parallel-size 8 \
+    --pipeline-model-parallel-size 12 \
+    --type 176B \
+    --deepspeed \
+    --partition-layers 6,6,6,6,6,6,6,6,6,6,6,4
+```
 
 Download the BLOOM model checkpoint from [here](TODO: XXXXX), make sure all chunks are downloaded completely, then use the following command to merge them into a single archive file and extract it:
 

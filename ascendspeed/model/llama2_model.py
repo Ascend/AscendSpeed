@@ -29,8 +29,8 @@ from deepspeed.pipe import PipelineModule, LayerSpec
 from ascendspeed import get_args
 from ascendspeed import mpu
 from ascendspeed.core import tensor_parallel, parallel_state, utils
-from ascendspeed.model.module import MegatronModule, float16_to_fp32, fp32_to_float16
-from ascendspeed.model.enums import AttnMaskType, AttnType
+from ascendspeed.model.module import MegatronModule, MegatronModuleForCausalLM, float16_to_fp32, fp32_to_float16
+from ascendspeed.core.enums import AttnMaskType, AttnType
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal, attention_mask_func
 from ascendspeed.mpu.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
@@ -83,13 +83,14 @@ def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
 
 
 class RMSNorm(torch.nn.Module):  # for cpu
-    def __init__(self, hidden_size, eps=1e-6):
+    def __init__(self, hidden_size, eps=1e-6, sequence_parallel=False):
         """
         LlamaRMSNorm is equivalent to T5LayerNorm
         """
         super().__init__()
         self.weight = torch.nn.Parameter(torch.ones(hidden_size))
         self.variance_epsilon = eps
+        setattr(self.weight, 'sequence_parallel', sequence_parallel)
 
     def forward(self, hidden_states):
         variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
@@ -119,7 +120,7 @@ class Llama2LMHead(MegatronModule):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.parallel_output = parallel_output
-
+        self.sequence_parallel = args.sequence_parallel
         self.lm_head = mpu.ColumnParallelLinear(input_size=self.hidden_size,
                                                 output_size=vocab_size,
                                                 bias=False,
@@ -129,9 +130,9 @@ class Llama2LMHead(MegatronModule):
                                                 sequence_parallel_enabled=args.sequence_parallel)
 
     def forward(self, inputs):
-        inputs = inputs.transpose(0, 1).contiguous()
+        inputs = inputs.transpose(0, 1).contiguous() if self.sequence_parallel else inputs
         logits, _ = self.lm_head(inputs)
-        logits = logits.transpose(0, 1).contiguous()  # SBH-->BSH
+        logits = logits.transpose(0, 1).contiguous() if self.sequence_parallel else logits
         return logits
 
 
@@ -211,14 +212,14 @@ class Llama2EmbeddingPipe(Llama2Embedding):
         if hasattr(self._args, 'attn_mask'):
             attention_mask = None
         else:
-            attention_mask = inputs[1]
+            attention_mask = inputs[-1]
 
         embeddings = super().forward(input_ids)
         # If cmd args has attn_mask, we don't forward it as an activation.
-        if hasattr(self._args, 'attn_mask'):
-            return embeddings
-        else:
-            return embeddings, attention_mask
+        if not hasattr(self._args, 'attn_mask'):
+            setattr(self._args, 'attn_mask', attention_mask)
+
+        return embeddings
 
 
 class Llama2ParallelMLP(MegatronModule):
@@ -334,11 +335,7 @@ class Llama2ParallelAttention(MegatronModule):
                 init_method=self.init_method,
                 sequence_parallel_enabled=self.sequence_parallel)
 
-        coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
-        if self.apply_query_key_layer_scaling:
-            coeff = self.layer_number
-            self.norm_factor *= coeff
 
         self.scale_mask_softmax = NPUFusedScaleMaskSoftmax(
             self.fp16, self.bf16,
@@ -346,7 +343,7 @@ class Llama2ParallelAttention(MegatronModule):
             args.masked_softmax_fusion,
             attention_mask_func,
             self.attention_softmax_in_fp32,
-            coeff)
+            (1 / self.norm_factor))
 
         ## Rotary Position Embedding
         self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head)
@@ -417,7 +414,6 @@ class Llama2ParallelAttention(MegatronModule):
         # Raw attention scores. [b, np, s, s]
         # ===================================
 
-        query_layer *= (1.0 / self.norm_factor)
         attention_scores = torch.matmul(query_layer, key_layer.transpose(3, 2))
 
         # ==================================================
@@ -486,7 +482,8 @@ class Llama2ParallelTransformerLayer(MegatronModule):
         # Layernorm on the input data.
         self.input_layernorm = RMSNorm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=args.layernorm_epsilon,
+            sequence_parallel=args.sequence_parallel)
 
         # Self attention.
         self.attention = Llama2ParallelAttention(
@@ -498,7 +495,8 @@ class Llama2ParallelTransformerLayer(MegatronModule):
         # Layernorm on the attention output
         self.post_attention_layernorm = RMSNorm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=args.layernorm_epsilon,
+            sequence_parallel=args.sequence_parallel)
 
         # MLP
         self.rank = args.rank
@@ -642,7 +640,8 @@ class Llama2ParallelTransformer(MegatronModule):
             # Final layer norm before output.
             self.final_layernorm = RMSNorm(
                 args.hidden_size,
-                eps=args.layernorm_epsilon)
+                eps=args.layernorm_epsilon,
+                sequence_parallel=args.sequence_parallel)
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
@@ -685,7 +684,10 @@ class Llama2ParallelTransformer(MegatronModule):
         model's forward_step_func won't have it. This function is thus
         used by internal code to bypass the input provided by the
         forward_step_func"""
-        self.input_tensor = input_tensor
+        if isinstance(input_tensor, (list, tuple)):
+            self.input_tensor = input_tensor[0]
+        else:
+            self.input_tensor = input_tensor
 
     def forward(self, hidden_states, attention_mask, layer_past=None, get_key_value=False):
 
@@ -755,7 +757,7 @@ def CrossEntropy(output, labels):
     return loss
 
 
-class Llama2ModelPipe(PipelineModule, MegatronModule):
+class Llama2ModelPipe(PipelineModule, MegatronModule, MegatronModuleForCausalLM):
     """llama Language model."""
 
     def __init__(self, parallel_output=True):
@@ -797,7 +799,9 @@ class Llama2ModelPipe(PipelineModule, MegatronModule):
         self.specs.append(lambda x: x.transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
-        self.specs.append(LayerSpec(RMSNorm, args.hidden_size, eps=args.layernorm_epsilon))
+        self.specs.append(
+            LayerSpec(RMSNorm, args.hidden_size, eps=args.layernorm_epsilon,
+                      sequence_parallel=args.sequence_parallel))
 
         self.specs.append(
             LayerSpec(Llama2LMHeadPipe, hidden_size=args.hidden_size, vocab_size=args.padded_vocab_size,
@@ -825,11 +829,11 @@ class Llama2ModelPipe(PipelineModule, MegatronModule):
                          partition_method='type:transformer')
 
 
-class Llama2Model(MegatronModule):
+class Llama2Model(MegatronModule, MegatronModuleForCausalLM):
     """llaMA2 Language model."""
 
-    def __init__(self, pre_process, post_process, parallel_output=True, add_pooler=False):
-        super(Llama2Model, self).__init__(share_word_embeddings=False)
+    def __init__(self, config, pre_process, post_process, parallel_output=True, add_pooler=False, **kwargs):
+        super(Llama2Model, self).__init__(config=config, share_word_embeddings=False)
         args = get_args()
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
         self.hidden_size = args.hidden_size
@@ -844,8 +848,8 @@ class Llama2Model(MegatronModule):
 
         if self.pre_process:
             self.embedding = Llama2Embedding(hidden_size=args.hidden_size,
-                                            init_method=self.init_method,
-                                            vocab_size=self.padded_vocab_size)
+                                             init_method=self.init_method,
+                                             vocab_size=self.padded_vocab_size)
 
         # Transformer.
         self.language_model = Llama2ParallelTransformer(

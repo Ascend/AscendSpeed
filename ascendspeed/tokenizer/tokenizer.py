@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Megatron tokenizers."""
+"""Megatron tokenizers. just using huggingface implementation."""
 
 from abc import ABC
 from abc import abstractmethod
-from transformers import AutoTokenizer
-from .bert_tokenization import FullTokenizer as FullBertTokenizer
-from .gpt2_tokenization import GPT2Tokenizer
+from transformers import AutoTokenizer, GPT2Tokenizer
+from transformers import BertTokenizer as FullBertTokenizer
 
 
 def build_tokenizer(args):
@@ -167,6 +166,7 @@ class _BertWordPieceTokenizer(AbstractTokenizer):
             name = 'BERT Upper Case'
         super().__init__(name)
         self.tokenizer = FullBertTokenizer(vocab_file, do_lower_case=lower_case)
+        self.tokenizer.inv_vocab = {v: k for k, v in self.tokenizer.vocab.items()}
         self.cls_id = self.tokenizer.vocab['[CLS]']
         self.sep_id = self.tokenizer.vocab['[SEP]']
         self.pad_id = self.tokenizer.vocab['[PAD]']
@@ -205,7 +205,7 @@ class _BertWordPieceTokenizer(AbstractTokenizer):
 
     @property
     def vocab_size(self):
-        return self.tokenizer.vocab_size()
+        return self.tokenizer.vocab_size
 
     @property
     def vocab(self):
@@ -335,6 +335,7 @@ class _AutoTokenizer(AbstractTokenizer):
        
         hf_tokenizer_kwargs["model_max_length"] = model_max_length
         hf_tokenizer_kwargs["use_fast"] = use_fast
+        hf_tokenizer_kwargs["trust_remote_code"] = True
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **hf_tokenizer_kwargs)
         self.encoder = self.tokenizer.get_vocab()
         self.decoder = {v: k for k, v in self.encoder.items()}
@@ -380,6 +381,12 @@ class _AutoTokenizer(AbstractTokenizer):
     @property
     def pad(self):
         candidate = self.tokenizer.pad_token_id
+
+        # just use eos_token_id if pad_token_id is not available, it is reasonable
+        # https://github.com/huggingface/transformers/blob/aea761499f4b1193f2706f471442da6f9df65d65/src/transformers/trainer_seq2seq.py#L327
+        # maybe add a new token, and resize embedding layer is better
+        if candidate is None:
+            candidate = self.tokenizer.eos_token_id
         return self._check_token_candidate(candidate)
 
     @property

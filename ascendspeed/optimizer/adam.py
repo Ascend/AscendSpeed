@@ -4,6 +4,9 @@ import torch
 import torch_npu
 from torch import Tensor
 from torch.optim.optimizer import Optimizer
+from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
+from ascendspeed import mpu
+from ascendspeed import get_args
 
 
 def adamw(params: List[Tensor],
@@ -47,6 +50,21 @@ def adamw(params: List[Tensor],
                 maximize,
                 out=(param.data, exp_avg, exp_avg_sq)
                 )
+
+
+def allreduce_layernorm_grads(grads):
+    """All-reduce layernorm grads (for sequence parallelism)."""
+
+    # All-reduce layernorm parameters across model parallel nodes
+    # when sequence parallelism is used
+
+    coalesced = _flatten_dense_tensors(grads)
+    torch.distributed.all_reduce(
+        coalesced, group=mpu.get_tensor_model_parallel_group())
+    for buf, synced in zip(grads, _unflatten_dense_tensors(
+            coalesced, grads)):
+        buf.copy_(synced)
+
 
 class AdamW(Optimizer):
     r"""Implements AdamW algorithm.
@@ -133,6 +151,7 @@ class AdamW(Optimizer):
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
         """
+        args = get_args()
         loss = None
         if closure is not None:
             with torch.enable_grad():
@@ -180,7 +199,9 @@ class AdamW(Optimizer):
                 state['step'] += 1
                 # record the step after step update
                 state_steps.append(state['step'])
-
+            is_sp_valid = 'layernorm_sp' in group['name'] and len(grads) > 0
+            if args.deepspeed and is_sp_valid:
+                allreduce_layernorm_grads(grads)
             # adamw_torch(params_with_grad,
             adamw(params_with_grad,
                     grads,

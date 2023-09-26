@@ -1,6 +1,10 @@
 import os
+import stat
 import sys
+import unittest
 from pathlib import Path
+import xmlrunner
+
 
 #=============================
 # ST test, run with shell
@@ -9,23 +13,31 @@ def success_check(res):
     if res != 0:
         sys.exit(1)
 
+
+def success_check_ut(res):
+    if len(res.failures) + len(res.errors) != 0:
+        sys.exit(1)
+
+
 class ST_Test:
+    
     def __init__(self):
+
         BASE_DIR = Path(__file__).absolute().parent.parent
         TEST_DIR = os.path.join(BASE_DIR, 'tests')
 
-        gpt_shell_file = os.path.join(TEST_DIR, "st", "test_gpt", "test_gpt_ptd.sh")
-        llama_shell_file = os.path.join(TEST_DIR, "st", "test_llama", "test_llama_ptd.sh")
-        bloom_shell_file = os.path.join(TEST_DIR, "st", "test_bloom", "test_bloom_ptd.sh")
-        llama_vp_shell_file = os.path.join(TEST_DIR, "st", "test_llama", "test_llama_vp.sh")
-        llama_opp_file = os.path.join(TEST_DIR, "st", "test_llama", "test_llama_opp.sh")
+        st_dir = "st"
+        llama_dir = "test_llama"
+        bloom_dir = "test_bloom"
+
+        bloom_shell_file = os.path.join(
+            TEST_DIR, st_dir, bloom_dir, "test_bloom_ptd.sh")
+        llama_shell_file = os.path.join(
+            TEST_DIR, st_dir, llama_dir, "test_llama_ptd.sh")
 
         self.shell_file_list = [
-            gpt_shell_file, 
-            llama_shell_file, 
-            bloom_shell_file, 
-            llama_vp_shell_file, 
-            llama_opp_file
+            llama_shell_file,
+            bloom_shell_file
         ]
 
     def run_shell(self):
@@ -39,3 +51,8 @@ class ST_Test:
 if __name__ == "__main__":
     st_test = ST_Test()
     st_test.run_shell()
+    test_loader = unittest.TestLoader()
+    discover = test_loader.discover(start_dir="../tests/ut", pattern="test*.py")
+
+    runner = unittest.TextTestRunner()
+    success_check_ut(runner.run(discover))

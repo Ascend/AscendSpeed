@@ -3,7 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-
 # MACOS
 .DS_Store
 
@@ -137,3 +136,9 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Vscode stuff
+.vscode
+
+# pycharm stuff
+.idea

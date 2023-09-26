@@ -120,10 +120,14 @@ def _build_tokenizer(args):
     return _GLOBAL_TOKENIZER
 
 
-def rebuild_tokenizer(args):
+def rebuild_tokenizer(args, tokenizer=None):
     global _GLOBAL_TOKENIZER
     _GLOBAL_TOKENIZER = None
-    return _build_tokenizer(args)
+    if tokenizer is None:
+        return _build_tokenizer(args)
+    else:
+        _GLOBAL_TOKENIZER = tokenizer
+        return _GLOBAL_TOKENIZER
 
 
 def _set_tensorboard_writer(args):

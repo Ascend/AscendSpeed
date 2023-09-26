@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from ascendspeed import get_args
 from ascendspeed import mpu
 from ascendspeed.enums import PositionEmbeddingType
-from ascendspeed.model.enums import LayerType, AttnMaskType
+from ascendspeed.core.enums import LayerType, AttnMaskType
 from ascendspeed.model.module import MegatronModule
 from ascendspeed.model.transformer import ParallelTransformer
 from ascendspeed.model.utils import get_linear_layer
@@ -316,7 +316,6 @@ class EmbeddingPipe(Embedding):
         if hasattr(self._args, 'attn_mask'):
             return embeddings
         else:
-            assert False
             return embeddings, attention_mask
 
 

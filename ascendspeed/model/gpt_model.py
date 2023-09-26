@@ -15,24 +15,25 @@
 
 """GPT-2 model."""
 
-from functools import partial
 import torch
+from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
 from ascendspeed import get_args
 from ascendspeed.core import tensor_parallel, parallel_state
-from .module import MegatronModule, fp32_to_float16
+from ascendspeed.model import LayerNorm
+from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm
+from ascendspeed.model.module import float16_to_fp32
+from ascendspeed.core.enums import AttnMaskType
 
-from .enums import AttnMaskType
 from .language_model import parallel_lm_logits
 from .language_model import get_language_model
 from .utils import init_method_normal
 from .utils import scaled_init_method_normal
 
-from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
-from ascendspeed.model import LayerNorm
-from ascendspeed.model.module import float16_to_fp32
+from .module import MegatronModule, MegatronModuleForCausalLM, fp32_to_float16
 from .language_model import EmbeddingPipe
 from .transformer import ParallelTransformerLayerPipe
+from .manual_pipe import ManuallyAllocatedPipelineModule
 
 
 def post_language_model_processing(lm_output, labels, logit_weights,
@@ -64,17 +65,27 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         return loss
 
 
-class GPTModel(MegatronModule):
+class LayerNormLayer(MegatronModule):
+    def __init__(self, hidden_size, eps):
+        super(LayerNormLayer, self).__init__()
+        self.final_layernorm = torch.nn.LayerNorm(hidden_size, eps)
+
+    def forward(self, norm_input):
+        return self.final_layernorm(norm_input)
+
+
+class GPTModel(MegatronModule, MegatronModuleForCausalLM):
     """GPT-2 Language model."""
 
     def __init__(self,
+                 config,
                  num_tokentypes=0,
                  parallel_output=True,
                  pre_process=True,
                  post_process=True,
                  prefix_lm=False,
                  return_moe_loss=True):
-        super(GPTModel, self).__init__()
+        super(GPTModel, self).__init__(config,)
         args = get_args()
 
         self.parallel_output = parallel_output
@@ -133,7 +144,7 @@ class GPTModel(MegatronModule):
                     self.parallel_output,
                     forward_method_parallel_output,
                     self.fp16_lm_cross_entropy)
-        
+
         if self.return_moe_loss:
             return (lm_output, *moe_losses)
         else:
@@ -215,11 +226,13 @@ def get_cross_entropy(is_prefix: bool):
         return loss
     return CrossEntropy
 
-class GPTModelPipe(PipelineModule,MegatronModule):
+
+class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModuleForCausalLM):
     """GPT-2 Language model."""
 
     def __init__(
         self,
+        config,
         num_tokentypes=0,
         parallel_output=True,
         attn_mask_type: AttnMaskType = AttnMaskType.causal
@@ -267,13 +280,15 @@ class GPTModelPipe(PipelineModule,MegatronModule):
 
         for layer_idx in range(args.num_layers):
             self.specs.append(
-                LayerSpec(ParallelTransformerLayerPipe,
+                LayerSpec(
+                    ParallelTransformerLayerPipe,
                     init_method=init_method,
                     output_layer_init_method=scaled_init_method_normal(args.init_method_std,
                                                                        args.num_layers),
                     layer_number=layer_idx,
                     # TODO: Change naming of class from GPT to something that encapsulate prefix lm.
-                    self_attn_mask_type=attn_mask_type))
+                    self_attn_mask_type=attn_mask_type)
+            )
 
         # Undo data format change
         def undo(x):
@@ -283,10 +298,18 @@ class GPTModelPipe(PipelineModule,MegatronModule):
         self.specs.append(undo)
 
         # Final layernorm after transformer layers
-        self.specs.append(
-            LayerSpec(LayerNorm,
-                      args.hidden_size,
-                      eps=args.layernorm_epsilon))
+        if args.sequence_parallel:
+            self.specs.append(
+                LayerSpec(MixedFusedLayerNorm,
+                          args.hidden_size,
+                          eps=args.layernorm_epsilon,
+                          sequence_parallel=args.sequence_parallel))
+
+        else:
+            self.specs.append(
+                LayerSpec(LayerNormLayer,
+                          args.hidden_size,
+                          eps=args.layernorm_epsilon))
 
         def _logits_helper(embedding, lm_output):
             """A wrapper to massage inputs/outputs from pipeline. """

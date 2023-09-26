@@ -16,6 +16,8 @@
 """Multitask Finetune style dataset."""
 
 import time
+import glob
+import re
 
 import numpy as np
 import torch
@@ -37,43 +39,44 @@ class MTFDataset(torch.utils.data.Dataset):
         self.name = name
 
         # Dataset.
-        self.input_indexed_dataset = get_indexed_dataset(data_prefix, is_input=True, data_impl=data_impl, skip_warmup=skip_warmup)
-        self.target_indexed_dataset = get_indexed_dataset(data_prefix, is_input=False, data_impl=data_impl, skip_warmup=skip_warmup)
+        self.packed_indexed_dataset = get_packed_indexed_dataset(data_prefix, data_impl=data_impl, skip_warmup=skip_warmup)
 
         # Checks
         assert np.min(documents) >= 0
-        assert np.max(documents) < self.input_indexed_dataset.sizes.shape[0]
-        assert np.max(documents) < self.target_indexed_dataset.sizes.shape[0]
-        assert self.input_indexed_dataset.sizes.shape[0] == self.target_indexed_dataset.sizes.shape[0]
+        assert len(self.packed_indexed_dataset) > 0
+
+        self.length = list(self.packed_indexed_dataset.values())[0].sizes.shape[0]
+
+        assert np.max(documents) < self.length
+        for dataset in self.packed_indexed_dataset.values():
+            assert dataset.sizes.shape[0] == self.length
 
     def __len__(self):
-        return len(self.input_indexed_dataset)
+        return self.length
 
     def __getitem__(self, idx):
-        input_tokens = self.input_indexed_dataset.get(idx)
-        target_tokens = self.target_indexed_dataset.get(idx)
+        packed_data = dict()
+        for key, dataset in self.packed_indexed_dataset.items():
+            packed_data[key] = dataset.get(idx)
+            assert len(packed_data[key]) > 0
+        return packed_data
 
-        assert len(input_tokens) > 0
-        assert len(target_tokens) > 0
 
-        return {
-            'input_tokens': input_tokens,
-            'target_tokens': target_tokens,
-        }
+def get_packed_indexed_dataset(data_prefix: str, data_impl: str, skip_warmup: bool):
+    index_dataset_name = f"{data_prefix}_packed_*_document*"
+    names = glob.glob(index_dataset_name)
+    template = f"{data_prefix}_packed_(.*)_document(.*)"
+    all_field = set()
+    for name in names:
+        fields = re.match(template, name)
+        all_field.add(fields.group(1))
+    packed_dataset = dict()
+    for field in all_field:
+        packed_dataset[field] = get_indexed_dataset_(
+            f"{data_prefix}_packed_{field}_document", data_impl, skip_warmup
+        )
+    return packed_dataset
 
-    def size(self, index):
-        return {
-            'input_tokens': self.input_indexed_dataset.size(index),
-            'target_tokens': self.target_indexed_dataset.size(index),
-        }
-
-def get_indexed_dataset(data_prefix: str, is_input: bool, data_impl: str, skip_warmup: bool):
-    if is_input:
-        field = "inputs"
-    else:
-        field = "targets"
-
-    return get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
 
 def get_indexed_dataset_(path, data_impl, skip_warmup):
     """Build indexed dataset."""

@@ -1,6 +1,5 @@
 # coding=utf-8
 # Copyright (c) 2023, HUAWEI CORPORATION.  All rights reserved.
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,10 +33,12 @@ from ascendspeed import get_tokenizer
 from ascendspeed import mpu
 from ascendspeed.core import parallel_state
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
-from ascendspeed.model import Llama2Model, Llama2ModelPipe
+from ascendspeed.model.llama2_model import Llama2Model, Llama2ModelPipe
 from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
+from ascendspeed.arguments import core_transformer_config_from_args
+from ascendspeed.core.enums import ModelType
 
 
 def model_provider(pre_process=True, post_process=True):
@@ -47,6 +48,7 @@ def model_provider(pre_process=True, post_process=True):
     see_memory_usage(f"Before Building Model ...", force=True)
 
     args = get_args()
+    config = core_transformer_config_from_args(get_args())
     with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                              remote_device=None if args.remote_device == 'none' else args.remote_device,
                              config_dict_or_path=args.deepspeed_config,
@@ -77,6 +79,7 @@ def model_provider(pre_process=True, post_process=True):
             args.attn_mask = attention_mask.to(torch.bool)
         else:
             model = Llama2Model(
+                config=config,
                 parallel_output=True,
                 add_pooler=False,
                 pre_process=pre_process,
@@ -96,10 +99,13 @@ def get_batch(data_iterator):
     data_type = torch.int64
 
     # Broadcast data.
-    if data_iterator is not None:
+    if hasattr(data_iterator, '__next__'):
         data = next(data_iterator)
     else:
-        data = None
+        if isinstance(data_iterator, list):
+            return data_iterator.pop(0)
+        else:
+            data = None
     data_b = mpu.broadcast_data(keys, data, data_type)
 
     # Unpack.
@@ -114,6 +120,11 @@ def get_batch(data_iterator):
         args.reset_position_ids,
         args.reset_attention_mask,
         args.eod_mask_loss)
+
+    if args.foldx_mode is not None:
+        if hasattr(data_iterator, 'dummy_iterators'):
+            for iterator in data_iterator.dummy_iterators:
+                iterator.append((tokens, labels, loss_mask, attention_mask,))
 
     return tokens, labels, loss_mask, attention_mask
 
@@ -170,6 +181,7 @@ def get_batch_pipe(data):
         args.eod_mask_loss)
     return (tokens, attention_mask), (labels, loss_mask)
 
+
 def loss_func(loss_mask, output_tensor):
     args = get_args()
 
@@ -188,9 +200,11 @@ def forward_step(data_iterator, model):
 
     timers = get_timers()
     # Get the batch.
-    timers('batch-generator').start()
+    if args.foldx_mode is None:
+        timers('batch-generator').start()
     tokens, labels, loss_mask, attention_mask = get_batch(data_iterator)
-    timers('batch-generator').stop()
+    if args.foldx_mode is None:
+        timers('batch-generator').stop()
 
     output_tensor = model(tokens, attention_mask, labels=labels)
     # Output_tensor stores the standard loss, loos_func calculates the total loss.
@@ -215,10 +229,12 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
     return train_ds, valid_ds, test_ds
 
+
 if __name__ == "__main__":
     torch.npu.set_compile_mode(jit_compile=True)
     pretrain(train_valid_test_datasets_provider,
              model_provider,
+             ModelType.encoder_or_decoder,
              forward_step,
              args_defaults={'tokenizer_type': 'PretrainedFromHF'},
              data_post_process=data_post_process)

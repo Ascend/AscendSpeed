@@ -396,9 +396,9 @@ class ColumnParallelLinear(torch.nn.Module):
                  keep_master_weight_for_test=False,
                  skip_bias_add=False, moe=False,
                  enable_expert_tensor_parallelism=False,
-                 sequence_parallel_enabled: bool = False
-                 ):
-        super(ColumnParallelLinear, self).__init__()
+                 sequence_parallel_enabled: bool = False,
+                 dtype=None):  # dtype如果没传，会在下面读取args里的配置
+        torch.nn.Module.__init__(self)
 
         # Keep input parameters
         self.input_size = input_size
@@ -420,10 +420,11 @@ class ColumnParallelLinear(torch.nn.Module):
         # we allocate the transpose.
         # Initialize weight.
         args = get_args()
+        dtype = args.params_dtype if dtype is None else dtype
         if args.use_cpu_initialization:
             self.weight = Parameter(torch.empty(self.output_size_per_partition,
                                                 self.input_size,
-                                                dtype=args.params_dtype))
+                                                dtype=dtype))
             self.master_weight = _initialize_affine_weight_cpu(
                 self.weight, self.output_size, self.input_size,
                 self.output_size_per_partition, 0, init_method,
@@ -431,19 +432,19 @@ class ColumnParallelLinear(torch.nn.Module):
         else:
             self.weight = Parameter(torch.empty(
                 self.output_size_per_partition, self.input_size,
-                device=get_accelerator().current_device_name(), dtype=args.params_dtype))
+                device=get_accelerator().current_device_name(), dtype=dtype))
             _initialize_affine_weight_gpu(self.weight, init_method,
                                           partition_dim=0, stride=stride)
             
         if bias:
             if args.use_cpu_initialization:
                 self.bias = Parameter(torch.empty(
-                    self.output_size_per_partition, dtype=args.params_dtype))
+                    self.output_size_per_partition, dtype=dtype))
             else:
                 self.bias = Parameter(torch.empty(
                     self.output_size_per_partition,
                     device=get_accelerator().current_device_name(),
-                    dtype=args.params_dtype))
+                    dtype=dtype))
             set_tensor_model_parallel_attributes(self.bias, True, 0, stride)
             # Always initialize bias to zero.
             with torch.no_grad():
@@ -525,8 +526,9 @@ class RowParallelLinear(torch.nn.Module):
                  keep_master_weight_for_test=False,
                  skip_bias_add=False, moe=False,
                  enable_expert_tensor_parallelism=False,
-                 sequence_parallel_enabled: bool = False):
-        super(RowParallelLinear, self).__init__()
+                 sequence_parallel_enabled: bool = False,
+                 dtype=None):  # dtype如果没传，会在下面读取args里的配置
+        torch.nn.Module.__init__(self)
 
         # Keep input parameters
         self.input_size = input_size
@@ -551,10 +553,11 @@ class RowParallelLinear(torch.nn.Module):
         # we allocate the transpose.
         # Initialize weight.
         args = get_args()
+        dtype = args.params_dtype if dtype is None else dtype
         if args.use_cpu_initialization:
             self.weight = Parameter(torch.empty(self.output_size,
                                                 self.input_size_per_partition,
-                                                dtype=args.params_dtype))
+                                                dtype=dtype))
             self.master_weight = _initialize_affine_weight_cpu(
                 self.weight, self.output_size, self.input_size,
                 self.input_size_per_partition, 1, init_method,
@@ -562,17 +565,17 @@ class RowParallelLinear(torch.nn.Module):
         else:
             self.weight = Parameter(torch.empty(
                 self.output_size, self.input_size_per_partition,
-                device=get_accelerator().current_device_name(), dtype=args.params_dtype))
+                device=get_accelerator().current_device_name(), dtype=dtype))
             _initialize_affine_weight_gpu(self.weight, init_method,
                                           partition_dim=1, stride=stride)
         if bias:
             if args.use_cpu_initialization:
                 self.bias = Parameter(torch.empty(self.output_size,
-                                                  dtype=args.params_dtype))
+                                                  dtype=dtype))
             else:
                 self.bias = Parameter(torch.empty(
                     self.output_size, device=get_accelerator().current_device_name(),
-                    dtype=args.params_dtype))
+                    dtype=dtype))
             # Always initialize bias to zero.
             with torch.no_grad():
                 self.bias.zero_()

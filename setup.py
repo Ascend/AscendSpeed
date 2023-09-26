@@ -72,6 +72,7 @@ except Exception:
 
 setuptools.setup(
     package_data={'ascendspeed':['ascendspeed/data/Makefile']},
+    data_files=[('', ['ascendspeed/data/Makefile'])],
     name=__package_name__,
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
@@ -94,7 +95,6 @@ setuptools.setup(
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Topic :: Software Development :: Libraries :: Python Modules',
         # Supported python versions
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
@@ -103,7 +103,7 @@ setuptools.setup(
         'Natural Language :: English',
         'Operating System :: OS Independent',
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     packages=setuptools.find_packages(),
     install_requires=install_requires,
     # Add in any packaged data.

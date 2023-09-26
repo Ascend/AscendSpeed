@@ -19,9 +19,12 @@ from torch.optim import SGD
 
 from ascendspeed import get_args
 from ascendspeed.model import LayerNorm
+from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm
+from ascendspeed.model.lora_utils import is_enable_lora
 
 from .grad_scaler import ConstantGradScaler, DynamicGradScaler
 from .optimizer import Float16OptimizerWithFloat16Params, FP32Optimizer
+from .distrib_optimizer import DistributedOptimizer
 
 def _get_params_for_weight_decay_optimization(modules):
     """Divide params into with-weight-decay and without-weight-decay groups.
@@ -29,29 +32,79 @@ def _get_params_for_weight_decay_optimization(modules):
     """
     args = get_args()
 
-    weight_decay_params = {'params': [], 'name' : 'weight_decay_params'}
+    weight_decay_params = {'params': [], 'name': 'weight_decay_params'}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0, 'name': 'no_weight_decay_params'}
     
     for module in modules:
         for module_ in module.modules():
-            if isinstance(module_, LayerNorm):
+            if isinstance(module_, LayerNorm) or isinstance(module_, MixedFusedLayerNorm):
                 no_weight_decay_params['params'].extend(
                     [p for p in list(module_._parameters.values())
-                    if p is not None])
+                    if p is not None and p.requires_grad])
             else:
                 weight_decay_params['params'].extend(
                     [p for n, p in list(module_._parameters.items())
-                    if p is not None and n != 'bias'])
+                    if p is not None and n != 'bias' and p.requires_grad])
                 no_weight_decay_params['params'].extend(
                     [p for n, p in list(module_._parameters.items())
-                    if p is not None and n == 'bias'])
+                    if p is not None and n == 'bias' and p.requires_grad])
     return weight_decay_params, no_weight_decay_params
+
+
+def _get_sp_params_for_weight_decay_optimization(modules):
+    """Divide params into with-weight-decay, sp-norm-without-decay and without-weight-decay groups.
+    Layernorms and baises will have no weight decay but the rest will.
+    """
+    params = 'params'
+    name = 'name'
+    args = get_args()
+
+    weight_decay_params = {params: [], name: 'weight_decay_params'}
+    no_weight_decay_params = {params: [], 'weight_decay': 0.0, name: 'no_weight_decay_params'}
+    no_weight_decay_layernorm_params = {
+        params: [],
+        'weight_decay': 0.0,
+        name: 'no_weight_decay_layernorm_sp_params'
+    }
+
+    def classify_params(local_module):
+        nonlocal weight_decay_params
+        nonlocal no_weight_decay_params
+        nonlocal no_weight_decay_layernorm_params
+        if isinstance(local_module, LayerNorm) or isinstance(local_module, MixedFusedLayerNorm):
+            if getattr(list(local_module.named_parameters(recurse=False))[0][1], 'sequence_parallel', False):
+                no_weight_decay_layernorm_params[params].extend(
+                    [p for _, p in local_module.named_parameters(recurse=False)
+                        if p is not None])
+            else:
+                no_weight_decay_params[params].extend(
+                    [p for _, p in local_module.named_parameters(recurse=False)
+                        if p is not None])
+        else:
+            for n, p in local_module.named_parameters(recurse=False):
+                if p is not None and p.requires_grad:
+                    if getattr(p, 'sequence_parallel', False):
+                        no_weight_decay_layernorm_params[params].append(p)
+                    elif 'bias' not in n:
+                        weight_decay_params[params].append(p)
+                    elif 'bias' in n:
+                        no_weight_decay_params[params].append(p)
+
+    for module in modules:
+        for module_ in module.modules():
+            classify_params(module_)
+
+    return weight_decay_params, no_weight_decay_params, no_weight_decay_layernorm_params
+
 
 def get_megatron_optimizer(model):
     args = get_args()
 
     # Base optimizer.
-    param_groups = _get_params_for_weight_decay_optimization(model)
+    if args.deepspeed and args.sequence_parallel:
+        param_groups = _get_sp_params_for_weight_decay_optimization(model)
+    else:
+        param_groups = _get_params_for_weight_decay_optimization(model)
     if args.create_moe_param_group:
         from deepspeed.moe.utils import is_moe_param, split_params_into_different_moe_groups_for_optimizer
         param_groups = split_params_into_different_moe_groups_for_optimizer(param_groups)
@@ -95,7 +148,7 @@ def get_megatron_optimizer(model):
 
     # Determine whether the params have main-grad field.
     params_have_main_grad = False
-    if args.DDP_impl == 'local':
+    if args.DDP_impl == 'local' and not is_enable_lora():
         params_have_main_grad = True
 
     if args.fp16 or args.bf16:
@@ -122,12 +175,17 @@ def get_megatron_optimizer(model):
                     hysteresis=args.hysteresis)
 
         # Megatron optimizer.
-        return Float16OptimizerWithFloat16Params(optimizer,
-                                                 args.clip_grad,
-                                                 args.log_num_zeros_in_grad,
-                                                 params_have_main_grad,
-                                                 args.bf16,
-                                                 grad_scaler)
+        opt_ty = DistributedOptimizer if args.use_distributed_optimizer else Float16OptimizerWithFloat16Params
+        return opt_ty(optimizer,
+                      args.clip_grad,
+                      args.log_num_zeros_in_grad,
+                      params_have_main_grad,
+                      args.use_contiguous_buffers_in_local_ddp,
+                      args.fp16,
+                      args.bf16,
+                      args.params_dtype,
+                      grad_scaler,
+                      model)
 
     # FP32.
     return FP32Optimizer(optimizer, args.clip_grad,

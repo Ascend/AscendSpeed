@@ -15,6 +15,7 @@
 
 """Pretrain BLOOM"""
 from functools import partial
+import math
 
 import torch
 import torch_npu
@@ -32,11 +33,13 @@ from ascendspeed import get_tokenizer
 from ascendspeed import mpu
 from ascendspeed.core import parallel_state
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets, build_dataset_group
-from ascendspeed.model import GPTModel, GPTModelPipe, ModelType
+from ascendspeed.model import GPTModel, GPTModelPipe
+from ascendspeed.core.enums import ModelType
 from ascendspeed.enums import AttnMaskType
 from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
+from ascendspeed.arguments import core_transformer_config_from_args
 
 
 def model_provider(pre_process=True, post_process=True):
@@ -46,6 +49,7 @@ def model_provider(pre_process=True, post_process=True):
     see_memory_usage(f"Before Building Model", force=True)
 
     args = get_args()
+    config = core_transformer_config_from_args(get_args())
     with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                              remote_device=None if args.remote_device == 'none' else args.remote_device,
                              config_dict_or_path=args.deepspeed_config,
@@ -54,6 +58,7 @@ def model_provider(pre_process=True, post_process=True):
         if args.deepspeed:
             args.pretrain_causal_attention = True
             model = GPTModelPipe(
+                config,
                 num_tokentypes=0,
                 parallel_output=True
             )
@@ -79,6 +84,7 @@ def model_provider(pre_process=True, post_process=True):
             args.attn_mask = attention_mask.to(torch.bool)
         else:
             model = GPTModel(
+                config=config,
                 num_tokentypes=0,
                 parallel_output=True,
                 pre_process=pre_process,
@@ -98,10 +104,13 @@ def get_batch(data_iterator):
     datatype = torch.int64
 
     # Broadcast data.
-    if data_iterator is not None:
+    if hasattr(data_iterator, '__next__'):
         data = next(data_iterator)
     else:
-        data = None
+        if isinstance(data_iterator, list):
+            return data_iterator.pop(0)
+        else:
+            data = None
     data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack.
@@ -116,6 +125,11 @@ def get_batch(data_iterator):
         args.reset_position_ids,
         args.reset_attention_mask,
         args.eod_mask_loss)
+
+    if args.foldx_mode is not None:
+        if hasattr(data_iterator, 'dummy_iterators'):
+            for iterator in data_iterator.dummy_iterators:
+                iterator.append((tokens, labels, loss_mask, attention_mask, position_ids,))
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 
@@ -234,10 +248,11 @@ def forward_step(data_iterator, model):
     timers = get_timers()
 
     # Get the batch.
-    timers('batch-generator', log_level=2).start()
-    tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
-        data_iterator)
-    timers('batch-generator').stop()
+    if args.foldx_mode is None:
+        timers('batch-generator').start()
+    tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
+    if args.foldx_mode is None:
+        timers('batch-generator').stop()
 
     output_tensor = model(tokens, position_ids, attention_mask,
                           labels=labels)
@@ -297,7 +312,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 if __name__ == "__main__":
     torch_npu.npu.set_compile_mode(jit_compile=True)
 
-    pretrain(train_valid_test_datasets_provider, model_provider,
+    pretrain(train_valid_test_datasets_provider, model_provider, ModelType.encoder_or_decoder,
              forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}
-    )
+             )

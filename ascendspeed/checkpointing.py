@@ -21,6 +21,8 @@ import sys
 import numpy as np
 from deepspeed.accelerator import get_accelerator
 import torch
+from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
+
 from ascendspeed.enums import PositionEmbeddingType
 
 
@@ -31,6 +33,10 @@ from ascendspeed import (get_args,
                       update_num_microbatches,
                       utils)
 from ascendspeed.core import parallel_state
+from ascendspeed.model import DistributedDataParallel as LocalDDP
+from ascendspeed.model.lora_utils import is_enable_lora, get_lora_state_dict, lora_custom_load_fn_for_deepspeed, \
+    get_lora_model_classes, get_lora_state_dict_with_deepspeed, update_model_state_dict_with_megatron, \
+    get_lora_load_fn_with_deepspeed, handle_lora_modules_to_save_key_with_megatron
 
 _CHECKPOINT_VERSION = None
 
@@ -90,7 +96,7 @@ def ensure_directory_exists(filename):
 
 
 def get_checkpoint_name(checkpoints_path, iteration,
-                        release=False):
+                        release=False, model_name='model_optim_rng.pt'):
     """A unified checkpoint name."""
     if release:
         directory = 'release'
@@ -101,12 +107,12 @@ def get_checkpoint_name(checkpoints_path, iteration,
         return os.path.join(checkpoints_path, directory,
                             'mp_rank_{:02d}'.format(
                                 parallel_state.get_tensor_model_parallel_rank()),
-                            'model_optim_rng.pt')
+                            model_name)
     return os.path.join(checkpoints_path, directory,
                         'mp_rank_{:02d}_{:03d}'.format(
                             parallel_state.get_tensor_model_parallel_rank(),
                             parallel_state.get_pipeline_model_parallel_rank()),
-                        'model_optim_rng.pt')
+                        model_name)
 
 
 def get_checkpoint_tracker_filename(checkpoints_path):
@@ -121,7 +127,10 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
     # Only rank zero of the data parallel writes to the disk.
     if not args.deepspeed:
-        model = utils.unwrap_model(model)
+        unwrap_model_classes = (torchDDP, LocalDDP)
+        if is_enable_lora():
+            unwrap_model_classes += get_lora_model_classes()
+        model = utils.unwrap_model(model, unwrap_model_classes)
 
     print_rank_0('saving checkpoint at iteration {:7d} to {}'.format(
         iteration, args.save))
@@ -138,12 +147,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
         # DeepSpeed saves the model/optimizer/scheduler
         if not args.deepspeed:
-            if len(model) == 1:
-                state_dict['model'] = model[0].state_dict_for_save_checkpoint()
-            else:
-                for i in range(len(model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                    state_dict['model%d' % i] = model[i].state_dict_for_save_checkpoint()
+            get_model_state_dict(model, state_dict)
 
             # Optimizer stuff.
             if not args.no_save_optim:
@@ -173,6 +177,8 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
         if args.no_pipeline_parallel:
             original_state_dict = model[0].module.state_dict
             model[0].module.state_dict = model[0].module.state_dict_for_save_checkpoint
+        if is_enable_lora():
+            model[0].module.state_dict = get_lora_state_dict_with_deepspeed(model=model[0])
 
         # Saving is a collective communication
         checkpoint_name = get_checkpoint_name(args.save, iteration)
@@ -184,6 +190,25 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
         if args.no_pipeline_parallel:
             model[0].module.state_dict = original_state_dict
+
+    save_checkpoint_post_process(iteration)
+
+
+def get_model_state_dict(model, state_dict):
+    if len(model) == 1:
+        state_dict['model'] = model[0].state_dict_for_save_checkpoint()
+        if is_enable_lora():
+            state_dict['model'] = get_lora_state_dict(state_dict['model'])
+    else:
+        for i in range(len(model)):
+            parallel_state.set_virtual_pipeline_model_parallel_rank(i)
+            state_dict['model%d' % i] = model[i].state_dict_for_save_checkpoint()
+            if is_enable_lora():
+                state_dict['model%d' % i] = get_lora_state_dict(state_dict['model%d' % i])
+
+
+def save_checkpoint_post_process(iteration):
+    args = get_args()
 
     # Wait so everyone is done (necessary)
     if torch.distributed.is_initialized():
@@ -201,6 +226,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     # Wait so everyone is done (not necessary)
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
+
 
 def _transpose_first_dim(t, num_splits, num_splits_first, model):
     input_shape = t.size()
@@ -271,6 +297,88 @@ def fix_query_key_value_ordering(model, checkpoint_version):
         print_rank_0(" succesfully fixed query-key-values ordering for"
                     " checkpoint version {}".format(checkpoint_version))
 
+
+def read_tracker(load_dir):
+    args = get_args()
+    iteration = 0
+    release = False
+    # Read the tracker file and set the iteration.
+    tracker_filename = get_checkpoint_tracker_filename(load_dir)
+
+    # If no tracker file, return iteration zero.
+    if not os.path.isfile(tracker_filename):
+        print_rank_0('WARNING: could not find the metadata file {} '.format(
+            tracker_filename))
+        print_rank_0('    will not load any checkpoints and will start from '
+                     'random')
+        return False, iteration, release
+
+    # Otherwise, read the tracker file and either set the iteration or
+    # mark it as a release checkpoint.
+    with open(tracker_filename, 'r') as f:
+        metastring = f.read().strip()
+        try:
+            iteration = int(metastring)
+        except ValueError:
+            release = metastring == 'release'
+            if not release:
+                print_rank_0('ERROR: Invalid metadata file {}. Exiting'.format(
+                    tracker_filename))
+                sys.exit()
+
+    if not args.mos and not args.kd:
+        assert iteration > 0 or release, 'error parsing metadata file {}'.format(
+            tracker_filename)
+
+    return True, iteration, release
+
+
+def get_state_dict_and_release(load_dir, lora_load_dir=None):
+    args = get_args()
+
+    read_tracker_success, iteration, release = read_tracker(load_dir)
+    if not read_tracker_success:
+        raise ValueError(f"{load_dir} do not have tracker.")
+    if lora_load_dir:
+        read_tracker_success, lora_iteration, lora_release = read_tracker(lora_load_dir)
+        if not read_tracker_success:
+            raise ValueError(f"{lora_load_dir} do not have tracker.")
+
+    # Checkpoint.
+    checkpoint_name = get_checkpoint_name(load_dir, iteration, release)
+    print_rank_0(f' loading checkpoint from {args.load} at iteration {iteration}')
+    model_checkpoint_name = None
+    if lora_load_dir:  # 有lora目录时，其他参数都应从lora目录读取，load目录只提供原始模型权重
+        model_checkpoint_name = checkpoint_name
+        checkpoint_name = get_checkpoint_name(lora_load_dir, lora_iteration, lora_release)
+        print_rank_0(
+            f' loading lora checkpoint from {args.lora_load} at iteration {lora_iteration} release:{lora_release}')
+        release = lora_release
+
+    # Load the checkpoint.
+    try:
+        state_dict = load_state_dict_from_checkpoint_with_megatron(checkpoint_name,
+                                                                   model_checkpoint_name=model_checkpoint_name)
+    except ModuleNotFoundError:
+        from ascendspeed.fp16_deprecated import loss_scaler
+        # For backward compatibility.
+        print_rank_0(' > deserializing using the old code structure ...')
+        sys.modules['fp16.loss_scaler'] = sys.modules[
+            'ascendspeed.fp16_deprecated.loss_scaler']
+        sys.modules['ascendspeed.fp16.loss_scaler'] = sys.modules[
+            'ascendspeed.fp16_deprecated.loss_scaler']
+        state_dict = load_state_dict_from_checkpoint_with_megatron(checkpoint_name,
+                                                                   model_checkpoint_name=model_checkpoint_name)
+        sys.modules.pop('fp16.loss_scaler', None)
+        sys.modules.pop('ascendspeed.fp16.loss_scaler', None)
+    except BaseException as e:
+        print_rank_0('could not load the checkpoint')
+        print_rank_0(e)
+        sys.exit()
+
+    return state_dict, release, checkpoint_name
+
+
 def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True, load_only_weights=False):
     """Load a model checkpoint and return the iteration.
     strict (bool): whether to strictly enforce that the keys in
@@ -279,70 +387,41 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     """
     args = get_args()
     load_dir = getattr(args, load_arg)
+    lora_load_dir = getattr(args, 'lora_load')
 
     if args.deepspeed:
-        load_optimizer_states = False if args.no_load_optim else True
-        loaded_dir, state_dict = model[0].load_checkpoint(load_dir, load_optimizer_states=load_optimizer_states)
+        if not os.path.exists(load_dir):
+            print_rank_0(f"WARNING: could not find the metadata file {load_dir}")
+            print_rank_0(f" will not load any checkpoints and will start from random")
+            return 0
+        custom_load_fn, load_dir = get_custom_load_fn(model=model[0], load_dir=load_dir, lora_load_dir=lora_load_dir)
+        load_zero_optim = sum(['zero' in file for file in os.listdir(load_dir)]) > 0
+        release = not load_zero_optim
+        loaded_dir, state_dict = model[0].load_checkpoint(
+            load_dir,
+            load_module_strict=strict,
+            load_module_only=not load_zero_optim,
+            load_optimizer_states=load_zero_optim,
+            load_lr_scheduler_states=load_zero_optim,
+            custom_load_fn=custom_load_fn
+        )
         if loaded_dir is None:
             print_rank_0(f"WARNING: could not find the metadata file {load_dir}")
             print_rank_0(f" will not load any checkpoints and will start from random")
             return 0
-        release = False
+        checkpoint_name = loaded_dir  # 开启lora时主要参数会从lora_load里读取，所以最后打印时用checkpoint_name传递
     else:
-        model = utils.unwrap_model(model)
+        unwrap_model_classes = (torchDDP, LocalDDP)
+        if is_enable_lora():
+            unwrap_model_classes += get_lora_model_classes()
+        model = utils.unwrap_model(model, unwrap_model_classes)
 
-        # Read the tracker file and set the iteration.
-        tracker_filename = get_checkpoint_tracker_filename(load_dir)
-
-        # If no tracker file, return iretation zero.
-        if not os.path.isfile(tracker_filename):
-            print_rank_0('WARNING: could not find the metadata file {} '.format(
-                tracker_filename))
-            print_rank_0('    will not load any checkpoints and will start from '
-                        'random')
-            return 0
-
-        # Otherwise, read the tracker file and either set the iteration or
-        # mark it as a release checkpoint.
-        iteration = 0
-        release = False
-        with open(tracker_filename, 'r') as f:
-            metastring = f.read().strip()
-            try:
-                iteration = int(metastring)
-            except ValueError:
-                release = metastring == 'release'
-                if not release:
-                    print_rank_0('ERROR: Invalid metadata file {}. Exiting'.format(
-                        tracker_filename))
-                    sys.exit()
-
-        if not args.mos and not args.kd:
-            assert iteration > 0 or release, 'error parsing metadata file {}'.format(
-                tracker_filename)
-
-        # Checkpoint.
-        checkpoint_name = get_checkpoint_name(load_dir, iteration, release)
-        print_rank_0(f' loading checkpoint from {args.load} at iteration {iteration}')
-
-        # Load the checkpoint.
         try:
-            state_dict = torch.load(checkpoint_name, map_location='cpu')
-        except ModuleNotFoundError:
-            from ascendspeed.fp16_deprecated import loss_scaler
-            # For backward compatibility.
-            print_rank_0(' > deserializing using the old code structure ...')
-            sys.modules['fp16.loss_scaler'] = sys.modules[
-                'ascendspeed.fp16_deprecated.loss_scaler']
-            sys.modules['ascendspeed.fp16.loss_scaler'] = sys.modules[
-                'ascendspeed.fp16_deprecated.loss_scaler']
-            state_dict = torch.load(checkpoint_name, map_location='cpu')
-            sys.modules.pop('fp16.loss_scaler', None)
-            sys.modules.pop('ascendspeed.fp16.loss_scaler', None)
-        except BaseException as e:
-            print_rank_0('could not load the checkpoint')
-            print_rank_0(e)
-            sys.exit()
+            state_dict, release, checkpoint_name = get_state_dict_and_release(load_dir=load_dir,
+                                                                              lora_load_dir=lora_load_dir)
+        except ValueError as e:
+            print_rank_0(f"{e}")
+            return 0
 
     # set checkpoint version
     set_checkpoint_version(state_dict.get('checkpoint_version', 0))
@@ -353,18 +432,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
         # Make DeepSpeed engine aware of this reset of iteration
         model[0].global_steps = 0
     else:
-        try:
-            iteration = state_dict['iteration']
-            if 'tokens' in state_dict:
-                args.consumed_train_tokens = state_dict['tokens']
-        except KeyError:
-            try:  # Backward compatible with older checkpoints
-                iteration = state_dict['total_iters']
-            except KeyError:
-                print_rank_0('A metadata file exists but unable to load '
-                             'iteration from checkpoint {}, exiting'.format(
-                                 checkpoint_name))
-                sys.exit()
+        iteration = load_iteration_from_state_dict(state_dict, checkpoint_name)
 
     # Check arguments.
     reset_train_valid_samples = args.reset_iteration
@@ -384,8 +452,12 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
 
     # Model.
     if not args.deepspeed:
+        if is_enable_lora() and iteration == 0:
+            strict = False
         if len(model) == 1:
-            model[0].load_state_dict(state_dict['model'], strict=strict)
+            result = model[0].load_state_dict(state_dict['model'], strict=strict)
+            if not strict and result:
+                print_rank_0(f"load checkpoint result:{result}")
         else:
             for i in range(len(model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
@@ -399,17 +471,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     # Optimizer.
     if not args.deepspeed:
         if not release and not args.finetune and not args.no_load_optim:
-            try:
-                if optimizer is not None:
-                    optimizer.load_state_dict(state_dict['optimizer'])
-                if lr_scheduler is not None and not args.no_load_lr_state:
-                    lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
-            except KeyError:
-                print_rank_0('Unable to load optimizer from checkpoint {}. '
-                            'Specify --no-load-optim or --finetune to prevent '
-                            'attempting to load the optimizer state, '
-                            'exiting ...'.format(checkpoint_name))
-                sys.exit()
+            load_optimizer_from_state_dict(optimizer, lr_scheduler, state_dict, checkpoint_name)
 
     # rng states.
     if not release and not args.finetune and not args.no_load_rng:
@@ -434,10 +496,64 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
-    print_rank_0(f'  successfully loaded checkpoint from {args.load} '
-                 f'at iteration {iteration}')
+    print_rank_0(f'  successfully loaded checkpoint from {checkpoint_name} at iteration {iteration}')
 
     return iteration
+
+
+def get_custom_load_fn(model, load_dir, lora_load_dir=None):
+    custom_load_fn = None
+    if is_enable_lora():
+        if lora_load_dir:
+            custom_load_fn = get_lora_load_fn_with_deepspeed(model=model, base_model_load_dir=load_dir)
+            load_dir = lora_load_dir
+        else:
+            custom_load_fn = lora_custom_load_fn_for_deepspeed
+    return custom_load_fn, load_dir
+
+
+def load_optimizer_from_state_dict(optimizer, lr_scheduler, state_dict, checkpoint_name):
+    args = get_args()
+
+    try:
+        if optimizer is not None:
+            optimizer.load_state_dict(state_dict['optimizer'])
+        if lr_scheduler is not None and not args.no_load_lr_state:
+            lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
+    except KeyError:
+        print_rank_0('Unable to load optimizer from checkpoint {}. '
+                     'Specify --no-load-optim or --finetune to prevent '
+                     'attempting to load the optimizer state, '
+                     'exiting ...'.format(checkpoint_name))
+        sys.exit()
+
+
+def load_iteration_from_state_dict(state_dict, checkpoint_name):
+    args = get_args()
+
+    try:
+        iteration = state_dict['iteration']
+        if 'tokens' in state_dict:
+            args.consumed_train_tokens = state_dict['tokens']
+    except KeyError:
+        try:  # Backward compatible with older checkpoints
+            iteration = state_dict['total_iters']
+        except KeyError:
+            print_rank_0('A metadata file exists but unable to load '
+                         'iteration from checkpoint {}, exiting'.format(
+                checkpoint_name))
+            sys.exit()
+    return iteration
+
+
+def load_state_dict_from_checkpoint_with_megatron(checkpoint_name, model_checkpoint_name=None):
+    state_dict = torch.load(checkpoint_name, map_location='cpu')
+    if model_checkpoint_name:
+        model_state_dict = torch.load(model_checkpoint_name, map_location='cpu')
+        state_dict = update_model_state_dict_with_megatron(model_state_dict=model_state_dict,
+                                                           state_dict=state_dict)
+    state_dict = handle_lora_modules_to_save_key_with_megatron(state_dict)
+    return state_dict
 
 
 def load_biencoder_checkpoint(model, only_query_model=False,

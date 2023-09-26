@@ -33,7 +33,9 @@ from ascendspeed.core import parallel_state
 from ascendspeed.model.module import param_is_not_shared
 from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
 
-def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
+def clip_grad_norm_fp32(parameters, grads_for_norm,
+                        max_norm, norm_type=2,
+                        model_parallel_group=None):
     """Clips gradient norm of an iterable of parameters whose gradients
        are in fp32.
 
@@ -58,21 +60,15 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
 
     if isinstance(parameters, torch.Tensor):
         parameters = [parameters]
+    if isinstance(grads_for_norm, torch.Tensor):
+        grads_for_norm = [grads_for_norm]
 
     # Grads.
     grads = []
-    grads_for_norm = []
     for param in parameters:
-        grad_not_none = param.grad is not None
-        is_not_shared = param_is_not_shared(param)
-        is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
-        grad = param.grad.detach()
-        if grad_not_none:
-            # Make sure the grads are in fp32
-            grads.append(grad)
-        if grad_not_none and is_not_shared and is_not_tp_duplicate:
-            grads_for_norm.append(grad)
-
+        if param.grad is not None:
+            assert param.grad.type() == 'torch.npu.FloatTensor'
+            grads.append(param.grad.detach())
 
     # Norm parameters.
     max_norm = float(max_norm)
@@ -103,12 +99,13 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
     clip_coeff = max_norm / (total_norm + 1.0e-6)
     if clip_coeff < 1.0:
         for p in parameters:
-            p.grad.detach().mul_(clip_coeff)
+            if p.grad is not None:
+                p.grad.detach().mul_(clip_coeff)
 
     return total_norm
 
 
-def count_zeros_fp32(parameters):
+def count_zeros_fp32(parameters, model_parallel_group):
 
     if isinstance(parameters, torch.Tensor):
         parameters = [parameters]
@@ -130,7 +127,7 @@ def count_zeros_fp32(parameters):
     # Sum across all model-parallel GPUs.
     torch.distributed.all_reduce(total_num_zeros,
                                  op=torch.distributed.ReduceOp.SUM,
-                                 group=parallel_state.get_model_parallel_group())
+                                 group=model_parallel_group)
     total_num_zeros = total_num_zeros.item()
 
     return total_num_zeros

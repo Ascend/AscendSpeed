@@ -1,4 +1,5 @@
 # coding=utf-8
+# Copyright (c) 2023, Huawei Technologies Co., Ltd.  All rights reserved.
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,26 +20,31 @@ Following implementation from huggingface, https://github.com/huggingface/transf
 """
 
 import math
+import logging
 from functools import partial
 
 import torch
+try:
+    import torch_npu
+except ImportError:
+    logging.warning("Import torch_npu Error.")
+
 import torch.nn.functional as F
+import deepspeed
+from deepspeed.pipe import PipelineModule, LayerSpec
 
 from ascendspeed import get_args
 from ascendspeed import mpu
 from ascendspeed.core import tensor_parallel, parallel_state, utils
-from ascendspeed.model.module import MegatronModule, float16_to_fp32, fp32_to_float16
-from ascendspeed.model.enums import AttnMaskType, LayerType, AttnType
-from ascendspeed.model.utils import get_linear_layer, init_method_normal, scaled_init_method_normal, attention_mask_func, \
+from ascendspeed.model.module import MegatronModule, MegatronModuleForCausalLM, float16_to_fp32, fp32_to_float16
+from ascendspeed.core.enums import AttnMaskType, LayerType, AttnType
+from ascendspeed.model.utils import get_linear_layer, init_method_normal, scaled_init_method_normal, \
+    attention_mask_func, \
     openai_gelu, erf_gelu
-
 from ascendspeed.mpu.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
 from ascendspeed.model.language_model import Pooler
-
-import deepspeed
-from deepspeed.accelerator import get_accelerator
-from deepspeed.pipe import PipelineModule, LayerSpec
+from ascendspeed.model.triangle_attention import TriangleAttention
 
 
 class RotaryEmbedding(torch.nn.Module):
@@ -86,18 +92,27 @@ def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
     return q_embed, k_embed
 
 
+def apply_fused_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
+    return torch_npu.npu_rotary_mul(q, cos, sin), torch_npu.npu_rotary_mul(k, cos, sin)
+
+
 class RMSNorm(torch.nn.Module):  # for cpu
-    def __init__(self, hidden_size, eps=1e-6):
+    def __init__(self, hidden_size, eps=1e-6, sequence_parallel=False):
         """
         LlamaRMSNorm is equivalent to T5LayerNorm
         """
         super().__init__()
         self.weight = torch.nn.Parameter(torch.ones(hidden_size))
         self.variance_epsilon = eps
+        setattr(self.weight, 'sequence_parallel', sequence_parallel)
 
     def forward(self, hidden_states):
         variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon).half()
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+
+        # convert into half-precision if necessary
+        if self.weight.dtype in [torch.float16, torch.bfloat16]:
+            hidden_states = hidden_states.to(self.weight.dtype)
         hidden_states = self.weight * hidden_states
 
         return hidden_states
@@ -123,7 +138,7 @@ class LlamaLMHead(MegatronModule):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.parallel_output = parallel_output
-
+        self.sequence_parallel = args.sequence_parallel
         self.lm_head = mpu.ColumnParallelLinear(input_size=self.hidden_size,
                                                 output_size=vocab_size,
                                                 bias=False,
@@ -133,9 +148,9 @@ class LlamaLMHead(MegatronModule):
                                                 sequence_parallel_enabled=args.sequence_parallel)
 
     def forward(self, inputs):
-        inputs = inputs.transpose(0, 1).contiguous()
+        inputs = inputs.transpose(0, 1).contiguous() if self.sequence_parallel else inputs
         logits, _ = self.lm_head(inputs)
-        logits = logits.transpose(0, 1).contiguous()  # SBH-->BSH
+        logits = logits.transpose(0, 1).contiguous() if self.sequence_parallel else logits
         return logits
 
 
@@ -215,14 +230,14 @@ class LlamaEmbeddingPipe(LlamaEmbedding):
         if hasattr(self._args, 'attn_mask'):
             attention_mask = None
         else:
-            attention_mask = inputs[1]
+            attention_mask = inputs[-1]
 
         embeddings = super().forward(input_ids)
         # If cmd args has attn_mask, we don't forward it as an activation.
-        if hasattr(self._args, 'attn_mask'):
-            return embeddings
-        else:
-            return embeddings, attention_mask
+        if not hasattr(self._args, 'attn_mask'):
+            setattr(self._args, 'attn_mask', attention_mask)
+
+        return embeddings
 
 
 class LlamaParallelMLP(MegatronModule):
@@ -320,12 +335,9 @@ class LlamaParallelAttention(MegatronModule):
 
         # Per attention head and per partition values.
         world_size = parallel_state.get_tensor_model_parallel_world_size()
-        self.hidden_size_per_partition = utils.divide(projection_size,
-                                                    world_size)
-        self.hidden_size_per_attention_head = utils.divide(
-            projection_size, args.num_attention_heads)
-        self.num_attention_heads_per_partition = utils.divide(
-            args.num_attention_heads, world_size)
+        self.hidden_size_per_partition = utils.divide(projection_size, world_size)
+        self.hidden_size_per_attention_head = utils.divide(projection_size, args.num_attention_heads)
+        self.num_attention_heads_per_partition = utils.divide(args.num_attention_heads, world_size)
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
@@ -337,11 +349,7 @@ class LlamaParallelAttention(MegatronModule):
                 init_method=self.init_method,
                 sequence_parallel_enabled=self.sequence_parallel)
 
-        coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
-        if self.apply_query_key_layer_scaling:
-            coeff = self.layer_number
-            self.norm_factor *= coeff
 
         self.scale_mask_softmax = NPUFusedScaleMaskSoftmax(
             self.fp16, self.bf16,
@@ -349,11 +357,18 @@ class LlamaParallelAttention(MegatronModule):
             args.masked_softmax_fusion,
             attention_mask_func,
             self.attention_softmax_in_fp32,
-            coeff)
+            (1 / self.norm_factor))
 
         ## Rotary Position Embedding
         self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head)
+        self.apply_rotary_pos_emb = apply_rotary_pos_emb
+        if args.use_fused_rotary_pos_emb:
+            self.apply_rotary_pos_emb = apply_fused_rotary_pos_emb
 
+        self.use_triangle_attn = args.triangle_attn
+        if self.use_triangle_attn:
+            self.triangle_attn = TriangleAttention(block_size=1024,
+                                                   masked_softmax_func=self.scale_mask_softmax)
         # Output.
         self.dense = mpu.RowParallelLinear(
             projection_size,
@@ -400,8 +415,7 @@ class LlamaParallelAttention(MegatronModule):
         value_layer = value_layer.permute(1, 2, 0, 3).contiguous()
 
         cos, sin = self.rotary_emb(value_layer, seq_len=new_tensor_shape[0])
-        query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, cos, sin, offset=0)
-
+        query_layer, key_layer = self.apply_rotary_pos_emb(query_layer, key_layer, cos, sin, offset=0)
 
         # ==================================
         # Adjust key and value for inference
@@ -416,11 +430,15 @@ class LlamaParallelAttention(MegatronModule):
         if get_key_value:
             present = (key_layer, value_layer)
 
+        # use triangle attention
+        if self.use_triangle_attn and layer_past is None:
+            context_layer = self.triangle_attn(query_layer, key_layer, value_layer, attention_mask)
+            output, _ = self.dense(context_layer)
+            return output
+        
         # ===================================
         # Raw attention scores. [b, np, s, s]
         # ===================================
-
-        query_layer *= (1.0 / self.norm_factor)
         attention_scores = torch.matmul(query_layer, key_layer.transpose(3, 2))
 
         # ==================================================
@@ -447,6 +465,8 @@ class LlamaParallelAttention(MegatronModule):
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores,
                                                   attention_mask)
+        if self.bf16:
+            attention_probs = attention_probs.bfloat16()
 
         # =========================
         # Context layer. [sq, b, hp]
@@ -455,7 +475,7 @@ class LlamaParallelAttention(MegatronModule):
 
         bs, nh, sq, hd = context_layer.shape
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
-        context_layer = context_layer.view(sq, bs, nh*hd)
+        context_layer = context_layer.view(sq, bs, nh * hd)
 
         output, _ = self.dense(context_layer)
 
@@ -489,7 +509,8 @@ class LlamaParallelTransformerLayer(MegatronModule):
         # Layernorm on the input data.
         self.input_layernorm = RMSNorm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=args.layernorm_epsilon,
+            sequence_parallel=args.sequence_parallel)
 
         # Self attention.
         self.attention = LlamaParallelAttention(
@@ -501,7 +522,8 @@ class LlamaParallelTransformerLayer(MegatronModule):
         # Layernorm on the attention output
         self.post_attention_layernorm = RMSNorm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=args.layernorm_epsilon,
+            sequence_parallel=args.sequence_parallel)
 
         # MLP
         self.rank = args.rank
@@ -645,7 +667,8 @@ class LlamaParallelTransformer(MegatronModule):
             # Final layer norm before output.
             self.final_layernorm = RMSNorm(
                 args.hidden_size,
-                eps=args.layernorm_epsilon)
+                eps=args.layernorm_epsilon,
+                sequence_parallel=args.sequence_parallel)
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
@@ -688,7 +711,10 @@ class LlamaParallelTransformer(MegatronModule):
         model's forward_step_func won't have it. This function is thus
         used by internal code to bypass the input provided by the
         forward_step_func"""
-        self.input_tensor = input_tensor
+        if isinstance(input_tensor, (list, tuple)):
+            self.input_tensor = input_tensor[0]
+        else:
+            self.input_tensor = input_tensor
 
     def forward(self, hidden_states, attention_mask, layer_past=None, get_key_value=False):
 
@@ -758,10 +784,10 @@ def CrossEntropy(output, labels):
     return loss
 
 
-class LlamaModelPipe(PipelineModule, MegatronModule):
+class LlamaModelPipe(PipelineModule, MegatronModule, MegatronModuleForCausalLM):
     """llama Language model."""
 
-    def __init__(self, parallel_output=True):
+    def __init__(self, config, parallel_output=True):
         args = get_args()
 
         self.init_method = init_method_normal(args.init_method_std)
@@ -800,7 +826,9 @@ class LlamaModelPipe(PipelineModule, MegatronModule):
         self.specs.append(lambda x: x.transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
-        self.specs.append(LayerSpec(RMSNorm, args.hidden_size, eps=args.layernorm_epsilon))
+        self.specs.append(
+            LayerSpec(RMSNorm, args.hidden_size, eps=args.layernorm_epsilon,
+                      sequence_parallel=args.sequence_parallel))
 
         self.specs.append(
             LayerSpec(LlamaLMHeadPipe, hidden_size=args.hidden_size, vocab_size=args.padded_vocab_size,
@@ -828,11 +856,11 @@ class LlamaModelPipe(PipelineModule, MegatronModule):
                          partition_method='type:transformer')
 
 
-class LlamaModel(MegatronModule):
+class LlamaModel(MegatronModule, MegatronModuleForCausalLM):
     """llama Language model."""
 
-    def __init__(self, pre_process, post_process, parallel_output=True, add_pooler=False):
-        super(LlamaModel, self).__init__(share_word_embeddings=False)
+    def __init__(self, config, pre_process, post_process, parallel_output=True, add_pooler=False):
+        super(LlamaModel, self).__init__(config, share_word_embeddings=False)
         args = get_args()
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
         self.hidden_size = args.hidden_size
@@ -873,17 +901,14 @@ class LlamaModel(MegatronModule):
         """See ascendspeed.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
-    def forward(self, input_ids, attention_mask, labels=None, layer_past=None, get_key_value=False):
-        args = get_args()
-
+    def forward(self, input_ids, attention_mask, labels=None, layer_past=None, get_key_value=False, **kwargs):
         if self.pre_process:
             hidden_states = self.embedding(input_ids)
         else:
             hidden_states = input_ids
-
         # decoder
         hidden_states = self.language_model(hidden_states, attention_mask, layer_past=layer_past,
-                                         get_key_value=get_key_value)
+                                            get_key_value=get_key_value)
 
         if self.post_process:
             if get_key_value:
@@ -908,3 +933,26 @@ class LlamaModel(MegatronModule):
                 return loss
 
         return hidden_states
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        """
+        不能在这里调用self.state_dict函数，否则deepspeed保存时把state_dict挂成state_dict_for_save_checkpoint会循环调用
+        """
+        state_dict_ = {}
+        language_model_state_dict = self.language_model.state_dict_for_save_checkpoint(
+            prefix=prefix + 'language_model.', keep_vars=keep_vars)
+        # MoE states need to be handled separately by DeepSpeed engine, thus
+        # moving them to the top level dictionary
+        if "moe_state_dict" in language_model_state_dict:
+            for key in list(language_model_state_dict["moe_state_dict"].keys()):
+                state_dict_[key] = language_model_state_dict["moe_state_dict"].pop(key)
+            del language_model_state_dict["moe_state_dict"]
+        state_dict_.update(language_model_state_dict)
+        # Save word_embeddings.
+        if self.pre_process:
+            embedding_state_dict = self.embedding.state_dict(prefix=prefix + 'embedding.', keep_vars=keep_vars)
+            state_dict_.update(embedding_state_dict)
+        if self.post_process:
+            lm_head_state_dict = self.lm_head.state_dict(prefix=prefix + 'lm_head.', keep_vars=keep_vars)
+            state_dict_.update(lm_head_state_dict)
+        return state_dict_
