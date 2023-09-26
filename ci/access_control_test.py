@@ -50,7 +50,7 @@ class ST_Test:
 
 if __name__ == "__main__":
     st_test = ST_Test()
-#    st_test.run_shell()
+    st_test.run_shell()
     test_loader = unittest.TestLoader()
     discover = test_loader.discover(start_dir="../tests/ut", pattern="test*.py")
 
