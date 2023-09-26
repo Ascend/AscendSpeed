@@ -13,7 +13,7 @@ mkdir -p $LOGS_PATH
 
 # train parameter 
 MASTER_ADDR=localhost
-MASTER_PORT=5998
+MASTER_PORT=6012
 GPUS_PER_NODE=8
 NNODES=1
 
@@ -44,10 +44,12 @@ cat <<EOT > $config_json
 }
 EOT
 
+basepath=$(cd `dirname $0`; pwd)
+
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --rdzv_endpoint $MASTER_ADDR:$MASTER_PORT --rdzv_backend c10d --max_restarts 0 --tee 3"
 
 python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
-    /usr1/workspace/PyTorch_PR_AscendSpeed_master/CODE/tests/st/test_bloom/run_bloom_ptd.py \
+   ${basepath}/run_bloom_ptd.py \
     --tokenizer-type PretrainedFromHF \
     --embed-layernorm \
     --tokenizer-name-or-path $TOKENIZER_NAME_OR_PATH \

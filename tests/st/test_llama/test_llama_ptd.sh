@@ -7,7 +7,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 GPUS_PER_NODE=8
 # Change for multinode config
 MASTER_ADDR=localhost
-MASTER_PORT=6001
+MASTER_PORT=6013
 NNODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
@@ -16,11 +16,13 @@ DATA_PATH=/home/dataset/enwiki-gpt/gpt_text_sentence
 CHECKPOINT_PATH=./ckpt_llama
 
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
+basepath=$(cd `dirname $0`; pwd)
 
 python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
-      /usr1/workspace/PyTorch_PR_AscendSpeed_master/CODE/tests/st/test_llama/run_llama_ptd.py \
+      ${basepath}/run_llama_ptd.py \
        --DDP-impl local \
-       --use-contiguous-buffers-in-ddp \
+       --foldx-mode "fifo" \
+       --use-distributed-optimizer \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
        --num-layers 8 \

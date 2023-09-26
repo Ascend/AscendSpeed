@@ -30,7 +30,8 @@ from ascendspeed import mpu
 from ascendspeed.core import utils, parallel_state
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.model import LayerNorm
-from ascendspeed.model.enums import AttnMaskType, LayerType, AttnType
+from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm
+from ascendspeed.core.enums import AttnMaskType, LayerType, AttnType
 from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
 from ascendspeed.model.fused_bias_gelu import bias_gelu_impl
 from ascendspeed.model.module import MegatronModule
@@ -448,9 +449,16 @@ class ParallelTransformerLayer(MegatronModule):
         self.fp32_residual_connection = args.fp32_residual_connection
         self.sequence_parallel = args.sequence_parallel
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(
-            args.hidden_size,
-            eps=args.layernorm_epsilon)
+
+        if args.sequence_parallel:
+            self.input_layernorm = MixedFusedLayerNorm(
+                args.hidden_size,
+                eps=args.layernorm_epsilon,
+                sequence_parallel=self.sequence_parallel)
+        else:
+            self.input_layernorm = LayerNorm(
+                args.hidden_size,
+                eps=args.layernorm_epsilon)
 
         # Self attention.
         self.self_attention = ParallelAttention(
@@ -463,9 +471,15 @@ class ParallelTransformerLayer(MegatronModule):
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
         # Layernorm on the attention output
-        self.post_attention_layernorm = LayerNorm(
-            args.hidden_size,
-            eps=args.layernorm_epsilon)
+        if args.sequence_parallel:
+            self.post_attention_layernorm = MixedFusedLayerNorm(
+                args.hidden_size,
+                eps=args.layernorm_epsilon,
+                sequence_parallel=self.sequence_parallel)
+        else:
+            self.post_attention_layernorm = LayerNorm(
+                args.hidden_size,
+                eps=args.layernorm_epsilon)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
@@ -474,9 +488,15 @@ class ParallelTransformerLayer(MegatronModule):
                 layer_number,
                 attention_type=AttnType.cross_attn)
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = LayerNorm(
-                args.hidden_size,
-                eps=args.layernorm_epsilon)
+            if self.sequence_parallel:
+                self.post_inter_attention_layernorm = MixedFusedLayerNorm(
+                    args.hidden_size,
+                    eps=args.layernorm_epsilon,
+                    sequence_parallel=self.sequence_parallel)
+            else:
+                self.post_inter_attention_layernorm = LayerNorm(
+                    args.hidden_size,
+                    eps=args.layernorm_epsilon)
 
         self.num_experts = num_experts
         # MLP
@@ -757,9 +777,15 @@ class ParallelTransformer(MegatronModule):
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = LayerNorm(
-                args.hidden_size,
-                eps=args.layernorm_epsilon)
+            if args.sequence_parallel:
+                self.final_layernorm = MixedFusedLayerNorm(
+                    args.hidden_size,
+                    eps=args.layernorm_epsilon,
+                    sequence_parallel=args.sequence_parallel)
+            else:
+                self.final_layernorm = LayerNorm(
+                    args.hidden_size,
+                    eps=args.layernorm_epsilon)
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
@@ -807,7 +833,10 @@ class ParallelTransformer(MegatronModule):
         model's forward_step_func won't have it. This function is thus
         used by internal code to bypass the input provided by the
         forward_step_func"""
-        self.input_tensor = input_tensor
+        if isinstance(input_tensor, (list, tuple)):
+            self.input_tensor = input_tensor[0]
+        else:
+            self.input_tensor = input_tensor
 
     def forward(self, hidden_states, attention_mask, layer_past=None,
                 get_key_value=False, encoder_output=None, enc_dec_attn_mask=None):
@@ -848,20 +877,23 @@ class ParallelTransformer(MegatronModule):
         else:
             if get_key_value:
                 presents = []
+
             for index in range(self.num_layers):
                 layer = self._get_layer(index)
                 past = None
                 if layer_past is not None:
                     past = layer_past[index]
-                hidden_states = layer(hidden_states,
-                                      attention_mask=attention_mask,
-                                      encoder_output=encoder_output,
-                                      enc_dec_attn_mask=enc_dec_attn_mask,
-                                      layer_past=past,
-                                      get_key_value=get_key_value)
+                hidden_states, moe_loss = layer(
+                    hidden_states,
+                    attention_mask=attention_mask,
+                    encoder_output=encoder_output,
+                    enc_dec_attn_mask=enc_dec_attn_mask,
+                    layer_past=past,
+                    get_key_value=get_key_value
+                )
                 if not self.ds_inference:
-                    hidden_states, moe_loss = hidden_states
                     moe_losses.append(moe_loss)
+
                 if get_key_value:
                     hidden_states, present = hidden_states
                     presents.append(present)

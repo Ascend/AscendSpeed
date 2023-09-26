@@ -14,25 +14,27 @@
 # limitations under the License.
 
 """Utilities for generating text."""
+import os
 import time
 import copy
 import json
-import os
-import time
 
-# These are needed to unwrap the model, would be nice to put these in ascendspeed.utils if possible?
 import torch
 import torch.nn.functional as F
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
-
+from deepspeed.accelerator import get_accelerator
 from ascendspeed import get_args
 from ascendspeed import get_tokenizer
 from ascendspeed.core import parallel_state
+
 from ascendspeed.utils import get_ltor_masks_and_position_ids, unwrap_model
-from ascendspeed.p2p_communication import recv_forward, send_forward
+from ascendspeed.core.pipeline_parallel.p2p_communication import recv_forward, send_forward
+
 from ascendspeed.model import DistributedDataParallel as LocalDDP
 from ascendspeed.model import Float16Module
-from deepspeed.accelerator import get_accelerator
+from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
+from ascendspeed.core.utils import get_attr_wrapped_model, get_model_config, get_model_type
+
 
 def get_batch(context_tokens):
     """Generate batch from context tokens."""
@@ -44,7 +46,7 @@ def get_batch(context_tokens):
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
-        tokenizer.eod,
+        tokenizer.pad_token_id,
         args.reset_position_ids,
         args.reset_attention_mask,
         args.eod_mask_loss)
@@ -322,14 +324,13 @@ def generate_samples_interactive(model, print_frequency=24):
             context_count += 1
 
 
-
 def generate_samples_unconditional(model, latencies=[], model_latencies=[], single_token_latency=[]):
 
     args = get_args()
     tokenizer = get_tokenizer()
 
     num_samples = args.num_samples
-    context_tokens = [[tokenizer.eod]
+    context_tokens = [[tokenizer.pad_token_id]
                       for _ in range(args.micro_batch_size)]
     ctr = 0
     while True:
@@ -343,10 +344,7 @@ def generate_samples_unconditional(model, latencies=[], model_latencies=[], sing
         start_time = time.time()
         if parallel_state.is_pipeline_last_stage() and \
            parallel_state.get_tensor_model_parallel_rank() == 0:
-            #if ctr % args.log_interval == 0:
-            #    print('Avg s/batch:',
-            #          (time.time() - start_time) / min(args.log_interval, ctr + 1))
-            #    start_time = time.time()
+
             length = len(token_stream)
             token_batch = token_stream[0].cpu().numpy().tolist()
             length_batch = token_stream[1].cpu().numpy().tolist()
@@ -397,9 +395,12 @@ def get_token_stream(model, context_tokens, model_latencies=[], single_token_lat
     args = get_args()
     tokenizer = get_tokenizer()
 
-    context_tokens, context_lengths = pad_batch(context_tokens,
-                                                tokenizer.eod, args)
+    if hasattr(tokenizer, "eod"):
+        pad_id = tokenizer.eod
+    else:
+        pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id else tokenizer.eos_token_id
 
+    context_tokens, context_lengths = pad_batch(context_tokens, pad_id, args)
     context_tokens_tensor = get_accelerator().LongTensor(context_tokens)
     context_length_tensor = get_accelerator().LongTensor(context_lengths)
 
@@ -419,20 +420,20 @@ def get_token_stream(model, context_tokens, model_latencies=[], single_token_lat
 
     count = 0
 
-    t0=time.time()
-    for tokens, lengths in batch_token_iterator:
+    t0 = time.time()
+    for tokens, lengths, log_probs in batch_token_iterator:
         if count > 1:
-           get_accelerator().synchronize()
-           t_elapsed = time.time() - t0
-           single_token_latency.append(t_elapsed)
+            get_accelerator().synchronize()
+            t_elapsed = time.time() - t0
+            single_token_latency.append(t_elapsed)
         get_accelerator().synchronize()
-        t0=time.time()
-        count+=1
+        t0 = time.time()
+        count += 1
         context_length += 1
         if tokens is not None:
-            yield tokens[:, :context_length], lengths
+            yield tokens[:, :context_length], lengths, log_probs
         else:
-            yield None, None
+            yield None, None, None
 
 
 def switch(val1, val2, boolean):
@@ -452,32 +453,54 @@ def forward_step(model, tokens, position_ids, attention_mask, tokentype_ids,
     args = get_args()
     orig_seq_length = args.seq_length
     args.seq_length = tokens.shape[1]
-
-    input_tensor = recv_forward()
+    config = get_model_config(model)
+    tensor_shapes = (args.seq_length, args.micro_batch_size, args.hidden_size)
+    input_tensor = recv_forward(tensor_shapes, config)
 
     # Forward pass through the model.
-    unwrapped_model = unwrap_model(
-        model, (torchDDP, LocalDDP, Float16Module))
+    unwrap_classes = (torchDDP, LocalDDP, Float16Module)
+    if is_enable_lora():
+        unwrap_classes += get_lora_model_classes()
+    unwrapped_model = unwrap_model(model, unwrap_classes)
 
     if hasattr(unwrapped_model, 'set_input_tensor'):
-        unwrapped_model.set_input_tensor(input_tensor)
-    elif args.deepspeed or args.ds_inference:
-        unwrapped_model.module.set_input_tensor(input_tensor)
+        if args.deepspeed or args.ds_inference:
+            unwrapped_model.module.set_input_tensor(input_tensor)
+        else:
+            unwrapped_model.set_input_tensor(input_tensor)
 
-    output_tensor = model(tokens, position_ids, attention_mask,
-                          tokentype_ids=tokentype_ids,
-                          layer_past=layer_past,
-                          get_key_value=get_key_value,
-                          forward_method_parallel_output=forward_method_parallel_output)
+    if args.deepspeed and args.ds_pipeline_enabled:
+        output_tensor = model.eval_batch(
+            iter([[(tokens, position_ids, attention_mask), (tokens, tokens)]]),
+            compute_loss=False
+        )
+    else:
+        output_tensor = model(
+            input_ids=tokens,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            tokentype_ids=tokentype_ids,
+            layer_past=layer_past,
+            get_key_value=get_key_value,
+            forward_method_parallel_output=forward_method_parallel_output
+        )
+
+    if isinstance(output_tensor, (list, tuple)):
+        if output_tensor[0] is not None and not get_key_value:
+            output_tensor = output_tensor[0]
+        elif output_tensor[0] is not None and get_key_value:
+            output_tensor = output_tensor[:2]
+        else:
+            raise ValueError("Please make sure that the output of the model is 'Tensor' or '[Tensor, ...]'")
 
     if get_key_value:
         output_tensor, layer_past = output_tensor
 
-    send_forward(output_tensor)
+    send_forward(output_tensor, config)
 
     args.seq_length = orig_seq_length
     get_accelerator().synchronize()
-    model_latencies.append(time.time()-t0)
+    model_latencies.append(time.time() - t0)
     if get_key_value:
         return output_tensor, layer_past
     return output_tensor
@@ -495,11 +518,12 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
         context_length = context_lengths.min().item()
 
         # added eos_id to support the function generate_samples_eval that passes
-        # eos_id as an argument and needs termination when that id id found.
-        if hasattr(args, 'eos_id'):
+        # eos_id as an argument and needs termination when that id found.
+
+        if hasattr(args, 'eos_id') and args.eos_id is not None:
             eos_id = args.eos_id
         else:
-            eos_id = tokenizer.eod
+            eos_id = tokenizer.eos_token_id
 
         counter = 0
         org_context_length = context_length
@@ -514,9 +538,10 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                 maxlen = org_context_length + args.out_seq_length
 
         lengths = torch.ones([batch_size]).long().to(get_accelerator().device_name()) * maxlen
+        output_log_probs = None
 
         while context_length <= (maxlen):
-            if args.recompute:
+            if args.text_generation_config['recompute']:
                 output = forward_step(model, tokens,
                                       position_ids,
                                       attention_mask,
@@ -552,15 +577,19 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
             if parallel_state.is_pipeline_last_stage():
+                vocab_size = torch.Tensor([logits.size(1)]).to(get_accelerator().device_name())
+                log_probs = F.softmax(logits, dim=-1)
+
                 if args.greedy:
                     prev = torch.argmax(logits, dim=-1).view(-1)
                 else:
                     logits = logits.float()
-                    logits /= args.temperature
-                    logits = top_k_logits(logits, top_k=args.top_k,
-                                          top_p=args.top_p)
-                    log_probs = F.softmax(logits, dim=-1)
-                    prev = torch.multinomial(log_probs, num_samples=1).view(-1)
+                    logits /= args.text_generation_config["temperature"]
+                    logits = top_k_logits(logits,
+                                          top_k=args.text_generation_config["top_k"],
+                                          top_p=args.text_generation_config["top_p"])
+                    logits = F.softmax(logits, dim=-1)
+                    prev = torch.multinomial(logits, num_samples=1).view(-1)
 
                 started = context_lengths <= context_length
 
@@ -568,8 +597,23 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                     tokens[:, context_length].view(-1), prev, started)
                 tokens[:, context_length] = new_tokens
                 src = parallel_state.get_pipeline_model_parallel_last_rank()
-                group = parallel_state.get_embedding_group()
-                torch.distributed.broadcast(new_tokens, src, group)
+                group = parallel_state.get_pipeline_model_parallel_group()
+
+                if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                    torch.distributed.broadcast(new_tokens, src, group)
+
+                if args.text_generation_config['return_output_log_probs']:
+                    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+                        torch.distributed.broadcast(vocab_size, src, group)
+                        torch.distributed.broadcast(log_probs, src, group)
+
+                    if counter == 0:
+                        log_probs_seq = torch.zeros(
+                            (batch_size, maxlen + 1, int(vocab_size))
+                        ).to(get_accelerator().device_name())
+
+                    log_probs_seq[:, context_length, :] = log_probs
+                    output_log_probs = log_probs_seq[:, :context_length + 1, :]
 
                 done_token = (prev == eos_id).byte() & started.byte()
                 just_finished = (done_token & ~is_done).bool()
@@ -580,18 +624,35 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                 src = parallel_state.get_pipeline_model_parallel_last_rank()
                 group = parallel_state.get_pipeline_model_parallel_group()
                 torch.distributed.broadcast(done, src, group)
-                yield tokens, lengths
+
+                yield tokens, lengths, output_log_probs
 
             else:
-                if parallel_state.is_pipeline_first_stage():
-                    src = parallel_state.get_pipeline_model_parallel_last_rank()
-                    group = parallel_state.get_embedding_group()
-                    new_tokens = torch.empty_like(tokens[:, context_length])
-                    torch.distributed.broadcast(new_tokens, src, group)
-                    tokens[:, context_length] = new_tokens
-                    yield tokens, None
-                else:
-                    yield None, None
+                src = parallel_state.get_pipeline_model_parallel_last_rank()
+                group = parallel_state.get_pipeline_model_parallel_group()
+
+                new_tokens = torch.empty_like(tokens[:, context_length])
+                vocab_size = torch.empty_like(torch.Tensor([0])).to(get_accelerator().device_name())
+
+                torch.distributed.broadcast(new_tokens, src, group)
+
+                tokens[:, context_length] = new_tokens
+                if args.text_generation_config['return_output_log_probs']:
+                    torch.distributed.broadcast(vocab_size, src, group)
+                    log_probs = torch.empty([batch_size, int(vocab_size)],
+                                            dtype=torch.float32,
+                                            device=get_accelerator().device_name())
+                    torch.distributed.broadcast(log_probs, src, group)
+
+                    if counter == 0:
+                        log_probs_seq = torch.zeros(
+                            (batch_size, maxlen + 1, int(vocab_size))
+                        ).to(get_accelerator().device_name())
+
+                    log_probs_seq[:, context_length, :] = log_probs
+                    output_log_probs = log_probs_seq[:, :context_length + 1, :]
+
+                yield tokens, lengths, output_log_probs
 
                 done = get_accelerator().ByteTensor([0])
                 src = parallel_state.get_pipeline_model_parallel_last_rank()

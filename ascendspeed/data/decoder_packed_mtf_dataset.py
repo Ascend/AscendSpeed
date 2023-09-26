@@ -1,32 +1,39 @@
 import os
 import time
+import logging
 
 import numpy as np
 import torch
+from deepspeed.accelerator import get_accelerator
 
-from ascendspeed import print_rank_0, logging
+from ascendspeed import is_rank_0, print_rank_0, get_args
+from ascendspeed.tokenizer.tokenizer import build_tokenizer
 from ascendspeed.core import parallel_state
 from ascendspeed.data.blendable_dataset import BlendableDataset
 from ascendspeed.data.dataset_utils import get_datasets_weights_and_num_samples, get_split_by_range_, \
     get_train_valid_test_split_
-from ascendspeed.data.mtf_dataset import MTFDataset
+from ascendspeed.data.mtf_dataset import MTFDataset, get_packed_indexed_dataset
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
 
-logger = logging.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 def build_train_valid_test_datasets(
     data_prefix,
     data_impl,
     splits_string,
     seq_length: int,
-    pad_token: int,
-    eos_token: int,
     train_valid_test_num_samples,
     seed,
     skip_warmup
 ):
     """Build train, valid, and test datasets."""
 
+    args = get_args()
+
+    tokenizer = build_tokenizer(args)
+    pad_token = tokenizer.pad
+    eos_token = tokenizer.eos
+    
     # Single dataset.
     if len(data_prefix) == 1:
         all_train_datasets, all_valid_datasets, all_test_datasets = _build_train_valid_test_datasets(
@@ -173,14 +180,13 @@ def _build_single_datasets(
     index = ["train","valid","test"].index(train_valid_test)
 
     # Target indexed dataset.
-    target_indexed_dataset = get_indexed_dataset(
+    packed_indexed_dataset = get_packed_indexed_dataset(
         data_prefix=data_prefix,
-        is_input=False,
         data_impl=data_impl,
         skip_warmup=skip_warmup
     )
 
-    total_num_of_documents = target_indexed_dataset.sizes.shape[0]
+    total_num_of_documents = list(packed_indexed_dataset.values())[0].sizes.shape[0]
     # this corresponds to option2 for data loading on the form
     # WEIGHT1 START:END PATH1, WEIGHT2 START:END PATH2, WEIGHT3 START:END PATH3
     # splits here is an array of size 2  [start_index, end_index]
@@ -232,9 +238,9 @@ def _build_train_valid_test_datasets(
     """Build train, valid, and test datasets."""
 
     # Target indexed dataset.
-    target_indexed_dataset = get_indexed_dataset(data_prefix, is_input=False, data_impl=data_impl, skip_warmup=skip_warmup)
+    packed_indexed_dataset = get_packed_indexed_dataset(data_prefix=data_prefix, data_impl=data_impl, skip_warmup=skip_warmup)
 
-    total_num_of_documents = target_indexed_dataset.sizes.shape[0]
+    total_num_of_documents = list(packed_indexed_dataset.values())[0].sizes.shape[0]
     # splits here is an array of size 4  [train_start_index, valid_start_index, test_start_index, test_end_index]
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
     # Print stats about the splits.
@@ -295,82 +301,28 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
         self.pad_token = pad_token
         self.seq_length = seq_length
 
-        self.sample_index, self.shuffle_index = _build_index_mappings(name=name, data_prefix=data_prefix, nb_documents=len(documents), mtf_dataset=self.mtf_dataset, num_samples=num_samples, seq_length=seq_length, seed=seed)
-
+        self.shuffle_index = _build_index_mappings(name=name, data_prefix=data_prefix, nb_documents=len(documents), mtf_dataset=self.mtf_dataset, num_samples=num_samples, seq_length=seq_length, seed=seed)
+    
     def __len__(self):
-        return len(self.sample_index)
+        return len(self.shuffle_index)
 
     def __getitem__(self, idx):
-        # Get the shuffled index.
-        start, end = self.sample_index[idx]
-        mtf_samples_indices = self.shuffle_index[start: end]
-        # TODO @thomasw21 build a dataset that generates an entire batch instead of a row (allows for more optimization)
-        items = [self.mtf_dataset[sample_id] for sample_id in mtf_samples_indices]
-
-        return self.pack_samples(items)
-
-    def pack_samples(self, items):
-        """
-        Greedily packs samples.
-
-        Items:
-            [
-                {
-                    'input_tokens': array([6, 7]),
-                    'target_tokens': array([8])
-                },
-                {
-                    'input_tokens': array([3, 4]),
-                    'target_tokens': array([5])
-                }
-            ]
-
-        Output:
-            decoder_tokens = [[6, 7, 8, 3, 4, 5, <pad>]]: Concatenation of tokens followed with padding tokens.
-            decoder_segment_ids = [[1, 1, 1, 2, 2, 2, 0]]: Segment ids determine original documents.
-            decoder_is_inputs = [[1, 1, 0, 1, 1, 0, 0]]: `1` depicts inputs, `0` depicts target.
-        """
-
-        decoder_tokens = np.full((self.seq_length,), self.pad_token, dtype=np.int64)
-        decoder_segment_ids = np.zeros((self.seq_length,), dtype=np.int64)
-        decoder_is_inputs = np.full((self.seq_length,), False, dtype=bool)
-
-        # `0` is reserved for padding
-        item_num = 1
-        cur_len = 0
-
-        assert len(items) > 0
-
-        for token_dict in items:
-            input_token_len = len(token_dict["input_tokens"])
-            target_token_len = len(token_dict["target_tokens"])
-
-            total_len = input_token_len + target_token_len
-
-            if cur_len + total_len > self.seq_length:
-                # This should not happen at the indexing should only allow the correct number of items
-                raise ValueError(f"""Items to be packed do not fit inside a single sample.
-                    current length: {cur_len}
-                    input tokens length: {input_token_len}
-                    target token length: {target_token_len}
-                    expected sequence length: {self.seq_length}
-                """)
-
-            decoder_tokens[cur_len: cur_len + input_token_len] = token_dict["input_tokens"]
-            decoder_tokens[cur_len + input_token_len: cur_len + total_len] = token_dict["target_tokens"]
-            decoder_segment_ids[cur_len: cur_len + total_len] = item_num
-            decoder_is_inputs[cur_len: cur_len + input_token_len] = 1  # inputs
-            # targets are already 0 at init, no need to update `decoder_is_inputs`
-
-            item_num += 1
-            cur_len += total_len
-            assert cur_len <= self.seq_length
-
+        doc_idx = self.shuffle_index[idx]
+        item = self.mtf_dataset[doc_idx]
         return {
-            "decoder_token_ids": decoder_tokens,
-            "decoder_segment_ids": decoder_segment_ids,
-            "decoder_is_inputs": decoder_is_inputs,
+            "input_ids": self._pad_token(item["input_ids"][:-1], self.pad_token, np.int64),
+            "attention_mask": self._pad_token(item["attention_mask"][:-1], 0, np.int64),
+            "labels": self._pad_token(item["labels"][1:], -100, np.int64),
         }
+    
+    def _pad_token(self, token, pad_value, dtype):
+        padded_token = np.full((self.seq_length,), pad_value, dtype=dtype)
+        token_length = len(token)
+        if token_length <= self.seq_length:
+            padded_token[:token_length] = token
+        else:
+            padded_token = token[:self.seq_length]
+        return padded_token.astype(dtype)
 
 
 def _build_index_mappings(
@@ -396,52 +348,33 @@ def _build_index_mappings(
     _filename += '_{}_indexmap'.format(name)
     _filename += '_{}ns'.format(num_samples)
     _filename += '_{}s'.format(seed)
-    sample_idx_filename = _filename + '_decoder_packed_batch_idx.npy'
     shuffle_idx_filename = _filename + '_decoder_packed_shuffle_idx.npy'
 
     # Build the indexed mapping if not exist.
-    if torch.distributed.get_rank() == 0:
-        if (not os.path.isfile(sample_idx_filename)) or \
-           (not os.path.isfile(shuffle_idx_filename)):
+    if is_rank_0():
+        if not os.path.isfile(shuffle_idx_filename):
 
             print_rank_0(' > WARNING: could not find index map files, building '
                          'the indices on rank 0 ...')
 
             # iteratively add the entire dataset for every epoch and see if it's enough given current packing strategy
             start_time = time.time()
-            row_offset = 0
-            old_sample_start = 0
             epoch = 0
             shuffle_idx = []
-            sample_idx = []
-            while len(sample_idx) <= num_samples:
+            while len(shuffle_idx) <= num_samples:
                 new_document_ids = _build_shuffle_idx(nb_documents=nb_documents, np_rng=np_rng)
                 # Generate a shuffling of the entire dataset
-                shuffle_idx.append(new_document_ids)
-                # Packs them into a single sample
-                new_samples, row_offset, old_sample_start = _build_sample_idx(
-                    mtf_dataset=mtf_dataset,
-                    document_ids=new_document_ids,
-                    seq_length=seq_length,
-                    row_offset=row_offset,
-                    old_sample_start=old_sample_start,
-                    epoch=epoch
-                )
-                sample_idx.extend(new_samples)
+                shuffle_idx.extend(new_document_ids.tolist())
                 epoch += 1
 
-            shuffle_idx = np.concatenate(shuffle_idx, axis=0)
-            sample_idx = np.stack(sample_idx, axis=0)
-
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
-            np.save(sample_idx_filename, sample_idx, allow_pickle=True)
             print_rank_0(' > elasped time to build and save shuffle-idx and sample-idx mapping'
                          ' (seconds): {:4f}'.format(time.time() - start_time))
 
     # This should be a barrier but nccl barrier assumes
     # device_index=rank which is not the case for model
     # parallel case
-    counts = torch.cuda.LongTensor([1])
+    counts = get_accelerator().LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
     assert counts[0].item() == (
@@ -450,51 +383,13 @@ def _build_index_mappings(
 
     # Load mappings.
     start_time = time.time()
-    print_rank_0(' > loading doc-idx mapping from {}'.format(
-        sample_idx_filename))
-    sample_idx = np.load(sample_idx_filename, allow_pickle=True, mmap_mode='r')
     print_rank_0(' > loading shuffle-idx mapping from {}'.format(
         shuffle_idx_filename))
     shuffle_idx = np.load(shuffle_idx_filename, allow_pickle=True, mmap_mode='r')
     print_rank_0('    loaded indexed file in {:3.3f} seconds'.format(
         time.time() - start_time))
 
-    return sample_idx, shuffle_idx
-
-def _build_sample_idx(mtf_dataset, document_ids, seq_length, row_offset, old_sample_start, epoch):
-    """Build start and off index of each `full` batch, return that list of batch + start of the unfinished batch"""
-    row_length = row_offset
-
-    full_samples = []
-    current_sample_start = old_sample_start
-    epoch_offset = epoch * len(document_ids)
-
-    assert epoch_offset >= current_sample_start
-    for current_sample_end, document_id in enumerate(document_ids):
-        current_sample_end = epoch_offset + current_sample_end
-        sample_sizes = mtf_dataset.size(document_id)
-
-        # TODO @thomasw21 figure out if we add <eos> tokens
-        tok_len = sample_sizes["input_tokens"] + sample_sizes["target_tokens"]
-
-        row_length = row_length + tok_len
-        if row_length > seq_length:
-            # current sample can't be added and requires to be added in the next one
-            if current_sample_end > current_sample_start:
-                full_samples.append(np.asarray([current_sample_start, current_sample_end]))
-            current_sample_start = current_sample_end
-            row_length = tok_len
-
-            if tok_len > seq_length:
-                # TODO @thomasw21 handle the case where a single sample cannot fit inside a row. We can
-                #   - silently skip that value [currently implemented]
-                #   - truncate to `seq_length`, and keep the right part
-                logger.warning(f"Skipping sample id={document_id}. Maximum sequence length: {seq_length}, sample length: {tok_len}")
-                current_sample_start = current_sample_end + 1  # skipping
-                row_length = 0
-                continue
-
-    return full_samples, row_length, current_sample_start
+    return shuffle_idx
 
 def _build_shuffle_idx(nb_documents: int, np_rng):
     """Build the range [0, dataset_size) and shuffle."""
@@ -506,27 +401,3 @@ def _build_shuffle_idx(nb_documents: int, np_rng):
     np_rng.shuffle(result)
 
     return result
-
-
-def get_indexed_dataset(data_prefix: str, is_input: bool, data_impl: str, skip_warmup: bool):
-    if is_input:
-        field = "inputs"
-    else:
-        field = "targets"
-
-    return get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
-
-
-def get_indexed_dataset_(path, data_impl, skip_warmup):
-    """Build indexed dataset."""
-    print_rank_0(' > building dataset index ...')
-    start_time = time.time()
-    indexed_dataset = make_indexed_dataset(path,
-                                           data_impl,
-                                           skip_warmup)
-    print_rank_0(' > finished creating indexed dataset in {:4f} '
-                 'seconds'.format(time.time() - start_time))
-    print_rank_0('    number of documents: {}'.format(
-        indexed_dataset.sizes.shape[0]))
-
-    return indexed_dataset

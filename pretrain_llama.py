@@ -33,11 +33,14 @@ from ascendspeed import get_timers
 from ascendspeed import get_tokenizer
 from ascendspeed import mpu
 from ascendspeed.core import parallel_state
-from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
+from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets as build_pretrain_dataset
+from ascendspeed.data.decoder_packed_mtf_dataset import build_train_valid_test_datasets as build_instruction_dataset
 from ascendspeed.model import LlamaModel, LlamaModelPipe
+from ascendspeed.core.enums import ModelType
 from ascendspeed.training import pretrain
-from ascendspeed.utils import get_ltor_masks_and_position_ids
+from ascendspeed.utils import get_ltor_masks_and_position_ids, get_tune_attention_mask
 from ascendspeed.utils import average_losses_across_data_parallel_group
+from ascendspeed.arguments import core_transformer_config_from_args
 
 
 def model_provider(pre_process=True, post_process=True):
@@ -47,13 +50,14 @@ def model_provider(pre_process=True, post_process=True):
     see_memory_usage(f"Before Building Model ...", force=True)
 
     args = get_args()
+    config = core_transformer_config_from_args(get_args())
     with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                              remote_device=None if args.remote_device == 'none' else args.remote_device,
                              config_dict_or_path=args.deepspeed_config,
                              enabled=args.zero_stage == 3,
                              mpu=parallel_state):
         if args.deepspeed and not args.no_pipeline_parallel:
-            model = LlamaModelPipe(parallel_output=True)
+            model = LlamaModelPipe(config, parallel_output=True)
             # This is a hack to give us a reference to get_batch_pipe from within training.py
             # We need to call model.set_batch_fn after deepspeed.initialize
             model._megatron_batch_fn = get_batch_pipe
@@ -77,6 +81,7 @@ def model_provider(pre_process=True, post_process=True):
             args.attn_mask = attention_mask.to(torch.bool)
         else:
             model = LlamaModel(
+                config=config,
                 parallel_output=True,
                 add_pooler=False,
                 pre_process=pre_process,
@@ -88,32 +93,22 @@ def model_provider(pre_process=True, post_process=True):
 
 def get_batch(data_iterator):
     """Generate a batch"""
-    args = get_args()
-    tokenizer = get_tokenizer()
-
-    # Items and their type.
-    keys = ['text']
-    data_type = torch.int64
 
     # Broadcast data.
-    if data_iterator is not None:
+    if hasattr(data_iterator, '__next__'):
         data = next(data_iterator)
     else:
-        data = None
-    data_b = mpu.broadcast_data(keys, data, data_type)
+        if isinstance(data_iterator, list):
+            return data_iterator.pop(0)
+        else:
+            data = None
 
-    # Unpack.
-    tokens_ = data_b['text'].long()
-    labels = tokens_[:, 1:].contiguous()
-    tokens = tokens_[:, :-1].contiguous()
-
-    # Get the masks and postition ids.
-    attention_mask, loss_mask, _ = get_ltor_masks_and_position_ids(
-        tokens,
-        tokenizer.eod,
-        args.reset_position_ids,
-        args.reset_attention_mask,
-        args.eod_mask_loss)
+    (tokens, attention_mask), (labels, loss_mask) = get_batch_pipe(data)
+    args = get_args()
+    if args.foldx_mode is not None:
+        if hasattr(data_iterator, 'dummy_iterators'):
+            for iterator in data_iterator.dummy_iterators:
+                iterator.append((tokens, labels, loss_mask, attention_mask,))
 
     return tokens, labels, loss_mask, attention_mask
 
@@ -148,6 +143,25 @@ def get_batch_pipe(data):
     """Modification of `get_batch` to work on `next(data_iterator)` instead of `data_iterator`"""
     args = get_args()
     tokenizer = get_tokenizer()
+
+    if args.is_instruction_dataset:
+        # Items and their type.
+        keys = ['input_ids', 'attention_mask', 'labels']
+        data_type = torch.int64
+
+        # Broadcast data.
+        data_b = mpu.broadcast_data(keys, data, data_type)
+
+        # Unpack.
+        labels = data_b.get('labels').long()
+        tokens = data_b.get('input_ids').long()
+        attention_mask_1d = data_b.get('attention_mask').long()
+        # ignored label -100
+        loss_mask = torch.where(labels == -100, 0, 1)
+
+        attention_mask = get_tune_attention_mask(attention_mask_1d, args.reset_attention_mask)
+
+        return (tokens, attention_mask), (labels, loss_mask)
 
     # Items and their type.
     keys = ['text']
@@ -188,9 +202,11 @@ def forward_step(data_iterator, model):
 
     timers = get_timers()
     # Get the batch.
-    timers('batch-generator').start()
+    if args.foldx_mode is None:
+        timers('batch-generator').start()
     tokens, labels, loss_mask, attention_mask = get_batch(data_iterator)
-    timers('batch-generator').stop()
+    if args.foldx_mode is None:
+        timers('batch-generator').stop()
 
     output_tensor = model(tokens, attention_mask, labels=labels)
     # Output_tensor stores the standard loss, loos_func calculates the total loss.
@@ -203,7 +219,8 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
     print_rank_0('> building train, validation, and test datasets '
                  'for llama ...')
-    train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
+    build_dataset_func = build_instruction_dataset if args.is_instruction_dataset else build_pretrain_dataset
+    train_ds, valid_ds, test_ds = build_dataset_func(
         data_prefix=args.data_path,
         data_impl=args.data_impl,
         splits_string=args.split,
@@ -219,6 +236,7 @@ if __name__ == "__main__":
     torch.npu.set_compile_mode(jit_compile=True)
     pretrain(train_valid_test_datasets_provider,
              model_provider,
+             ModelType.encoder_or_decoder,
              forward_step,
              args_defaults={'tokenizer_type': 'PretrainedFromHF'},
              data_post_process=data_post_process)

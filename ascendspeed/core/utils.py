@@ -1,9 +1,11 @@
 """Utility functions used throughout AscendSpeed core"""
 
+import math
 from functools import reduce
 import operator
 
 import torch
+
 
 def ensure_divisibility(numerator, denominator):
     """Ensure that numerator is divisible by the denominator."""
@@ -17,6 +19,42 @@ def divide(numerator, denominator):
     the division value."""
     ensure_divisibility(numerator, denominator)
     return numerator // denominator
+
+
+def get_attr_wrapped_model(model, attr, allow_none=True):
+    """Get an attribute from a wrapped model"""
+    if isinstance(model, list):
+        raise RuntimeError("_get_attr_wrapped_model given a list of models")
+
+    if allow_none:
+
+        def condition(model, attr):
+            return not hasattr(model, attr)
+
+    else:
+
+        def condition(model, attr):
+            return getattr(model, attr, None) is None
+
+    while condition(model, attr):
+        if not hasattr(model, "module"):
+            raise RuntimeError(f"_get_attr_wrapped_model couldn't find attribute {attr}")
+
+        model = model.module
+    return getattr(model, attr)
+
+
+def get_model_type(model):
+    return get_attr_wrapped_model(model, 'model_type')
+
+
+def get_model_config(model):
+    from ascendspeed import get_args
+    from ascendspeed.arguments import core_transformer_config_from_args
+    args = get_args()
+    if args.deepspeed:
+        return core_transformer_config_from_args(get_args())
+    return get_attr_wrapped_model(model, 'config', allow_none=False)
 
 
 class GlobalMemoryBuffer:
@@ -51,9 +89,9 @@ def _kernel_make_viewless_tensor(inp, requires_grad):
     '''
     out = torch.empty(
         (1,),
-        dtype = inp.dtype,
-        device = inp.device,
-        requires_grad = requires_grad,
+        dtype=inp.dtype,
+        device=inp.device,
+        requires_grad=requires_grad,
     )
     with torch.no_grad():
         out.set_(inp.data)
@@ -117,3 +155,22 @@ def split_tensor_along_last_dim(tensor, num_partitions,
         return tuple(chunk.contiguous() for chunk in tensor_list)
 
     return tensor_list
+
+
+def init_method_normal(sigma):
+    """Init method based on N(0, sigma)."""
+
+    def init_(tensor):
+        return torch.nn.init.normal_(tensor, mean=0.0, std=sigma)
+
+    return init_
+
+
+def scaled_init_method_normal(sigma, num_layers):
+    """Init method based on N(0, sigma/sqrt(2*num_layers)."""
+    std = sigma / math.sqrt(2.0 * num_layers)
+
+    def init_(tensor):
+        return torch.nn.init.normal_(tensor, mean=0.0, std=std)
+
+    return init_

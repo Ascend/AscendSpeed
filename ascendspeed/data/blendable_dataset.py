@@ -21,7 +21,6 @@ import numpy as np
 import torch
 
 from ascendspeed import print_rank_0
-from ascendspeed import mpu
 
 
 class BlendableDataset(torch.utils.data.Dataset):

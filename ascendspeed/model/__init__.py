@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from deepspeed.accelerator.real_accelerator import get_accelerator
+
 if get_accelerator().device_name() == 'cuda':
     from .fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 else:
@@ -22,4 +23,3 @@ from .gpt_model import GPTModel, GPTModelPipe
 from .llama_model import LlamaModel, LlamaModelPipe
 from .language_model import get_language_model
 from .module import Float16Module
-from .enums import ModelType

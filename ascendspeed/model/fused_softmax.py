@@ -16,7 +16,7 @@
 import torch
 import torch_npu
 import torch.nn as nn
-from ascendspeed.model.enums import AttnMaskType
+from ascendspeed.core.enums import AttnMaskType
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
@@ -137,7 +137,7 @@ class NPUFusedScaleMaskSoftmax(nn.Module):
         return (
                 self.scaled_masked_softmax_fusion  # user want to fuse
                 and self.input_in_float16  # input must be fp16
-                and 32 < sk <= 2048  # sk must be 32 ~ 2048
+                and 32 < sk <= 4096  # sk must be 32 ~ 4096
                 and sq % 16 == 0  # sq must be divisor of 16
                 and sk % 16 == 0  # sk must be divisor of 16
         )

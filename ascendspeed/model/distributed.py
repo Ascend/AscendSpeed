@@ -15,6 +15,7 @@
 
 from abc import ABC
 from abc import abstractmethod
+import math
 
 import torch
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
@@ -27,10 +28,11 @@ from ascendspeed.core import parallel_state
 
 class MemoryBuffer:
 
-    def __init__(self, numel, dtype):
+    def __init__(self, numel, numel_padded, dtype):
         self.numel = numel
+        self.numel_padded = numel_padded
         self.dtype = dtype
-        self.data = torch.zeros(self.numel,
+        self.data = torch.zeros(self.numel_padded,
                                 dtype=self.dtype,
                                 device=get_accelerator().current_device_name(),
                                 requires_grad=False)
@@ -121,8 +123,11 @@ class DistributedDataParallel(DistributedDataParallelBase):
         # the case we use continuous buffers.
         # ===================================
         self._grad_buffers = None
+        self._grad_buffer_param_index_map = None
         if self.use_contiguous_buffers:
             self._grad_buffers = {}
+            self._grad_buffer_param_index_map = {}
+            data_parallel_world_size = parallel_state.get_data_parallel_world_size()
 
             # Simple function to define buffer type.
             def _get_buffer_type(param):
@@ -139,7 +144,18 @@ class DistributedDataParallel(DistributedDataParallelBase):
 
             # Allocate the buffer.
             for dtype, num_elements in type_num_elements.items():
-                self._grad_buffers[dtype] = MemoryBuffer(num_elements, dtype)
+
+                # If using distributed optimizer, pad memory buffer to be
+                # multiple of data_parallel_world_size. (This padding is done
+                # due to a constraint with the reduce_scatter op, which requires
+                # all tensors have equal size. See: optimizer.py.)
+                num_elements_padded = data_parallel_world_size * \
+                    int(math.ceil(num_elements / data_parallel_world_size))
+
+                # Allocate grad buffer.
+                self._grad_buffers[dtype] = MemoryBuffer(num_elements,
+                                                         num_elements_padded,
+                                                         dtype)
 
             # Assume the back prop order is reverse the params order,
             # store the start index for the gradients.
@@ -149,6 +165,12 @@ class DistributedDataParallel(DistributedDataParallelBase):
                     type_num_elements[dtype] -= param.data.nelement()
                     param.main_grad = self._grad_buffers[dtype].get(
                         param.data.shape, type_num_elements[dtype])
+                    if dtype not in self._grad_buffer_param_index_map:
+                        self._grad_buffer_param_index_map[dtype] = {}
+                    self._grad_buffer_param_index_map[dtype][param] = (
+                        type_num_elements[dtype],
+                        type_num_elements[dtype] + param.data.nelement(),
+                    )
 
             # Backward hook.
             # Accumalation function for the gradients. We need
@@ -164,18 +186,17 @@ class DistributedDataParallel(DistributedDataParallelBase):
                     grad_acc.register_hook(self._make_param_hook(param))
                     self.grad_accs.append(grad_acc)
 
-
     def _make_param_hook(self, param):
         """Create the all-reduce hook for backprop."""
         # Hook used for back-prop.
         def param_hook(*unused):
             # Add the gradient to the buffer.
-            if param.grad.data is not None:
+            if param.grad is not None:
+                # The gradient function of linear layers is fused with GEMMs
                 param.main_grad.add_(param.grad.data)
                 # Now we can deallocate grad memory.
                 param.grad = None
         return param_hook
-
 
     def zero_grad_buffer(self):
         """Set the grad buffer data to zero. Needs to be called at the
@@ -184,16 +205,23 @@ class DistributedDataParallel(DistributedDataParallelBase):
         for _, buffer_ in self._grad_buffers.items():
             buffer_.zero()
 
+    def broadcast_params(self):
+        for param in self.module.parameters():
+            torch.distributed.broadcast(param.data,
+                                        src=parallel_state.get_data_parallel_src_rank(),
+                                        group=parallel_state.get_data_parallel_group())
 
-    def allreduce_gradients(self):
+    def allreduce_gradients(self, async_op=False):
         """Reduce gradients across data parallel ranks."""
         # If we have buffers, simply reduce the data in the buffer.
-
+        handles = []
         if self._grad_buffers is not None:
             for _, buffer_ in self._grad_buffers.items():
                 buffer_.data /= parallel_state.get_data_parallel_world_size()
-                torch.distributed.all_reduce(
-                    buffer_.data, group=parallel_state.get_data_parallel_group())
+                handle = torch.distributed.all_reduce(
+                    buffer_.data, group=parallel_state.get_data_parallel_group(),
+                    async_op=async_op)
+                handles.append(handle)
         else:
             # Otherwise, bucketize and all-reduce
             buckets = {}
@@ -217,3 +245,4 @@ class DistributedDataParallel(DistributedDataParallelBase):
                 for buf, synced in zip(grads, _unflatten_dense_tensors(
                         coalesced, grads)):
                     buf.copy_(synced)
+        return handles

@@ -1,8 +1,7 @@
-# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 # pylint: disable=global-statement
 
 """Model and data parallel groups."""
-
 from typing import Optional
 import torch
 
@@ -21,11 +20,14 @@ _POSITION_EMBEDDING_GROUP = None
 # Data parallel group that the current rank belongs to.
 _DATA_PARALLEL_GROUP = None
 _DATA_PARALLEL_GROUP_GLOO = None
+# FP8 amax reduction group.
+_AMAX_REDUCTION_GROUP = None
 
 _VIRTUAL_PIPELINE_MODEL_PARALLEL_RANK = None
 _VIRTUAL_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
 _PIPELINE_MODEL_PARALLEL_SPLIT_RANK = None
-
+_PIPELINE_PREV_GROUP = None
+_PIPELINE_NEXT_GROUP = None
 # These values enable us to change the mpu sizes on the fly.
 _MPU_TENSOR_MODEL_PARALLEL_WORLD_SIZE = None
 _MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE = None
@@ -57,7 +59,8 @@ def initialize_model_parallel(
     pipeline_model_parallel_split_rank: Optional[int] = None,
     use_fp8: bool = False,
 ) -> None:
-    """Initialize model data parallel groups.
+    """
+    Initialize model data parallel groups.
 
     Arguments:
         tensor_model_parallel_size (int, default = 1):
@@ -115,13 +118,13 @@ def initialize_model_parallel(
     are on the same DGX box. For example if we are using 2 DGX-1 boxes
     with a total of 16 GPUs, rank 0 to 7 belong to the first box and
     ranks 8 to 15 belong to the second box.
-
     """
     assert not use_fp8, "FP8 not supported by AscendSpeed"
-
     if torch.distributed.get_rank() == 0:
-        print(f'> initializing tensor model parallel with size {tensor_model_parallel_size}')
-        print(f'> initializing pipeline model parallel with size {pipeline_model_parallel_size}')
+        print('> initializing tensor model parallel with size {}'.format(
+            tensor_model_parallel_size))
+        print('> initializing pipeline model parallel with size {}'.format(
+            pipeline_model_parallel_size))
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size: int = torch.distributed.get_world_size()
@@ -202,6 +205,8 @@ def initialize_model_parallel(
     # (first and last rank in each pipeline model-parallel group).
     global _PIPELINE_MODEL_PARALLEL_GROUP
     global _PIPELINE_GLOBAL_RANKS
+    global _PIPELINE_PREV_GROUP
+    global _PIPELINE_NEXT_GROUP
     assert (
         _PIPELINE_MODEL_PARALLEL_GROUP is None
     ), 'pipeline model parallel group is already initialized'
@@ -217,6 +222,13 @@ def initialize_model_parallel(
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
+        for j in iter(range(len(ranks))):
+            ranks_ = [ranks[j], ranks[(j + 1) % len(ranks)]] if world_size != 1 else [ranks[j]]
+            group = torch.distributed.new_group(ranks_)
+            if rank == ranks[j]:
+                _PIPELINE_NEXT_GROUP = group
+            if rank == ranks[(j + 1) % len(ranks)]:
+                _PIPELINE_PREV_GROUP = group
         # Setup embedding group (to exchange gradients between
         # first and last stages).
         if len(ranks) > 1:
@@ -276,12 +288,10 @@ def get_model_parallel_group():
     return _MODEL_PARALLEL_GROUP
 
 
-def get_tensor_model_parallel_group(check_initialized=True):
+def get_tensor_model_parallel_group():
     """Get the tensor model parallel group the caller rank belongs to."""
-    if check_initialized:
-        assert (
-            _TENSOR_MODEL_PARALLEL_GROUP is not None
-        ), 'tensor model parallel group is not initialized'
+    assert _TENSOR_MODEL_PARALLEL_GROUP is not None, \
+        'intra_layer_model parallel group is not initialized'
     return _TENSOR_MODEL_PARALLEL_GROUP
 
 
@@ -337,6 +347,12 @@ def get_tensor_model_parallel_world_size():
     return torch.distributed.get_world_size(group=get_tensor_model_parallel_group())
 
 
+def get_model_parallel_world_size():
+    assert get_pipeline_model_parallel_world_size() == 1, \
+        "legacy get_model_parallel_world_size is only supported if PP is disabled"
+    return get_tensor_model_parallel_world_size()
+
+
 def get_pipeline_model_parallel_world_size():
     """Return world size for the pipeline model parallel group."""
     global _MPU_PIPELINE_MODEL_PARALLEL_WORLD_SIZE
@@ -369,6 +385,12 @@ def get_tensor_model_parallel_rank():
     if _MPU_TENSOR_MODEL_PARALLEL_RANK is not None:
         return _MPU_TENSOR_MODEL_PARALLEL_RANK
     return torch.distributed.get_rank(group=get_tensor_model_parallel_group())
+
+
+def get_model_parallel_rank():
+    assert get_pipeline_model_parallel_world_size() == 1, \
+        "legacy get_model_parallel_rank is only supported if PP is disabled"
+    return get_tensor_model_parallel_rank()
 
 
 def get_pipeline_model_parallel_rank():
@@ -404,10 +426,11 @@ def is_pipeline_last_stage(ignore_virtual=False):
         )
         if virtual_pipeline_model_parallel_world_size is not None \
             and get_virtual_pipeline_model_parallel_rank() != (
-            virtual_pipeline_model_parallel_world_size - 1
-        ):
+                virtual_pipeline_model_parallel_world_size - 1):
             return False
-    return get_pipeline_model_parallel_rank() == (get_pipeline_model_parallel_world_size() - 1)
+    return get_pipeline_model_parallel_rank() == (
+            get_pipeline_model_parallel_world_size() - 1)
+
 
 
 def is_rank_in_embedding_group(ignore_virtual=False):
@@ -469,6 +492,7 @@ def is_pipeline_stage_at_split():
     decoder."""
     rank = get_pipeline_model_parallel_rank()
     return is_pipeline_stage_before_split(rank) and is_pipeline_stage_after_split(rank + 1)
+
 
 
 def get_virtual_pipeline_model_parallel_rank():
@@ -541,6 +565,16 @@ def get_pipeline_model_parallel_prev_rank():
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline - 1) % world_size]
 
 
+def get_pipeline_model_parallel_prev_rank_group():
+    assert _PIPELINE_PREV_GROUP is not None
+    return _PIPELINE_PREV_GROUP
+
+
+def get_pipeline_model_parallel_next_rank_group():
+    assert _PIPELINE_NEXT_GROUP is not None
+    return _PIPELINE_NEXT_GROUP
+
+
 def get_data_parallel_world_size():
     """Return world size for the data parallel group."""
     return torch.distributed.get_world_size(group=get_data_parallel_group())
@@ -580,6 +614,10 @@ def destroy_model_parallel():
     _PIPELINE_MODEL_PARALLEL_GROUP = None
     global _DATA_PARALLEL_GROUP
     _DATA_PARALLEL_GROUP = None
+    global _PIPELINE_NEXT_GROUP
+    _PIPELINE_NEXT_GROUP = None
+    global _PIPELINE_PREV_GROUP
+    _PIPELINE_PREV_GROUP = None
     global _EMBEDDING_GROUP
     _EMBEDDING_GROUP = None
     global _POSITION_EMBEDDING_GROUP
@@ -598,3 +636,5 @@ def destroy_model_parallel():
     _MPU_PIPELINE_MODEL_PARALLEL_RANK = None
     global _GLOBAL_MEMORY_BUFFER
     _GLOBAL_MEMORY_BUFFER = None
+
+

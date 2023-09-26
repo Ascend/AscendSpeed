@@ -15,11 +15,14 @@
 
 """ascendspeed arguments."""
 
+import dataclasses
 import argparse
 import os
 
 import torch
+import torch.nn.functional as F
 import deepspeed
+from ascendspeed.core.transformer import TransformerConfig
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.data.parse import ParseDataPaths, ParseDataPathsPath
 
@@ -50,6 +53,8 @@ def parse_args(extra_args_provider=None, defaults={},
     parser = _add_activation_checkpoint_args(parser)
     parser = _add_distillation_args(parser)
     parser = _add_optimized_pipeline_args(parser)
+    parser = _add_manual_layer_allocation(parser)
+    parser = _add_lora_args(parser)
 
     # Custom arguments.
     if extra_args_provider is not None:
@@ -175,11 +180,21 @@ def parse_args(extra_args_provider=None, defaults={},
         print('using {} for parameters ...'.format(args.params_dtype),
               flush=True)
 
-    # If we do accumulation and all-reduces in fp32, we need to have
-    # local DDP and we should set the use-contiguous-buffers-in-ddp.
+    # If we do accumulation and all-reduces in fp32, we need to have local DDP
+    # and we should make sure use-contiguous-buffers-in-local-ddp is not off.
     if args.accumulate_allreduce_grads_in_fp32:
         assert args.DDP_impl == 'local'
-        args.use_contiguous_buffers_in_ddp = True
+        assert args.use_contiguous_buffers_in_local_ddp
+
+    # If we use the distributed optimizer, we need to have local DDP
+    # and we should make sure use-contiguous-buffers-in-local-ddp is on.
+    if args.use_distributed_optimizer:
+        assert args.DDP_impl == 'local'
+        assert args.use_contiguous_buffers_in_local_ddp
+
+    # For torch DDP, we do not use contiguous buffer
+    if args.DDP_impl == 'torch':
+        args.use_contiguous_buffers_in_local_ddp = False
 
     if args.dataloader_type is None:
         args.dataloader_type = 'single'
@@ -220,6 +235,7 @@ def parse_args(extra_args_provider=None, defaults={},
             assert args.lr_warmup_samples == 0, \
                 'can only specify one of lr-warmup-fraction ' \
                 'and lr-warmup-samples'
+
 
     # Check required arguments.
     required_args = ['num_layers', 'hidden_size', 'num_attention_heads',
@@ -274,10 +290,25 @@ def parse_args(extra_args_provider=None, defaults={},
         assert args.checkpoint_activations, \
             'for distribute-checkpointed-activations to work you '\
             'need to enable checkpoint-activations'
-
+    torch_major = int(torch.__version__.split('.')[0])
+    torch_minor = int(torch.__version__.split('.')[1])
+    # Persistent fused layer norm.
+    if torch_major < 1 or (torch_major == 1 and torch_minor < 11):
+        args.no_persist_layer_norm = True
+        if args.rank == 0:
+            print('Persistent fused layer norm kernel is supported from '
+                  'pytorch v1.11 (nvidia pytorch container paired with v1.11). '
+                  'Defaulting to no_persist_layer_norm=True')
+    else:
+        args.no_persist_layer_norm = False
     args.curriculum_learning_legacy = False
     args.compression_training = False
-
+    args.apply_layernorm_1p = False
+    args.overlap_p2p_comm = False
+    args.swiglu = False
+    args.fp8_e4m3 = False
+    args.fp8_hybrid = False
+    args.group_query_attention = False
     # AML
     if args.aml_data_download_path is not None:
         data_paths = []
@@ -285,8 +316,12 @@ def parse_args(extra_args_provider=None, defaults={},
             data_paths.append(f"{args.aml_data_download_path}/{path}")
         args.data_path = data_paths
 
+    # manually layer distribute
+    _get_manual_layer_allocation(args)
+
     _print_args(args)
     return args
+
 
 def _print_args(args):
     """Print arguments."""
@@ -305,6 +340,35 @@ def _print_args(args):
 
 def _check_arg_is_not_none(args, arg):
     assert getattr(args, arg) is not None, '{} argument is None'.format(arg)
+
+
+def core_transformer_config_from_args(args):
+    # Translate args to core transformer configuration
+    kw_args = {}
+    for f in dataclasses.fields(TransformerConfig):
+        if hasattr(args, f.name):
+            kw_args[f.name] = getattr(args, f.name)
+    kw_args['persist_layer_norm'] = not args.no_persist_layer_norm
+    kw_args['layernorm_zero_centered_gamma'] = args.apply_layernorm_1p
+    kw_args['deallocate_pipeline_outputs'] = False
+    kw_args['pipeline_dtype'] = args.params_dtype
+    kw_args['batch_p2p_comm'] = not args.overlap_p2p_comm
+    if args.swiglu:
+        kw_args['activation_func'] = F.silu
+        kw_args['gated_linear_unit'] = True
+        kw_args['bias_gelu_fusion'] = False
+    if args.init_method_xavier_uniform:
+        kw_args['init_method'] = torch.nn.init.xavier_uniform_
+        kw_args['scaled_init_method'] = torch.nn.init.xavier_uniform_
+    kw_args['fp8'] = args.fp8_e4m3 or args.fp8_hybrid
+    kw_args['fp8_e4m3'] = args.fp8_e4m3
+    kw_args['fp8_margin'] = args.fp8_hybrid
+    if args.group_query_attention:
+        kw_args['num_query_groups'] = args.num_query_groups
+    else:
+        kw_args['num_query_groups'] = None
+
+    return TransformerConfig(**kw_args)
 
 
 def _add_network_size_args(parser):
@@ -563,6 +627,8 @@ def _add_training_args(parser):
                        help='Use Tutel optimization for MoE')
     group.add_argument('--inference', action='store_true',
                        help='Very basic inference mode: not allocating optim/lr - requires ZERO_STAGE=0')
+    group.add_argument('--use-fused-rotary-pos-emb', action='store_true',
+                       help='use fused rotary pos emb')
     return parser
 
 
@@ -701,6 +767,9 @@ def _add_mixed_precision_args(parser):
 def _add_distributed_args(parser):
     group = parser.add_argument_group(title='distributed')
 
+    group.add_argument('--foldx-mode', default=None,
+                       choices=['aiao', 'fifo'],
+                       help='Choose fold-x pipeline parallelism.')
     group.add_argument('--tensor-model-parallel-size', type=int, default=1,
                        help='Degree of tensor model parallelism.')
     group.add_argument('--enable-expert-tensor-parallelism', action='store_true',
@@ -711,6 +780,9 @@ def _add_distributed_args(parser):
                        help="use sequence parallelism")
     group.add_argument('--pipeline-model-parallel-size', type=int, default=1,
                        help='Degree of pipeline model parallelism.')
+    group.add_argument('--pipeline-model-parallel-split-rank',
+                       type=int, default=None,
+                       help='Rank where encoder and decoder should be split.')
     group.add_argument('--moe-expert-parallel-size', type=int, default=1,
                        help='Degree of the MoE expert parallelism.')
     group.add_argument('--model-parallel-size', type=int, default=None,
@@ -725,9 +797,10 @@ def _add_distributed_args(parser):
                        choices=['local', 'torch'],
                        help='which DistributedDataParallel implementation '
                        'to use.')
-    group.add_argument('--use-contiguous-buffers-in-ddp', action='store_true',
-                       help='If set, use contiguous buffer in DDP. Note that '
-                       'this option only works woth local DDP.' )
+    group.add_argument('--no-contiguous-buffers-in-local-ddp',
+                       action='store_false', help='If set, dont use '
+                       'contiguous buffer in local DDP.',
+                       dest='use_contiguous_buffers_in_local_ddp')
     group.add_argument('--no-scatter-gather-tensors-in-pipeline', action='store_false',
                        help='Use scatter/gather to optimize communication of tensors in pipeline',
                        dest='scatter_gather_tensors_in_pipeline')
@@ -742,6 +815,10 @@ def _add_distributed_args(parser):
     group.add_argument('--use-cpu-initialization', action='store_true',
                        default=None, help='If set, affine parallel weights '
                        'initialization uses CPU' )
+    group.add_argument('--triangle-attn', action='store_true',
+                       help="use triangle attention instead self attention")
+    group.add_argument('--use-distributed-optimizer', action='store_true',
+                       help='Use distributed optimizer.')
     return parser
 
 
@@ -768,6 +845,8 @@ def _add_data_args(parser):
                        '1) a single data path, 2) multiple datasets in the'
                        'form: dataset1-weight dataset1-path dataset2-weight '
                        'dataset2-path ...')
+    group.add_argument('--is-instruction-dataset', action='store_true',
+                       help='use instruction dataset or not')
     group.add_argument('--split', type=str, default='969, 30, 1',
                        help='Comma-separated list of proportions for training,'
                        ' validation, and test split. For example the split '
@@ -1016,6 +1095,10 @@ def _add_activation_checkpoint_args(parser):
                        help='does a synchronize at the beginning and end of each checkpointed layer.')
     group.add_argument('--profile-backward', action='store_true',
                        help='Enables backward pass profiling for checkpointed layers.')
+    group.add_argument('--checkpoint_policy', type=str, default='full', choices=['full', 'block'],
+                       help="activation checkpoint policy")
+    group.add_argument('--checkpoint_block_layer', type=int, default=25,
+                       help="activation checkpoint block layer number")
     return parser
 
 
@@ -1047,6 +1130,7 @@ def _add_distillation_args(parser):
 
     return parser
 
+
 def _add_optimized_pipeline_args(parser):
     group = parser.add_argument_group(title='optimized_pipeline')
 
@@ -1058,5 +1142,45 @@ def _add_optimized_pipeline_args(parser):
                             'comma; e.g., 4,4,4,4. Two examples are provided by '
                             '--manual-mbs example-config-1, and '
                             '--manual-mbs example-config-2')
+
+    return parser
+
+
+def _add_manual_layer_allocation(parser):
+    group = parser.add_argument_group(title='manual_layer_allocation')
+    group.add_argument('--use-manual-layer-allocation', action='store_true',
+                       help='Enable manually allocated layers for pipeline model parallel.')
+    group.add_argument('--manual-layers', type=str, help='a list of number of layers, '
+                                                         'seperated by comma; e.g., 4,4,4,4')
+
+    return parser
+
+
+def _get_manual_layer_allocation(args=None):
+    if args is not None and args.use_manual_layer_allocation:
+        assert args.manual_layers is not None
+        manual_layers = list(map(int, args.manual_layers.split(',')))
+        assert len(manual_layers) == args.pipeline_model_parallel_size
+        args.manual_layers = manual_layers
+
+
+def _add_lora_args(parser):
+    group = parser.add_argument_group(title='lora')
+
+    group.add_argument('--lora-target-modules', nargs='+', type=str, default=[],
+                       help='Lora target modules.')
+    group.add_argument('--lora-load', type=str, default=None,
+                       help='Directory containing a lora model checkpoint.')
+    group.add_argument('--lora-r', type=int, default=16,
+                       help='Lora r.')
+    group.add_argument('--lora-alpha', type=int, default=32,
+                       help='Lora alpha.')
+    group.add_argument('--lora-modules-to-save', nargs='+', type=str, default=None,
+                       help='Lora modules to save.')
+    group.add_argument('--lora-register-forward-hook', nargs='+', type=str,
+                       default=['word_embeddings', 'input_layernorm'],
+                       help='Lora register forward hook.')
+    group.add_argument('--lora-adapter-name', type=str, default='default',
+                       help='Lora adapter name.')
 
     return parser

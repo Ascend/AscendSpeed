@@ -34,9 +34,11 @@ from ascendspeed import mpu
 from ascendspeed.core import parallel_state
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
 from ascendspeed.model import LlamaModel, LlamaModelPipe
+from ascendspeed.core.enums import ModelType
 from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
+from ascendspeed.arguments import core_transformer_config_from_args
 
 import deepspeed
 from deepspeed.runtime.utils import see_memory_usage
@@ -50,13 +52,14 @@ def model_provider(pre_process=True, post_process=True):
     see_memory_usage(f"Before Building Model", force=True)
 
     args = get_args()
+    config = core_transformer_config_from_args(get_args())
     with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                              remote_device=None if args.remote_device == 'none' else args.remote_device,
                              config_dict_or_path=args.deepspeed_config,
                              enabled=args.zero_stage == 3,
                              mpu=parallel_state):
         if args.deepspeed and not args.no_pipeline_parallel:
-            model = LlamaModelPipe(parallel_output=True)
+            model = LlamaModelPipe(config=config, parallel_output=True)
             # This is a hack to give us a reference to get_batch_pipe from within training.py
             # We need to call model.set_batch_fn after deepspeed.initialize
             model._megatron_batch_fn = get_batch_pipe
@@ -80,6 +83,7 @@ def model_provider(pre_process=True, post_process=True):
 
         else:
             model = LlamaModel(
+                config=config,
                 parallel_output=True,
                 add_pooler=False,
                 pre_process=pre_process,
@@ -218,7 +222,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
 @timeout(1200)
 def test():
-    pretrain(train_valid_test_datasets_provider, model_provider, forward_step,
+    pretrain(train_valid_test_datasets_provider, model_provider, ModelType.encoder_or_decoder,forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'},
              data_post_process=data_post_process)
 
