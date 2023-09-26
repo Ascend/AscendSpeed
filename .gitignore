@@ -6,7 +6,6 @@ __pycache__/
 # MACOS
 .DS_Store
 
-
 # Distribution / packaging
 .Python
 build/
