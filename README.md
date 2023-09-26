@@ -8,7 +8,6 @@ AscendSpeed provides end-to-end solution for large language models training on [
 ## Pretrained Models
 Currently, the pre-training of the following models has been supported: 
 
-
 * <a href="https://github.com/baichuan-inc/Baichuan-7B" style="color:green">Baichuan</a>-[7B](examples/baichuan/pretrain_baichuan_zero_7B.sh)
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[7B1](examples/bloom/pretrain_bloom_7b1.sh)/[176B](examples/bloom/pretrain_bloom_176b.sh)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[7B](examples/internlm/pretrain_internlm_7b_zero.sh)
