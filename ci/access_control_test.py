@@ -54,7 +54,5 @@ if __name__ == "__main__":
     test_loader = unittest.TestLoader()
     discover = test_loader.discover(start_dir="../tests/ut", pattern="test*.py")
 
-    flags = os.O_WRONLY | os.O_CREAT
-    modes = stat.S_IWUSR | stat.S_IRUSR
-    with os.fdopen(os.open('final.xml', flags, modes), 'wb') as output:
-        success_check_ut(xmlrunner.XMLTestRunner(output=output).run(discover))
+    runner = unittest.TextTestRunner()
+    success_check_ut(runner.run(discover))
