@@ -3,9 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-
 # MACOS
 .DS_Store
+
 
 # Distribution / packaging
 .Python
