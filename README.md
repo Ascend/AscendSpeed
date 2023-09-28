@@ -1,22 +1,22 @@
 # <center> <font face="黑体" size=10 > <u> *AscendSpeed* </u> </font> </center>
 
-AscendSpeed provides end-to-end solution for large language models training on [Ascend](https://open.codehub.huawei.com/OpenBaize/Ascend/ascendspeed/files?ref=master&filePath=examples%2Fbaichuan%2Fpretrain_baichuan_zero_7B.sh&isFile=true) chips, including pretrained models, parallel algorithms, fused kernels, and downstream tasks. The repository is jointly contributed by Ascend Computing Product Unit, Algorithm Unit, Research Unit, and OCK of Huawei Corporation.
+AscendSpeed provides end-to-end test scripts for large language models on [Ascend](https://open.codehub.huawei.com/OpenBaize/Ascend/ascendspeed/files?ref=master&filePath=examples%2Fbaichuan%2Fpretrain_baichuan_zero_7B.sh&isFile=true) chips, including pretrained models, parallel algorithms, fused kernels, and downstream tasks. The repository is jointly contributed by Ascend Computing Product Unit, Algorithm Unit, Research Unit, and OCK of Huawei Corporation.
 
-# Why AscendSpeed? 
+## Why AscendSpeed? 
 
 ---
-## Pretrained Models
+### Pretrained Models
 Currently, the pre-training of the following models has been supported: 
 
-* <a href="https://github.com/baichuan-inc/Baichuan-7B" style="color:green">Baichuan</a>-[7B](examples/baichuan/pretrain_baichuan_zero_7B.sh)
-* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[7B1](examples/bloom/pretrain_bloom_7b1.sh)/[176B](examples/bloom/pretrain_bloom_176b.sh)
-* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[7B](examples/internlm/pretrain_internlm_7b_zero.sh)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[7B](examples/llama/pretrain_llama_7B_zero_8p.sh)/[13B](examples/llama/pretrain_llama_13B_zero_8p.sh)/[65B](examples/llama/pretrain_llama_65B_ptd_32p.sh)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[7B](examples/llama2/pretrain_llama2_ptd_7B.sh)
+* <a href="https://github.com/baichuan-inc/Baichuan-7B" style="color:green">Baichuan</a>-7B
+* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[7B1/176B](examples/bloom/README.md)
+* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-7B
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-7B/13B/65B
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-7B
 
 Baichuan-13B, LLaMA-33B, LLaMA2-13B/70B, Aquila-7B are coming soon ...
 
-## Acceleration Features
+### Acceleration Features
 Currently, the following acceleration features for LLMs have been supported:
 
 
@@ -30,13 +30,13 @@ Currently, the following acceleration features for LLMs have been supported:
 * [Sequence parallelism](#jump5)
 * [ZeRO-1/2/3](#jump6)
 * [Inverted triangle acceleration](#jump7)
-* [Numerous fused kernels and optimizers for LLMs](#jump8)
+* [Fused kernels and optimizers for LLMs](#jump8)
 * [Merged feed-forward network](#jump9)
 * [Gradient accumulation](#jump9)
 
 More novel and useful features are developing for LLMs training on Ascend ...
 
-## Downstream Tasks
+### Downstream Tasks
 Currently, the following downstream tasks have been supported:
 * [Inference with sampling and greedy search strategies](#jump11)
 * [Dataset processing with prompt or instruction](#jump12)
@@ -46,96 +46,76 @@ Currently, the following downstream tasks have been supported:
 The plan for more tasks, like RLHF and RM, is under way ...
 
 
-# Quick Start For Pretraining
+## Quick Start For Pretraining
 
 ---
 
-# Model Performance
+### Model Performance
 <table>
   <thead>
     <tr>
       <th>Model</th>
       <th>Size</th>
       <th>Servers</th>
-      <th>Main Acceleration Features</th>
       <th>Mode</th>
-      <th>Flash Attention</th>
       <th>NPU Throughput</th>
       <th>Reference Throughput</th>
-      <th>Training Log</th>
-      <th>Reference Log</th>
       <th>Loss Compare</th>
+      <th>Scripts</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td>Baichaun</td>
       <td>7B</td>
-      <td>313T 1x8</td>
-      <td align="left">ZeRO2 + Selective recomputation + Inverted triangle</td>
+      <td> 1x8</td>
       <td> FP16 </td>
-      <td> False </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 1790 tokens/p/s </td>
+      <td> 2039 tokens/p/s </td>
+      <td> <a href="sources/images/baichuan7b_loss.png">Loss</a> </td>
+      <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">Train</a> </td>
     </tr>
     <tr>
-      <td rowspan="3">Bloom</td>
+      <td rowspan="3"><a href="examples/bloom/README.md">Bloom</a></td>
       <td>7B1</td>
-      <td>376T 1x8</td>
-      <td>TP8 + SP + Recomputation</td>
+      <td> 1x8</td>
       <td> FP16 </td>
-      <td> False </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 2611 tokens/p/s </td>
+      <td> 2525 tokens/p/s </td>
+      <td>  <a href="sources/images/bloom7B1_loss.png">Loss</a> </td>
+      <td> <a href="examples/bloom/pretrain_bloom_7b1.sh">Train</a> </td>
     </tr>
     <tr>
       <td rowspan="2">176B</td>
-      <td rowspan="2">376T 12x8</td>
-      <td rowspan="2"> PP12 + TP8 + SP + Recomputation </td>
+      <td rowspan="2">12x8</td>
       <td> FP16 </td>
-      <td> False </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 106 tokens/p/s </td>
+      <td> 107 tokens/p/s </td>
+      <td> <a href="sources/images/bloom176B_fp16_loss.png">Loss</a> </td>
       <td> -- </td>
     </tr>
     <tr>
       <td> BF16 </td>
-      <td> False </td>
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> <a href="examples/bloom/pretrain_bloom_176b.sh">Train</a> </td>
     </tr>
     <tr>
       <td>InternLM</td>
       <td>7B</td>
-      <td>376T 1x8</td>
-      <td>ZeRO2 + Recomputation + Inverted triangle</td>
+      <td>1x8</td>
       <td>FP16</td>
-      <td> False </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 2777 tokens/p/s </td>
+      <td> 2800 tokens/p/s </td>
+      <td>  <a href="sources/images/intern7b_loss.png">Loss</a>  </td>
+      <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">Train</a> </td>
     </tr>
     <tr>
       <td rowspan="4">LLaMA</td>
       <td>7B</td>
-      <td>376T 1x8</td>
-      <td>ZeRO2 + Recomputation</td>
+      <td>1x8</td>
       <td>FP16</td>
-      <td> False </td>
-      <td> -- </td>
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
@@ -143,11 +123,8 @@ The plan for more tasks, like RLHF and RM, is under way ...
     </tr>
     <tr>
       <td>13B</td>
-      <td>376T 1x8</td>
-      <td>ZeRO2 + Recomputation</td>
+      <td>1x8</td>
       <td>FP16</td>
-      <td> False </td>
-      <td> -- </td>
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
@@ -155,11 +132,8 @@ The plan for more tasks, like RLHF and RM, is under way ...
     </tr>
     <tr>
       <td rowspan="2">65B</td>
-      <td rowspan="2">376T 4x8</td>
-      <td rowspan="2">PP4 + TP8 + SP + Recomputation </td>
-      <td>FP16 </td>
-      <td> False </td>
-      <td> -- </td>
+      <td rowspan="2">4x8</td>
+      <td> FP16 </td>
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
@@ -167,23 +141,16 @@ The plan for more tasks, like RLHF and RM, is under way ...
     </tr>
     <tr>
       <td>BF16 </td>
-      <td> False </td>
       <td> 234 tokens/p/s </td>
       <td> 260 tokens/p/s </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> 
-        <a href="./sources/images/llama/llama65B_shape_layer8.png">Loss</a> 
-      </td>
+      <td> <a href="sources/images/llama65b_bf_loss.png">Loss</a> </td>
+      <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">Train</a> </td>
     </tr>
     <tr>
       <td>LLaMA2</td>
       <td>7B</td>
-      <td>376T 1x8</td>
-      <td>PP4 + TP2</td>
+      <td>1x8</td>
       <td>FP16 </td>
-      <td> False </td>
-      <td> -- </td>
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
@@ -192,7 +159,9 @@ The plan for more tasks, like RLHF and RM, is under way ...
   </tbody>
 </table>
 
-# Model Training
+### Model Training
+This is an example of model training with AscendSpeed, and the detailed guideline for each model could be found in the `examples/modelname` folder.
+Note that we use AscendSpeed with scripts currently, and would not provide `.whl` package for public 
 
 1. Clone the repository to your local server:
 
@@ -242,29 +211,6 @@ python tools/preprocess_data.py --input alpaca_data.json \
                                 --tokenizer-name-or-path llama-7b-hf \
                                 --tokenizer-not-use-fast \
                                 --handler-name GeneralInstructionHandler
-
-# for bloom
-cd AscendSpeed
-wget https://huggingface.co/bigscience/misc-test-data/resolve/main/stas/oscar-1GB.jsonl.xz
-xz -d oscar-1GB.jsonl.xz
-wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json
-wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
-
-python tools/preprocess_data.py --input ./oscar-1GB.jsonl \
-                                --output-prefix my-gpt2 \
-                                --vocab ./gpt2-vocab.json \
-                                --dataset-impl mmap \
-                                --tokenizer-type GPT2BPETokenizer \
-                                --merge-file .//gpt2-merges.txt \
-                                --append-eod \
-                                --workes 9
-
-mkdir -p dataset/oscar_data_1g
-mv gpt2-vocab.json gpt2-merges.txt my-gpt2_text_* dataset/oscar_data_1g/
-
-mkdir -p dataset/bloom_vocab/vocab_file
-# download data to vocab_file by yourself from 
-# https://huggingface.co/bigscience-catalogue-data-dev/byte-level-bpe-tokenizer-no-norm-250k-whitespace-and-eos-regex-alpha-v3-dedup-lines-articles/tree/main 
 ```
 
 4. (Selective) Prepare pretrained weights
@@ -276,29 +222,29 @@ python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-mode
                                                                     --type 7B
 
 # if you want to change the parallel strategy, the pretrained weights should also be sharded
-# please refer to tools/ckpt_convert/examples/llama_convert_weights_when_tp_pp_change.sh
+# by setting `tensor-model-parallel-size` and `pipeline-model-parallel-size`.
+# The script: tools/ckpt_convert/llama/convert_weights_when_tp_pp_change.py is helpful for weights merge in inference.
 ```
 
 5. Start your task
 
 ```bash
 # set your data path / weight path / tokenizer path etc.   
-sh examples/llama/pretrain_llama_7B_zero_8B.sh
-sh examples/bloom/pretrain_bloom_7b1.sh  
+sh examples/llama/pretrain_llama_7B_zero_8p.sh
 ```
 
-# Introduction For Acceleration Features
+## Introduction For Acceleration Features
 
 ---
 
-## <span id="jump1"> Tensor Parallelism </span>
+### <span id="jump1"> Tensor Parallelism </span>
 Tensor parallelism (TP) is a kind of model parallelism strategy, which splits execution of a single transformer module over multiple devices. 
 The basic principle of PP is:<div align=center>
 <img src="sources/images/tp_in_mlp.png" height="280px" width="500px">
 <img src="sources/images/tp_in_sa.png" height="280px" width="500px"></div>
 To use tensor model parallelism in Ascendspeed, add the `--tensor-model-parallel-size` flag to specify the number of GPUs among which to split the model.
 
-## <span id="jump2">  (Virtual & Optimized) Pipeline Parallelism  </span>
+### <span id="jump2">  (Virtual & Optimized) Pipeline Parallelism  </span>
 Pipeline parallelism (PP) is a kind of model parallelism strategy, which shards the transformer modules into stages
 with an equal number of transformer modules on each stage and then pipelines execution by breaking the batch into
 smaller microbatches. Virtual pipeline (VP) parallelism optimizes PP by add virtual stages to reduce pipeline bubble time. Optimized Pipline Parallelism (OPP) is an enhanced version of VP, which further reduces the bubble time by reasonably setting the size of each microbatch. The basic principle of PP and VP is:<div align=center>
@@ -308,60 +254,163 @@ To enable pipeline model parallelism, use the `--pipeline-model-parallel-size` f
 To enable virtual pipeline parallelism, additionally use `--num-layers-per-virtual-pipeline-stage` flag to decide number of layers per virtual stage. 
 To enable optimized pipeline parallelism, additionally use `--optimized-pipeline` and `--manual-mbs example-config-1` flag based on PP. Note that both VP and OPP reduce bubble time, but increase communication time.
 
-## <span id="jump3"> Fold3D </span>
+### <span id="jump3"> Fold3D </span>
 Fold3D hides the commutation time of data parallelism in VP. The basic principle of Fold3D is:<div align=center>
 <img src="sources/images/fold3d.png" height="350px" width="800px"></div>
 To enable pipeline model parallelism, use the `--fold-mode "aiao"` flag to choose strategy.
 
-## <span id="jump4"> (Selective) Recomputation </span>
+### <span id="jump4"> (Selective) Recomputation </span>
 To reduce NPU memory usage so deploy a large model to a training system, we support activation checkpointing and recomputation. 
 We support two levels of recompute granularity: full and selective. To enable full recomputation, please use `--checkpoint-activations` flag, and to enable selective recomputation, please use `--checkpoint-policy` flag to 
 decide the strategy of selective recomputation. Note that the selective strategy is customized and optimized for Ascend chips.
 
-## <span id="jump5"> Sequence Parallelism </span>
+### <span id="jump5"> Sequence Parallelism </span>
 Sequence parallelism (SP) is a kind of model parallelism strategy, which splits the sequence axis in dropout and layernorm layers. SP depends on TP in our implementation. 
 The allreduce operation in TP is split to reduce-scatter and allgather by SP, which reduces the memory occupation in model training. The basic principle of SP is:<div align=center>
 <img src="sources/images/sp.png" height="250px" width="800px"></div>
 To enable sequence parallelism (SP), `--tensor-model-parallel-size` flag should be lager than 1, and set `--sequence-parallel` flag.
 
-## <span id="jump6"> ZeRO-1/2/3 </span>
+### <span id="jump6"> ZeRO-1/2/3 </span>
 Zero Redundancy Optimizer (ZeRO) is a kind of memory-optimization strategy in data parallelism proposed by MicroSoft. 
 AscendSpeed supports ZeRO-1/2/3 by adding a deepspeed branch. The basic principle of ZeRO is:<div align=center>
 <img src="sources/images/ZeRO.png" height="250px" width="600px"></div>
 To enable ZeRO-1/2/3, a deepspeed config is required and an [example](examples/llama/pretrain_llama_7B_zero_8p.sh) could be referred. 
 Notably, if only the ZeRO-1 is supposed, deepspeed is not necessary, and simply set the `--use-distributed-optimizer` flag.
 
-## <span id="jump7"> Inverted Triangle Acceleration </span>
+### <span id="jump7"> Inverted Triangle Acceleration </span>
 
 Inverted triangle acceleration is an acceleration module for attention calculation, which implements flash attention with python. Basically, the calculation of self-attention takes all of the attention mask into consideration. For this scenario, inverted triangle attention acceleration algorithm is used to avoid
 blocks that do not need to be calculated in the upper triangle position in the attention mask, thereby reducing the amount of calculation. The calculation process is:<div align=center>
 <img src="sources/images/triangle.png" height="600px" width="600px"></div>
 To enable inverted triangle acceleration, set `--triangle-attn` flag.
 
-## <span id="jump8"> Fused Kernels & Optimizer </span>
+### <span id="jump8"> Fused Kernels & Optimizer </span>
 For LLMs, Ascend chips support various fused kernels, such as `scaled_masked_softmax` and `rotary_pos_emb`. The related examples can be found by searching in this project, and more detailed information is coming soon.
 For fused optimizer, two kinds of fused adam optimizers are provided by `--optimizer`. Specifically, the choice `--optimizer adam` saves more memory, and the choice `--optimizer fused_adam` trains faster.
 
-## <span id="jump9">  Merged Feed-Forward Network & Gradient Accumulation </span>
+### <span id="jump9">  Merged Feed-Forward Network & Gradient Accumulation </span>
 For llama and other LLMs without bias in FFN, the linear transformation in FFN could be merged to save communication in tensor parallelism. To enable this feature, please set `--mlp-layer-fusion` flag. Gradient accumulation uses gradient of N rounds to make an optimizer step and update parameters. Here, N = global batchsize / micro batchsize / DP, and DP = device nums / tp / pp.
 
-# Downstream Tasks
+## Downstream Tasks
 
 ---
 
-## <span id="jump11"> Inference with Pretrained Weights </span>
-This pattern means that we want you to be able to easily load models and talk to the model (Mostly similar to huggingface inference API). All you needed is to enter a piece of text into the model to get the results in text form. In addition, you don't have to worry about models being too big in inference, we support a variety of common parallel strategies.
-Currently, we support the following three inference modes in different parallel strategies:
+### Content List
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Size</th>
+      <th>Fine-tuning</th>
+      <th>Inference</th>
+      <th>Evaluation</th>
+      <th>Dataset Support</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td> Baichaun </td>
+      <td> 7B </td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+      <td  rowspan="8"> -- </td>
+    </tr>
+    <tr>
+      <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
+      <td> 7B1 </td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td> 176B </td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td>InternLM</td>
+      <td>7B</td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td rowspan="3">LLaMA</td>
+      <td>7B</td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td>13B</td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td > 65B </td>
+      <td > -- </td>
+      <td> -- </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td>LLaMA2</td>
+      <td>7B</td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+    </tr>
+  </tbody>
+</table>
+
+
+### <span id="jump11"> Inference with Pretrained Weights </span>
+Currently, we support the following four strategies for inference:
 - PTD only
 - Deepspeed ZeRO only
 - Deepspeed ZeRO in Pipe with TP
+- Model finetuned with lora
+
+### Quick Start
+Here are three example scripts in different mode mentioned above for you to launch directly. Note that if you want to use the weight from huggingface, please run the weight conversion script first. 
+Llama-7B here is token as an example.
+```bash
+python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
+                                                                    --output-model-dir llama-7b-tp2-pp2 \
+                                                                    --tensor-model-parallel-size 2 \
+                                                                    --pipeline-model-parallel-size 2 \
+                                                                    --type 7B
+```
+- PTD only: In this mode, the model is split by pipeline parallel and tensor parallel mode in megatron ways.
+```bash
+sh examples/llama/generate_llama_7B_tp2_pp2.sh  #set the weight path
+```
+- Deepspeed ZeRO only: In this mode, the model uses DeepSpeed ZeRO 1, 2 or 3 definition with tp=1, pp=1.
+```bash
+sh examples/llama/generate_alpaca_13B_deepspeed.sh #set the weight path
+```
+- Deepspeed ZeRO in Pipe with TP: In this mode, the model uses pipe model definition in DeepSpeed ZeRO 1, 2 or 3 with tp>1, pp=1.
+```bash
+sh examples/llama/generate_llama_7B_deepspeed_pipeline.sh
+```                                                                  
+- If you want to use lora model, for details, refer to:
+```bash
+sh examples/llama/generate_alpaca_13B_lora_deepspeed.sh
+```
+An example with [Chinese-LLaMA-Alpaca weights](https://github.com/ymcui/Chinese-LLaMA-Alpaca) is as below:<div align=center>
+<img src="sources/images/inference.png" height="600px" width="600px"></div>
+
+
 ### Usage Guide
 Follow these steps to write your own inference code:
-**1. Initializing the Distributed Environment**
+
+1. Initializing the Distributed Environment
 ```python
 initialize_megatron(args_defaults={'no_load_rng': True, 'no_load_optim': True})
 ```
-**2. Initializing model and loading weights**
+2. Initializing model and loading weights
 ```python
 from ascendspeed import get_args
 from ascendspeed.model import LlamaModel
@@ -410,37 +459,7 @@ model.generate(
     stream=True,
 )
 ```
-### Quick start
-Here are three example scripts in different mode mentioned above for you to launch directly.
-*Note that if you want to use the weight from huggingface, please run the weight conversion script first. The following uses llama-7b model as an example.*
-```bash
-python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
-                                                                    --output-model-dir llama-7b-tp2-pp2 \
-                                                                    --tensor-model-parallel-size 2 \
-                                                                    --pipeline-model-parallel-size 2 \
-                                                                    --type 7B
-```
-- PTD only
-*In this mode, the model will be split by using pipeline parallel and tensor parallel mode in megatron ways.*
-```bash
-sh examples/llama/generate_llama_7B_tp2_pp2.sh
-```
-- Deepspeed ZeRO only
-*In this mode, the model will uses DeepSpeed ZeRO 1, 2 or 3 definition with tp=1, pp=1.*
-```bash
-sh examples/llama/generate_alpaca_13B_deepspeed.sh
-```
-- Deepspeed ZeRO in Pipe with TP
-*In this mode, the model will uses pipe model definition in DeepSpeed ZeRO 1, 2 or 3 with tp>1, pp=1.*
-```bash
-sh examples/llama/generate_llama_7B_deepspeed_pipeline.sh
-```                                                                  
-- **If you want to use lora model, for details, see:**
-```bash
-sh examples/llama/generate_alpaca_13B_lora_deepspeed.sh
-```
-An example with [Chinese-LLaMA-Alpaca weights](https://github.com/ymcui/Chinese-LLaMA-Alpaca) is as below:<div align=center>
-<img src="sources/images/inference.png" height="600px" width="600px"></div>
+
 
 ## <span id="jump12"> Dataset Processing </span>
 ### Quick Start
@@ -501,13 +520,11 @@ python tools/preprocess_data.py \
 After preprocessing, there will be a `wikipedia_text_document.bin` and a `wikipedia_text_document.idx` in the `WORKSPACE/wikipedia_preprocessed` dictionary.
 Then, We can train a model with `--data-path WORKSPACE/wikipedia_preprocessed/wikipedia_text_document` flag.
 
-Note that datasets in huggingface have a format like [this](https://huggingface.co/datasets/wikipedia/viewer/20220301.en/train).
-
-The name of the text field of the dataset can be changed by using the `--json-key` flag which default is `text`.
+Note that datasets in huggingface have a format like [this](https://huggingface.co/datasets/wikipedia/viewer/20220301.en/train). The name of the text field of the dataset can be changed by using the `--json-key` flag which default is `text`.
 In wikipedia dataset, it has four columns which are `id`, `url`, `title` and `text`. 
 Then we can specify `--json-key` flag to choose a column used to train.
 
-#### alpaca for pretraining
+#### alpaca dataset
 
 Besides, we can also use alpaca dataset to pretrain like below.
 
@@ -523,8 +540,8 @@ python tools/preprocess_data.py --input WORKSPACE/train-00000-of-00001-a09b74b3e
 ```
 
 
-### Preprocessing alpaca instruction dataset
-
+### Preprocessing instruction dataset
+#### alpaca dataset
 ```bash
 # for llama, download alpaca dataset, like
 # wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
@@ -628,9 +645,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
 bash tasks/evaluation/eval.sh
 ```
 ### Configuration of models and datasets
-We should firstly configure the model path at `CHECKPOINT` and the vocabulary path at `VOCAB_FILE`. As the example shown below, we want to use llama7b model for BoolQ dataset evaluation, so the model path and vocab file should correspond to llama7b model.
-
-Model can be segmented with suitable segmentation parameters: the following example set tensor-model-parallel-size(tp) = 2 and pipeline-model-parallel-size(pp) = 4. Segmentation example shows as followed:
+As the example shown below, we want to use llama7b model for BoolQ dataset evaluation, so the model path and vocab file should correspond to llama7b model. Model can be segmented with suitable segmentation parameters: the following example set tensor-model-parallel-size(tp) = 2 and pipeline-model-parallel-size(pp) = 4. Segmentation example shows as followed:
 ```bash
 python convert_weights_from_huggingface.py \
         --input-model-dir /home/w425040/models/llama-7b-hf \
@@ -639,7 +654,7 @@ python convert_weights_from_huggingface.py \
         --tensor-model-parallel-size 2 \
         --pipeline-model-parallel-size 4 
 ```
-Then, configure datasets paths and tasks.  Note: since the evaluation parameters of different datasets are not totally same, it is not recommended to evaluate two or more different datasets together. Evaluation parameters such as `--seq-length`, `--max-new-tokens` and `--max-position-embeddings` need to be adjusted according to different datasets. The recommended parameters for each dataset will be given in the following instruction.
+Then, configure dataset path and task.  Note: since the evaluation parameters of different datasets are not totally same, it is not recommended to evaluate two or more different datasets together. Evaluation parameters such as `--seq-length`, `--max-new-tokens` and `--max-position-embeddings` need to be adjusted to datasets. The recommended parameters for each dataset will be given in the following instruction.
 
 ```bash
 # configure model path and vocab_file path
@@ -688,8 +703,7 @@ template = {instruction}
 
 #### Evaluation results and parameter configuration of MMLU 
 Since MMLU is a multidisciplinary task and 5 shots are performed, the length of each subject question varies greatly. If you want to run 57 subjects at the same time, you need to set `TASK="mmlu"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=2`. (`--max-new-tokens` can be set to between 2-4).
-On many websites, the accuracy of the MMLU is evaluated according to disciplines. The 57 categories of single subjects belong to four main categories. Therefore, the statistics should be summarized according to the major categories of the subjects. The following website gives the major categories of subjects for 57 categories of subjects.
-(https://github.com/hendrycks/test/blob/master/categories.py)
+On many websites, the accuracy of the MMLU is evaluated according to disciplines. The 57 categories of single subjects belong to four main categories. Therefore, the statistics should be summarized according to the major categories of the subjects. The [website](https://github.com/hendrycks/test/blob/master/categories.py) gives the major categories of subjects for 57 categories of subjects.
 
 Compared to the benchmark accuracy 35.1 from the paper [LLaMA: Open and Efficient Foundation Language Models](https://arxiv.org/abs/2302.13971) shows above, the evaluation result of AscendSpeed on NPU environment is 0.332. As a result, the total accuracy difference is less than 0.02, so do the four main subjects.
 
