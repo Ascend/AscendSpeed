@@ -12,17 +12,15 @@
 
   1. 同时开源预训练和对齐模型：预训练模型是适用开发者的『 基座 』，而广大普通用户对有对话功能的对齐模型具有更强的需求。因此本次开源我们同时发布了对齐模型（Baichuan-13B-Chat），具有很强的对话能力，开箱即用，几行代码即可简单的部署。
 
-  1. 更高效的推理：为了支持更广大用户的使用，我们本次同时开源了 int8 和 int4 的量化版本，相对非量化版本在几乎没有效果损失的情况下大大降低了部署的机器资源门槛，可以部署在如 Nvidia 3090 这样的消费级显卡上。
-
   1. 开源免费可商用：Baichuan-13B 不仅对学术研究完全开放，开发者也仅需邮件申请并获得官方商用许可后，即可以免费商用。
 
   ## 模型结构
 
   整体模型基于Baichuan-7B，为了获得更好的推理性能，Baichuan-13B 使用了 ALiBi 线性偏置技术，相对于 Rotary Embedding 计算量更小，对推理性能有显著提升；与标准的 LLaMA-13B 相比，生成 2000 个 tokens 的平均推理速度 (tokens/s)，实测提升 31.6%：
-  具体参数和见下表：
-
+具体参数和见下表：
+  
   | 模型名称     | 隐含层维度 | 层数 | 头数 | 词表大小 | 总参数量       | 训练数据（tokens） | 位置编码 | 最大长度 |
-  | ------------ | ---------- | ---- | ---- | -------- | -------------- | ------------------ | -------- | -------- |
+| ------------ | ---------- | ---- | ---- | -------- | -------------- | ------------------ | -------- | -------- |
   | Baichuan-7B  | 4,096      | 32   | 32   | 64,000   | 7,000,559,616  | 1.2万亿            | RoPE     | 4,096    |
   | Baichuan-13B | 5,120      | 40   | 40   | 64,000   | 13,264,901,120 | 1.4万亿            | ALiBi    | 4,096    |
 
@@ -44,30 +42,10 @@
 
 - 环境准备指导
 
-  请参考《[Pytorch框架训练环境准备](https://www.hiascend.com/document/detail/zh/ModelZoo/pytorchframework/ptes)》。
+  请参考《[Pytorch框架训练环境准备](https://www.hiascend.com/document/detail/zh/ModelZoo/pytorchframework/ptes)》安装相应的驱动、CANN、FRameworkPTAdapter
+  当前已测试的版本是HDK 23.0.RC3.B050，CANN 7.0.RC1.B050，5.0.RC3.B050
 
   **注: Baichuan基于FP16训练，确保获取的CANN支持FP16**
-
-- 安装npu驱动
-
-  ```shell
-  Ascend HDK 23.0.RC3.B050
-  https://cmc.rnd.huawei.com/cmcversion/index/releaseView?deltaId=8724961903444480&isSelect=Software
-  下载对应驱动，执行安装命令：
-  bash ./Ascend-hdk-910b-npu-firmware_7.0.t8.0.b214.run --full
-  bash ./Ascend-hdk-910b-npu-driver_23.0.rc3.b050_linux-aarch64.run  --full
-  重启节点：reboot
-  ```
-
-- 安装CANN包
-
-  ```shell
-  CANN 7.0.RC1.B050
-  https://cmc-szv.clouddragon.huawei.com/cmcversion/index/releaseView?deltaId=8685077585920384&isSelect=Software
-  下载对应CANN包，执行安装命令：
-  bash ./Ascend-cann-toolkit_7.0.T8_linux-aarch64.run --install-path=/home/data1/dir --full
-  bash ./Ascend-cann-kernels-910b_7.0.T8_linux.run --install-path=/home/data1/dir --install
-  ```
 
 - 创建conda环境
 
@@ -92,19 +70,6 @@
   cd DeepSpeed
   pip install ./
   ```
-
-- 安装昇腾torch及对应torch_npu插件
-
-  ```shell
-  FrameworkPTAdapter 5.0.RC3.B050转测版本CMC归档路径：
-  https://cmc-szv.clouddragon.huawei.com/cmcversion/index/releaseView?deltaId=8865172186793344&isSelect=Inner
-  下载如下安装包，执行安装命令：
-  pip3 install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
-  pip3 install torch_npu-1.11.0.post3_20230908-cp37-cp37m-linux_aarch64.whl
-  pip3 install apex-0.1_ascend_20230908-cp37-cp37m-linux_aarch64.whl
-  ```
-
-
 
 ## 准备数据集
 
