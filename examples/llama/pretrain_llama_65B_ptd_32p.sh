@@ -28,8 +28,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --hidden-size 8192 \
        --ffn-hidden-size 22016 \
        --num-attention-heads 64 \
-       --micro-batch-size 1 \
-       --global-batch-size 256 \
+       --micro-batch-size 2 \
+       --global-batch-size 512 \
        --seq-length 2048 \
        --max-position-embeddings 2048 \
        --train-iters 50000 \
