@@ -133,11 +133,11 @@ NPU vs GPU loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected. The relative error of the average loss is 0.01093, less than 2%, the maximum relative error is 0.1243, and the maximum absolute error is 0.4859. The precision meets the requirements.
 
-![NPU-LOSS](.\images\7B_loss_compare.png)
+![NPU-LOSS](./images/7B_loss_compare.png)
 
 NPU vs GPU loss relative error.
 
-![NPU-Relative-Error](.\images\7B_relative_error.png)
+![NPU-Relative-Error](./images/7B_relative_error.png)
 
 ## Fine-tune and Evaluation
 
@@ -325,13 +325,13 @@ NPU vs GPU loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
 
-![NPU-LOSS](.\images\loss_compare.png)
+![NPU-LOSS](./images/loss_compare.png)
 
 NPU vs GPU loss relative error.
 
 The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
 
-![NPU-Relative-Error](.\images\relative_error.png)
+![NPU-Relative-Error](./images/relative_error.png)
 
 ## Fine-tune and Evaluation
 
