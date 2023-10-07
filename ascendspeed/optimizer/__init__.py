@@ -14,14 +14,13 @@
 # limitations under the License.
 from deepspeed.accelerator import get_accelerator
 import torch
-from ascendspeed.optimizer.adam import AdamW as Adam
 from torch.optim import SGD
-
 
 from ascendspeed import get_args
 from ascendspeed.model import LayerNorm
 from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm
 from ascendspeed.model.lora_utils import is_enable_lora
+from ascendspeed.optimizer.adam import AdamW as Adam
 
 from .grad_scaler import ConstantGradScaler, DynamicGradScaler
 from .optimizer import Float16OptimizerWithFloat16Params, FP32Optimizer
