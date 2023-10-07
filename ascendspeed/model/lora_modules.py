@@ -175,7 +175,7 @@ class LoraParallelLinear(ColumnParallelLinear, RowParallelLinear, LoraParalleLay
                 lora_result = lora_result[0]
             lora_result = lora_result * scaling
 
-            result = result.clone().detach() + lora_result
+            result = result + lora_result
         else:
             result, bias = self.parallel_linear_class.forward(self, x)
 

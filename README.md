@@ -597,7 +597,7 @@ Finally, only Lora's parameters are saved after turning on Lora. Similarly, when
 --lora-load ${LORA_CHECKPOINT} \
 ```
 
-There is an [example](examples/llama/tune_llama_ptd_13b.sh) could be referred. 
+There is an [example](ascendspeed/examples/llama/tune_llama_ptd_13b.sh) could be referred. 
  
 After using Lora to fine-tune the Llama model, the instruction dialogue effect is as follows:
 
