@@ -19,7 +19,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $
 CHECKPOINT=../models/llama-7b-tp2-pp4/
 VOCAB_FILE=../models/llama/
 DATA_PATH="../dataset/mmlu/test ../dataset/gsm8k/test ../dataset/boolq/test ../dataset/ceval/test"
-TASK="boolq gsm8k mmlu ceval"
+TASK="boolq gsm8k mmlu ceval agieval bbh human_eval"
 python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\

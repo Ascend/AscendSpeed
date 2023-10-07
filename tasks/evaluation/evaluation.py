@@ -17,7 +17,6 @@ import os
 import sys
 import time
 import logging
-
 from torch import distributed as dist
 from transformers import LlamaTokenizer
 from ascendspeed import get_args
@@ -29,6 +28,10 @@ from tasks.evaluation.eval_impl.boolq_eval import BoolqEval
 from tasks.evaluation.eval_impl.gsm8k_eval import Gsm8kEval
 from tasks.evaluation.eval_impl.mmlu_eval import MmluEval
 from tasks.evaluation.eval_impl.ceval_exam import CEvalExam
+from tasks.evaluation.eval_impl.bbh_eval import BBHEval
+from tasks.evaluation.eval_impl.agi_eval import AGIEvalExam
+from tasks.evaluation.eval_impl.human_eval import HumanEval
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 logger = logging.getLogger(__name__)
@@ -154,6 +157,48 @@ def ceval(eval_args, agent):
         logger.info(e)
 
 
+def human_eval(eval_args, agent):
+    data_path = None
+    for path in eval_args.task_data_path:
+        if 'human_eval' in path:
+            data_path = path
+    try:
+        if data_path:
+            human_eval_exam = HumanEval(test_dir=data_path)
+            answer, score_df = human_eval_exam.eval(llm_chat=agent)
+            logger.info(score_df)
+    except Exception as e:
+        logger.info(e)
+
+
+def agi_eval(eval_args, agent):
+    data_path = None
+    for path in eval_args.task_data_path:
+        if 'agieval' in path:
+            data_path = path
+    try:
+        if data_path:
+            agieval_exam = AGIEvalExam(test_dir=data_path)
+            answer, score_df = agieval_exam.eval(llm_chat=agent)
+            logger.info(score_df)
+    except Exception as e:
+        logger.info(e)
+
+
+def bbh_eval(eval_args, agent):
+    data_path = None
+    for path in eval_args.task_data_path:
+        if 'bbh' in path:
+            data_path = path
+    try:
+        if data_path:
+            bbh = BBHEval(test_dir=data_path)
+            answer, score_df = bbh.eval(llm_chat=agent)
+            logger.info(score_df)
+    except Exception as e:
+        logger.info(e)
+
+
 if __name__ == "__main__":
     initialize_megatron(extra_args_provider=add_text_generate_args,
                         args_defaults={'no_load_rng': True,
@@ -182,4 +227,16 @@ if __name__ == "__main__":
         a = time.time()
         ceval(args, LlamaChat(args))
         logger.info('Ceval Running Time: ', time.time() - a)
+    if 'bbh' in args.task:
+        a = time.time()
+        bbh_eval(args, LlamaChat(args))
+        logger.info('bbh Running Time: ', time.time() - a)
+    if 'agieval' in args.task:
+        a = time.time()
+        agi_eval(args, LlamaChat(args))
+        logger.info('agi_eval Running Time: ', time.time() - a)
+    if 'human_eval' in args.task:
+        a = time.time()
+        human_eval(args, LlamaChat(args))
+        logger.info('Human_eval Running Time: ', time.time() - a)
 
