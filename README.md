@@ -738,4 +738,25 @@ GSM8K is a dataset of 8.5K high quality linguistically diverse grade school math
 As the benchmark shows on [OpenCompass](https://opencompass.org.cn/dataset-detail/GSM8K), LLama7B model's evaluation gets only 10 points with pass@k(Generate k
 times and choose the best answer). The results of AscendSpeed on NPU environment varies between 8 and 10 points according to the number of shots we use.
 
+#### Evaluation results and parameter configuration of HumanEval 
+HumanEval dataset is a handcrafted set of 164 programming problems designed to challenge code generation models. The problems include a function signature, docstring, body, and several unit tests, all handwritten to ensure they're not included in the training set of code generation models. 
+We ues Chinese llama alpaca 13b for testing, and get 11.58 points compared to 11.8 points shown on [OpenCompass](https://opencompass.org.cn/dataset-detail/GSM8K) with the same model.
+Since the answer of HumanEval dataset contains long codes, it is necessary to configure `TASK="human_eval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024`.
+
+<img src="sources/images/humaneval_result.png" height="200px" width="800px"></div>
+
+#### Evaluation results and parameter configuration of AGIEval
+AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving. Since the length of answers to different type of questions varies, we have to configure `TASK="agieval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024` to fit the longest answer. The following shows the results of AscendSpeed.
+
+#### Evaluation results and parameter configuration of Big-Bench-Hard
+Big-bench-hard dataset is a subset of big bench, which is a diverse evaluation suite that focuses on a suite of 23 challenging BIG-Bench tasks. These are the task for which prior language model evaluations did not outperform the average human-rater. This dataset covers multiple areas including text understanding, reasoning, logical reasoning, mathematical reasoning, and common sense reasoning.
+Except word_sorting, all datasets are multiple-choice questions. So we can set `TASK="bbh"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=32`. (`--max-new-tokens` can be set between 32-64). Compared to 33.5 points of LLaMa7b on [OpenCompass](https://opencompass.org.cn/dataset-detail/GSM8K), we got 33.4 points on the same model.
+
+<img src="sources/images/bbh.png" height="300px" width="450px"></div>
+
+#### Evaluation results and parameter configuration of CEval
+As [C-Eval](https://cevalbenchmark.com/) shows, C-Eval is a comprehensive Chinese evaluation suite for foundation models. It consists of 13948 multi-choice questions spanning 52 diverse disciplines and four difficulty levels, as shown below. You may explore our dataset examples at Explore, or check our paper for more details. The dataset contains validation and test data, however, only validation data has label for auto-evaluation. If 
+you want to evaluate on test data, you should email your results to [C-Eval](https://cevalbenchmark.com/). Here shows our results on validation data with LLaMa7b model.
+
+<img src="sources/images/ceval_result.png" height="750px" width="550px"></div>
 
