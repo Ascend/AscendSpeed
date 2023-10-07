@@ -66,14 +66,23 @@ The plan for more tasks, like RLHF and RM, is under way ...
   </thead>
   <tbody>
     <tr>
-      <td>Baichaun</td>
+      <td rowspan="2">Baichaun</td>
       <td>7B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 1790 tokens/p/s </td>
-      <td> 2039 tokens/p/s </td>
-      <td> <a href="sources/images/baichuan7b_loss.png">Loss</a> </td>
+      <td> 1914 tokens/p/s </td>
+      <td> 2068 tokens/p/s </td>
+      <td> <a href="examples/baichuan/images/7B_loss_compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">Train</a> </td>
+    </tr>
+    <tr>
+      <td>13B</td>
+      <td> 1x8</td>
+      <td> FP16 </td>
+      <td> 785 tokens/p/s </td>
+      <td> 1024 tokens/p/s </td>
+      <td> <a href="examples/baichuan/images/13B_loss_compare.png">Loss</a> </td>
+      <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
     </tr>
     <tr>
       <td rowspan="3"><a href="examples/bloom/README.md">Bloom</a></td>

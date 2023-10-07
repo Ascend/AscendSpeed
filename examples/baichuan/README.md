@@ -35,14 +35,12 @@ Here's a quick summary of training Baichuan-7B:
 
 Download the Baichuan-7B datasets from [here](https://huggingface.co/baichuan-inc/Baichuan-7B/tree/main) 
 
-```
-1、download tokenizer
-	https://huggingface.co/baichuan-inc/Baichuan-7B/tree/main
-2、download datasets
-	wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
-3、process datasets
-mkdir dataset                               
-python tools/preprocess_data.py \
+```shell
+  # download datasets
+  wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
+  # process datasets
+  mkdir dataset                               
+  python tools/preprocess_data.py \
     --input train-00000-of-00001-a09b74b3ef9c3b56.parquet \
     --tokenizer-name-or-path ./tokenizer \
     --output-prefix ./dataset/alpaca \
@@ -288,11 +286,7 @@ bash examples/baichuan/pretrain_baichuan_ptd_13B.sh
 
 There is an hourly pulse checking script running that checks that the training is either running or scheduled.
 
-The Training log will look like these:
 
-```Shell
-TODO
-```
 
 ### Performance
 
@@ -317,13 +311,13 @@ NPU vs GPU loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
 
-![NPU-LOSS](./images/loss_compare.png)
+![NPU-LOSS](./images/13B_loss_compare.png)
 
 NPU vs GPU loss relative error.
 
 The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
 
-![NPU-Relative-Error](./images/relative_error.png)
+![NPU-Relative-Error](./images/13B_relative_error.png)
 
 
 
