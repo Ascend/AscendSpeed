@@ -1,43 +1,183 @@
-# Baichuan-13B
 
-## Contents
 
-- [Contents](#contents)
+#  Contents
 
-- [Pre-Training](##pre-training)
+- Contents
+- Baichuan-7B
+  - Datasets
+  - Model weights
+  - Pre-Training
+    - Datasets
+    - Script
+    - Performance
+      - Machine performance
+
+- [Baichuan-13B](#contents)
+  - [Pre-Training](#pre-training)
   - [Datasets](#datasets)
-  
   - [Script](#script)
-  
   - [Performance](#performance)
-  	- [Machine performance](#machine-performance)
-  	- [Accuracy of the loss](#accuracy-of-the-loss)
-  
-- [Fine-tune and Evaluation](#fine-tune-and-evaluation)
-
-- [Inference](#inference)
+    - [Machine performance](#machine-performance)
+    - [Accuracy of the loss](#accuracy-of-the-loss)
+  - [Fine-tune and Evaluation](#fine-tune-and-evaluation)
+  - [Inference](#inference)
   - [Model weights](#model-weights)
   - [Script](#script)
-    
-- [Citation](#citation)
+  - [Citation](#citation)
 
+# Baichuan-7B
 
 ## Pre-Training
 
+Here's a quick summary of training Baichuan-7B:
 
-Here's a quick summary of training baichuan-13B:
-
-|              |                         |
-| :----------: | :---------------------: |
-|   Hardware   | 96 64GB Altas 910B NPUs |
-|   Software   |       AscendSpeed       |
-|   Dataset    | alpaca-data-conversation|
+|          |                          |
+| -------- | ------------------------ |
+| Hardware | 96 64GB Altas 910B NPUs  |
+| Software | AscendSpeed              |
+| Dataset  | alpaca-data-conversation |
 
 ### Datasets
 
 Vicuna is created by fine-tuning a LLaMA base model using approximately 70K user-shared conversations gathered from ShareGPT.com with public APIs. To ensure data quality, we convert the HTML back to markdown and filter out some inappropriate or low-quality samples. Additionally, we divide lengthy conversations into smaller segments that fit the model's maximum context length. For detailed instructions to clean the ShareGPT data, check out [here](https://github.com/lm-sys/FastChat/blob/v0.1.10/docs/commands/data_cleaning.md).
 
 Due to some concerns, we may not release the data at the moment. If you would like to try the fine-tuning code, you can try to run it with our [preprocessed alpaca dataset](https://github.com/lm-sys/FastChat/blob/v0.1.10/playground/data/alpaca-data-conversation.json) (originally from [here](https://github.com/tatsu-lab/stanford_alpaca)).
+
+### Model weights
+
+We provide scripts that support converting pretrained weights into weights that AscendSpeed can load and used for inference. Download the Baichuan-7B checkpoint from [here](https://huggingface.co/baichuan-inc/Baichuan-7B/tree/main), make sure all chunks are downloaded completely, then use the following command to convert them into checkpoints that AscendSpeed can load. 
+
+```
+1、download tokenizer
+	https://huggingface.co/baichuan-inc/Baichuan-7B/tree/main
+2、download datasets
+	wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
+3、process datasets
+mkdir dataset                               
+python tools/preprocess_data.py \
+    --input train-00000-of-00001-a09b74b3ef9c3b56.parquet \
+    --tokenizer-name-or-path ./tokenizer \
+    --output-prefix ./dataset/alpaca \
+    --workers 4 \
+    --log-interval 1000 \
+    --tokenizer-type PretrainedFromHF
+```
+
+### Script
+
+1. Install AscendSpeed requirement environment.
+
+2. Config Baichuan-7B pre-training script : examples/baichuan/pretrain_baichuan_zero_7B.sh 
+
+```
+# modify the script according to your own  ascend-toolkit path
+source /usr/local/Ascend/ascend-toolkit/set_env.sh 
+
+# modify script orign dataset path according to your own dataset path
+TOKENIZER_PATH=./tokenizer/  #tokenizer path
+DATA_PATH=./dataset/alpaca/alpaca_text_document  #processed data set
+```
+
+4. Launch Baichuan-7B  pre-training script :examples/baichuan/pretrain_baichuan_zero_7B.sh 
+
+```
+bash examples/baichuan/pretrain_baichuan_zero_7B.sh 
+```
+
+
+
+### Performance
+
+#### Machine performance
+
+The performance of the NPUs in **Ascend910B 64GB** :
+
+| Device | Model       | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
+| ------ | ----------- | ---------------- | ----------------------------- | ---------------------------- | ------------------------- | ----------------------------------- |
+| NPUs   | Baichuan-7B | 1024             | 3.250                         | 1914                         | 2.14                      | 102.69                              |
+| GPUs   | Baichuan-7B | 1024             | 3.978                         | 2068                         | 1.98                      | 125.66                              |
+
+Notes:
+
+- Baichuan-7B model trained on alpaca-data-conversation on a single machine with 8 NPUs
+
+Here's a hardware summary of pre-training Baichuan-7B:
+
+| Hardware | Value                                                        |
+| -------- | ------------------------------------------------------------ |
+| CPU      | [4xKunPeng920@3.0GHz](mailto:4xKunPeng920@3.0GHz)，64 Core Pre Socket 256CPUS |
+| RAM      | 32x32 GB DDR4                                                |
+| NPU      | 8 x Ascend910B1 64G                                          |
+
+Here's a software summary of pre-training Baichuan-7B:
+
+| Software                  | Version                               |
+| ------------------------- | ------------------------------------- |
+| OS                        | Euler OS release 2.0(SP10)            |
+| uname                     | aarch64                               |
+| Python                    | 3.7.16                                |
+| driver                    | 23.0.RC3.b050                         |
+| firmware                  | 23.0.RC3.b050                         |
+| CANN                      | 7.0.RC1                               |
+| binary arithmetic package | Ascend-cann-kernels-910b_7.0.T8_linux |
+| torch                     | 1.11.0                                |
+| torch_npu                 | 1.11.0.post4-20230915                 |
+| deepspeed                 | 0.9.2                                 |
+| deepspeed-npu             | 0.1                                   |
+| transformers              | 4.30.2                                |
+| Ascendspeed               | 2023-7-21                             |
+
+#### Accuracy of the loss
+
+NPU vs GPU loss.
+
+The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected. The relative error of the average loss is 0.01093, less than 2%, the maximum relative error is 0.1243, and the maximum absolute error is 0.4859. The precision meets the requirements.
+
+![NPU-LOSS](.\images\7B_loss_compare.png)
+
+NPU vs GPU loss relative error.
+
+![NPU-Relative-Error](.\images\7B_relative_error.png)
+
+## Fine-tune and Evaluation
+
+TODO
+
+# Baichuan-13B
+
+## Pre-Training
+Here's a quick summary of training baichuan-13B:
+
+|          |                          |
+| :------: | :----------------------: |
+| Hardware | 96 64GB Altas 910B NPUs  |
+| Software |       AscendSpeed        |
+| Dataset  | alpaca-data-conversation |
+
+### Datasets
+
+Vicuna is created by fine-tuning a LLaMA base model using approximately 70K user-shared conversations gathered from ShareGPT.com with public APIs. To ensure data quality, we convert the HTML back to markdown and filter out some inappropriate or low-quality samples. Additionally, we divide lengthy conversations into smaller segments that fit the model's maximum context length. For detailed instructions to clean the ShareGPT data, check out [here](https://github.com/lm-sys/FastChat/blob/v0.1.10/docs/commands/data_cleaning.md).
+
+Due to some concerns, we may not release the data at the moment. If you would like to try the fine-tuning code, you can try to run it with our [preprocessed alpaca dataset](https://github.com/lm-sys/FastChat/blob/v0.1.10/playground/data/alpaca-data-conversation.json) (originally from [here](https://github.com/tatsu-lab/stanford_alpaca)).
+
+### Model weights
+
+We provide scripts that support converting pretrained weights into weights that AscendSpeed can load and used for inference. Download the Baichuan-13B checkpoint from [here](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/tree/main), make sure all chunks are downloaded completely, then use the following command to convert them into checkpoints that AscendSpeed can load. 
+
+```shell
+#!/bin/bash
+
+SCRIPT_PATH=./tools/ckpt_convert/llama/convert_weights_from_huggingface.py
+python $SCRIPT_PATH \
+    --input-model-dir "your huggingface checkpoint path" \
+    --output-model-dir "your ascendspeed checkpoint path" \
+    --tensor-model-parallel-size 8 \
+    --pipeline-model-parallel-size 1 \
+    --type 13B 
+```
+
+
+Set `CHECKPOINT_PATH` in ` ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh` to the path of the extracted folder. Since the checkpoint file is large, it is recommended to use the SSD or RAM disk to reduce the checkpoint loading time. 
 
 ### Script
 
@@ -140,10 +280,10 @@ TODO
 
 The performance of the NPUs in **Ascend910 B1 64GB** and GPUs is **A800**:
 
-|Device     |Model |total Iterations|throughput rate (samples/s/p)|throughput rate (tokens/s/p)|single-step time (s/step)|floating point operation (TFLOPs/s)|
-| :----------------: | :------------: | :------------: | :------------: | :-------------: | :------------: |:------------: |
-| GPUs  |Baichuan-13B|1000|1.535|785 |20.852|68.39|
-| NPUs  |Baichuan-13B|1000|1.928|1024|16.067|89.37|
+| Device |    Model     | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
+| :----: | :----------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
+|  GPUs  | Baichuan-13B |       1000       |             1.535             |             785              |          20.852           |                68.39                |
+|  NPUs  | Baichuan-13B |       1000       |             1.928             |             1024             |          16.067           |                89.37                |
 
 
 Notes: 
@@ -161,21 +301,21 @@ Here's a hardware summary of pre-training Baichuan-13B:
 Here's a software summary of pre-training Baichuan-13B:
 
 
-|         Software          |                 Version                 |
-| :-----------------------: | :-------------------------------------: |
-|            OS             |       Euler OS release 2.0(SP10)        |
-|           uname           |                 aarch64                 |
-|          Python           |                  3.7.16                 |
-|          driver           |               23.0.RC3.B051             |
-|         firmware          |              23.0.RC3.B051              |
-|           CANN            |              7.0.RC1                    |
-| binary arithmetic package |   Ascend-cann-kernels-910b_7.0.T8_linux |
-|           torch           |                 1.11.0                  |
-|         torch_npu         |           1.11.0.post4-20230915         |
-|         deepspeed         |                  0.9.2                  |
-|       deepspeed-npu       |                   0.1                   |
-|       transformers        |                 4.30.2                  |
-|        Ascendspeed        |                2023-7-21                |
+|         Software          |                Version                |
+| :-----------------------: | :-----------------------------------: |
+|            OS             |      Euler OS release 2.0(SP10)       |
+|           uname           |                aarch64                |
+|          Python           |                3.7.16                 |
+|          driver           |             23.0.RC3.B051             |
+|         firmware          |             23.0.RC3.B051             |
+|           CANN            |                7.0.RC1                |
+| binary arithmetic package | Ascend-cann-kernels-910b_7.0.T8_linux |
+|           torch           |                1.11.0                 |
+|         torch_npu         |         1.11.0.post4-20230915         |
+|         deepspeed         |                 0.9.2                 |
+|       deepspeed-npu       |                  0.1                  |
+|       transformers        |                4.30.2                 |
+|        Ascendspeed        |               2023-7-21               |
 
 
 
@@ -185,56 +325,17 @@ NPU vs GPU loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
 
-![NPU-LOSS](./images/loss_compare.png)
+![NPU-LOSS](.\images\loss_compare.png)
 
 NPU vs GPU loss relative error.
 
 The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
 
-![NPU-Relative-Error](./images/relative_error.png)
+![NPU-Relative-Error](.\images\relative_error.png)
 
 ## Fine-tune and Evaluation
 
 TODO
 
-## Inference
 
-We support AscendSpeed Inference for text generation with Baichuan-13B.
-
-### Model weights
-
-We provide scripts that support converting pretrained weights into weights that AscendSpeed can load and used for inference. Download the Baichuan-13B checkpoint from [here](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/tree/main), make sure all chunks are downloaded completely, then use the following command to convert them into checkpoints that AscendSpeed can load. 
-
-```shell
-#!/bin/bash
-
-SCRIPT_PATH=./tools/ckpt_convert/llama/convert_weights_from_huggingface.py
-python $SCRIPT_PATH \
-    --input-model-dir "your huggingface checkpoint path" \
-    --output-model-dir "your ascendspeed checkpoint path" \
-    --tensor-model-parallel-size 8 \
-    --pipeline-model-parallel-size 1 \
-    --type 13B 
-```
-
-
-Set `CHECKPOINT_PATH` in ` ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh` to the path of the extracted folder. Since the checkpoint file is large, it is recommended to use the SSD or RAM disk to reduce the checkpoint loading time. 
-
-### Script
-
-We generate text samples using the `generate_baichuan_13B_tp8_pp1.sh` script. Inference different from pre-training, such as we need to Load pre training checkpoint and the length of the output samples:
-
-```shell
-bash ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh
-```
-
-Alternatively you can also use DeepSpeed from source:
-
-```Shell
-TODO: XXXX
-```
-
-## Citation
-
-You may also consider original work in your reference.
 
