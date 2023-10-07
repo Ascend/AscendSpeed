@@ -14,6 +14,7 @@
 # limitations under the License.
 from deepspeed.accelerator import get_accelerator
 from ascendspeed.optimizer.adam import AdamW as Adam
+import torch
 from torch.optim import SGD
 
 
@@ -112,7 +113,6 @@ def get_megatron_optimizer(model):
     if args.cpu_optimizer:
         assert args.optimizer == 'adam', 'CPU offloading is for Adam'
         if args.cpu_torch_adam:
-            import torch
             cpu_adam_optimizer = torch.optim.AdamW
         else:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
