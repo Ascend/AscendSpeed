@@ -8,7 +8,7 @@ AscendSpeed provides end-to-end test scripts for large language models on [Ascen
 ### Pretrained Models
 Currently, the pre-training of the following models has been supported: 
 
-* <a href="https://github.com/baichuan-inc/Baichuan-7B" style="color:green">Baichuan</a>-7B
+* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-7B/13B
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[7B1/176B](examples/bloom/README.md)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-7B
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-7B/13B/65B
