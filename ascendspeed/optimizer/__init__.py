@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from deepspeed.accelerator import get_accelerator
-from ascendspeed.optimizer.adam import AdamW as Adam
 import torch
+from ascendspeed.optimizer.adam import AdamW as Adam
 from torch.optim import SGD
 
 
