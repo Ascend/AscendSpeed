@@ -1,161 +1,240 @@
-# Baichuan for PyTorch
+# Baichuan-13B
 
-# 概述
+## Contents
 
-## 简述
+- [Contents](#contents)
 
-- Baichuan7B 是由百川智能开发的一个开源可商用的大规模预训练语言模型。基于 Transformer 结构，在大约 1.2 万亿 tokens 上训练的 70 亿参数模型，支持中英双语，上下文窗口长度为 4096。在标准的中文和英文 benchmark（C-Eval/MMLU）上均取得同尺寸最好的效果。
-
-- Baichuan-13B 是由百川智能继 Baichuan-7B 之后开发的包含 130 亿参数的开源可商用的大规模语言模型，在权威的中文和英文 benchmark 上均取得同尺寸最好的效果。Baichuan-13B 有如下几个特点：
-
-  1. 更大尺寸、更多数据：Baichuan-13B 在 Baichuan-7B 的基础上进一步扩大参数量到 130 亿，并且在高质量的语料上训练了 1.4 万亿 tokens，超过 LLaMA-13B 40%，是当前开源 13B 尺寸下训练数据量最多的模型。支持中英双语，使用 ALiBi 位置编码，上下文窗口长度为 4096。
-
-  1. 同时开源预训练和对齐模型：预训练模型是适用开发者的『 基座 』，而广大普通用户对有对话功能的对齐模型具有更强的需求。因此本次开源我们同时发布了对齐模型（Baichuan-13B-Chat），具有很强的对话能力，开箱即用，几行代码即可简单的部署。
-
-  1. 开源免费可商用：Baichuan-13B 不仅对学术研究完全开放，开发者也仅需邮件申请并获得官方商用许可后，即可以免费商用。
-
-  ## 模型结构
-
-  整体模型基于Baichuan-7B，为了获得更好的推理性能，Baichuan-13B 使用了 ALiBi 线性偏置技术，相对于 Rotary Embedding 计算量更小，对推理性能有显著提升；与标准的 LLaMA-13B 相比，生成 2000 个 tokens 的平均推理速度 (tokens/s)，实测提升 31.6%：
-具体参数和见下表：
+- [Pre-Training](##pre-training)
+  - [Datasets](#datasets)
   
-  | 模型名称     | 隐含层维度 | 层数 | 头数 | 词表大小 | 总参数量       | 训练数据（tokens） | 位置编码 | 最大长度 |
-| ------------ | ---------- | ---- | ---- | -------- | -------------- | ------------------ | -------- | -------- |
-  | Baichuan-7B  | 4,096      | 32   | 32   | 64,000   | 7,000,559,616  | 1.2万亿            | RoPE     | 4,096    |
-  | Baichuan-13B | 5,120      | 40   | 40   | 64,000   | 13,264,901,120 | 1.4万亿            | ALiBi    | 4,096    |
+  - [Script](#script)
+  
+  - [Performance](#performance)
+  	- [Machine performance](#machine-performance)
+  	- [Accuracy of the loss](#accuracy-of-the-loss)
+  
+- [Fine-tune and Evaluation](#fine-tune-and-evaluation)
+
+- [Inference](#inference)
+  - [Model weights](#model-weights)
+  - [Script](#script)
+    
+- [Citation](#citation)
 
 
-  ​								
+## Pre-Training
 
-# 准备训练环境
 
-## 准备环境
+Here's a quick summary of training baichuan-13B:
 
-默认配置需要每张卡有60G以上空闲内存。
-- 当前模型支持的 PyTorch 版本和已知三方库依赖如下表所示。
+|              |                         |
+| :----------: | :---------------------: |
+|   Hardware   | 96 64GB Altas 910B NPUs |
+|   Software   |       AscendSpeed       |
+|   Dataset    | alpaca-data-conversation|
 
-  **表 1**  版本支持表
+### Datasets
 
-  | Python版本 | Torch_Version | 三方库依赖版本  |
-  | :--------: | :-----------: | :-------------: |
-  | Python 3.7 | PyTorch 1.11  | deepspeed 0.9.2 |
+Vicuna is created by fine-tuning a LLaMA base model using approximately 70K user-shared conversations gathered from ShareGPT.com with public APIs. To ensure data quality, we convert the HTML back to markdown and filter out some inappropriate or low-quality samples. Additionally, we divide lengthy conversations into smaller segments that fit the model's maximum context length. For detailed instructions to clean the ShareGPT data, check out [here](https://github.com/lm-sys/FastChat/blob/v0.1.10/docs/commands/data_cleaning.md).
 
-- 环境准备指导
+Due to some concerns, we may not release the data at the moment. If you would like to try the fine-tuning code, you can try to run it with our [preprocessed alpaca dataset](https://github.com/lm-sys/FastChat/blob/v0.1.10/playground/data/alpaca-data-conversation.json) (originally from [here](https://github.com/tatsu-lab/stanford_alpaca)).
 
-  请参考《[Pytorch框架训练环境准备](https://www.hiascend.com/document/detail/zh/ModelZoo/pytorchframework/ptes)》安装相应的驱动、CANN、FRameworkPTAdapter
-  当前已测试的版本是HDK 23.0.RC3.B050，CANN 7.0.RC1.B050，5.0.RC3.B050
+### Script
 
-  **注: Baichuan基于FP16训练，确保获取的CANN支持FP16**
+1.Install AscendSpeed requirement environment.
 
-- 创建conda环境
+2.Download alpaca-data-conversation dataset:https://github.com/lm-sys/FastChat/blob/v0.1.10/playground/data/alpaca-data-conversation.json
 
-  ```shell
-  conda create -n py37 python=3.7
-  conda activate py37
-  ```
+3.Config Baichuan-13B pre-training script: AscendSpeed/examples/baichuan/pretrain_baichuan_ptd_13B.sh
 
-- 安装依赖
+```bash
+# This is an example: training llama using PTD/
 
-  ```shell
-  pip3 install -r requirements.txt
-  ```
+# The number of parameters is not aligned
+export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
+export HCCL_CONNECT_TIMEOUT=1200
 
-- 安装deepspeed及对应deepspeed_npu插件
 
-  在模型源码包根目录下执行以下命令，安装deepspeed。
+# Change for multinode config
+MASTER_ADDR=localhost
+MASTER_PORT=12892
+NNODES=1
+NODE_RANK=0
+NPUS_PER_NODE=8
+WORLD_SIZE=$(($NPUS_PER_NODE*$NNODES))
+GLOBAL_BATCH=32
+MICRO_BATCH=1
 
-  ```shell
-  pip3 install deepspeed==0.9.2 
-  git clone https://gitee.com/ascend/DeepSpeed.git
-  cd DeepSpeed
-  pip install ./
-  ```
+DATA_PATH=./data/baichuan_text
+TOKENIZER_PATH=./tokenizer
+ 
+CHECKPOINT_PATH=./ckpt
+LOAD_PATH=./weight
 
-## 准备数据集
+DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 
-1. 获取数据集
-   该任务采用开源数据集[alpaca](https://github.com/lm-sys/FastChat/blob/v0.1.10/playground/data/alpaca-data-conversation.json)进行训练。
-2. 数据预处理
-   下载`alpaca-data-conversation.json`后放在源码包根目录下，运行源码包根目录下的`preprocess_data.py`脚本对原始数据进行预处理。
+logfile=$(date +%Y%m%d)_$(date +%H%M%S)
+rm -rf kernel_meta*
 
-##  准备预训练权重
+# Main script
+python -m torch.distributed.launch $DISTRIBUTED_ARGS \
+       pretrain_baichuan.py \
+       --DDP-impl local \
+       --tensor-model-parallel-size 8 \
+       --pipeline-model-parallel-size 1 \
+       --sequence-parallel \
+       --num-layers 40 \
+       --hidden-size 5120 \
+       --ffn-hidden-size 13696 \
+       --num-attention-heads 40 \
+       --micro-batch-size $MICRO_BATCH \
+       --global-batch-size $GLOBAL_BATCH \
+       --seq-length 4096 \
+       --max-position-embeddings 4096 \
+       --train-iters 100000 \
+       --save $CHECKPOINT_PATH \
+       --load $LOAD_PATH \
+       --data-path $DATA_PATH \
+       --tokenizer-name-or-path $TOKENIZER_PATH \
+       --tokenizer-not-use-fast \
+       --data-impl mmap \
+       --split 949,50,1 \
+       --make-vocab-size-divisible-by 8 \
+       --distributed-backend nccl \
+       --lr 1e-6 \
+       --lr-decay-style cosine \
+       --min-lr 1e-8 \
+       --weight-decay 1e-1 \
+       --position-embedding-type alibi \
+       --clip-grad 1.0 \
+       --initial-loss-scale 8188.0 \
+       --seed 1234 \
+       --adam-beta1 0.9 \
+       --adam-beta2 0.95 \
+       --adam-eps 1.0e-5 \
+       --log-interval 1 \
+       --save-interval 1000 \
+       --eval-interval 1000 \
+       --eval-iters 10 \
+       --fp16 | tee logs/loss_${logfile}.log
 
-​		运行源码包根目录下的`convert_weights_from_huggingface.py`脚本准备预训练权重。
+```
 
-# 开始训练
+4.Launch Baichuan-13B pre-training script: AscendSpeed/examples/baichuan/pretrain_baichuan_ptd_13B.sh
 
-## 训练模型
+```bash
+bash examples/baichuan/pretrain_baichuan_ptd_13B.sh
+```
 
-1. 进入解压后的源码包根目录
+There is an hourly pulse checking script running that checks that the training is either running or scheduled.
 
-   ```
-   cd /${模型文件夹名称} 
-   ```
+The Training log will look like these:
 
-2. 运行训练脚本
+```Shell
+TODO
+```
 
-   该模型支持单机8卡训练
+### Performance
 
-   注意：
+#### Machine performance
 
-   - 需要确保CANN支持FP16特性
-   - 需要将`DATA_PATH`指向经过预处理后的数据
-   - 需要将`TOKENIZER_PATH`指向获取的预训练模型文件夹
-   - 需要将`CHECKPOINT_PATH`指向一个空的文件夹，该文件夹用来保存模型
-   - 需要将`LOAD_PATH`指向转换后的预训练模型权重
-   
-   ```
-    bash examples/baichuan/pretrain_baichuan_zero_7B.sh  
-   ```
+The performance of the NPUs in **Ascend910 B1 64GB** and GPUs is **A800**:
 
-   模型训练脚本参数说明如下：
-   
-   ```
-    MASTER_ADDR：         指定主节点的地址。
-    MASTER_PORT：         指定主节点的端口号。
-    NNODES：              指定节点数，设置为1表示只有一个节点。
-    NODE_RANK：           指定当前节点的排名，设置为0表示当前节点是第一个节点。
-    NPUS_PER_NODE：       指定每个节点上的处理器数。
-    WORLD_SIZE：          指定全局的处理器数，即所有节点上的处理器数之和。
-    GLOBAL_BATCH：        指定全局的批次大小，即每次训练时一次性处理的样本数。
-    MICRO_BATCH：         指定微批次大小，即每个处理器一次性处理的样本数。
-   ```
-   
-   ```
-       --DDP-impl                          # 分布式实现方式。
-       --tensor-model-parallel-size        # 使用张量并行。
-       --pipeline-model-parallel-size      # 使用模型并行。
-       --sequence-parallel                 # 使用序列并行。
-       --num-layers                        # 模型的层数。
-       --hidden-size                       # 模型的隐藏层大小。
-       --ffn-hidden-size                   # 模型的前馈神经网络隐藏层大小。
-       --num-attention-heads               # 模型的注意力头数。
-       --micro-batch-size                  # 每个GPU的微批次大小。
-       --global-batch-size                 # 全局批次大小。
-       --seq-length                        # 序列长度。
-       --max-position-embeddings           # 最大位置嵌入。
-       --train-iters                       # 训练迭代次数。
-       --save                              # 模型保存路径。
-       --load                              # 模型加载路径。
-       --data-path                         # 数据路径。
-       --split                             # 数据集分割比例。
-       --lr                                # 学习率。
-       --lr-decay-style                    # 学习率衰减方式。
-       --min-lr                            # 最小学习率。
-       --initial-loss-scale                # 初始损失缩放。
-       --log-interval                      # 日志输出间隔。
-       --fp16                              # 使用半精度浮点数进行训练。
-   ```
-   
-   
-   
+|Device     |Model |total Iterations|throughput rate (samples/s/p)|throughput rate (tokens/s/p)|single-step time (s/step)|floating point operation (TFLOPs/s)|
+| :----------------: | :------------: | :------------: | :------------: | :-------------: | :------------: |:------------: |
+| GPUs  |Baichuan-13B|1000|1.535|785 |20.852|68.39|
+| NPUs  |Baichuan-13B|1000|1.928|1024|16.067|89.37|
 
-# 版本说明
 
-## 变更
+Notes: 
 
-2023.09.27 首次发布
+- Baichuan-13B model trained on alpaca-data-conversation on a single machine with 8 NPUs
 
-## FAQ
+Here's a hardware summary of pre-training Baichuan-13B:
 
-无
+| Hardware |                      Value                      |
+| :------: | :---------------------------------------------: |
+|   CPU    | 4xKunPeng920@3.0GHz，64 Core Pre Socket 256CPUS |
+|   RAM    |                  32x32 GB DDR4                  |
+|   NPU    |               8 x Ascend910B1 64G               |
+
+Here's a software summary of pre-training Baichuan-13B:
+
+
+|         Software          |                 Version                 |
+| :-----------------------: | :-------------------------------------: |
+|            OS             |       Euler OS release 2.0(SP10)        |
+|           uname           |                 aarch64                 |
+|          Python           |                  3.7.16                 |
+|          driver           |               23.0.RC3.B051             |
+|         firmware          |              23.0.RC3.B051              |
+|           CANN            |              7.0.RC1                    |
+| binary arithmetic package |   Ascend-cann-kernels-910b_7.0.T8_linux |
+|           torch           |                 1.11.0                  |
+|         torch_npu         |           1.11.0.post4-20230915         |
+|         deepspeed         |                  0.9.2                  |
+|       deepspeed-npu       |                   0.1                   |
+|       transformers        |                 4.30.2                  |
+|        Ascendspeed        |                2023-7-21                |
+
+
+
+#### Accuracy of the loss
+
+NPU vs GPU loss.
+
+The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
+
+![NPU-LOSS](./images/loss_compare.png)
+
+NPU vs GPU loss relative error.
+
+The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
+
+![NPU-Relative-Error](./images/relative_error.png)
+
+## Fine-tune and Evaluation
+
+TODO
+
+## Inference
+
+We support AscendSpeed Inference for text generation with Baichuan-13B.
+
+### Model weights
+
+We provide scripts that support converting pretrained weights into weights that AscendSpeed can load and used for inference. Download the Baichuan-13B checkpoint from [here](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/tree/main), make sure all chunks are downloaded completely, then use the following command to convert them into checkpoints that AscendSpeed can load. 
+
+```shell
+#!/bin/bash
+
+SCRIPT_PATH=./tools/ckpt_convert/llama/convert_weights_from_huggingface.py
+python $SCRIPT_PATH \
+    --input-model-dir "your huggingface checkpoint path" \
+    --output-model-dir "your ascendspeed checkpoint path" \
+    --tensor-model-parallel-size 8 \
+    --pipeline-model-parallel-size 1 \
+    --type 13B 
+```
+
+
+Set `CHECKPOINT_PATH` in ` ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh` to the path of the extracted folder. Since the checkpoint file is large, it is recommended to use the SSD or RAM disk to reduce the checkpoint loading time. 
+
+### Script
+
+We generate text samples using the `generate_baichuan_13B_tp8_pp1.sh` script. Inference different from pre-training, such as we need to Load pre training checkpoint and the length of the output samples:
+
+```shell
+bash ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh
+```
+
+Alternatively you can also use DeepSpeed from source:
+
+```Shell
+TODO: XXXX
+```
+
+## Citation
+
+You may also consider original work in your reference.
+
