@@ -456,7 +456,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
             strict = False
         if len(model) == 1:
             result = model[0].load_state_dict(state_dict['model'], strict=strict)
-            if not strict and result:
+            if strict and result:
                 print_rank_0(f"load checkpoint result:{result}")
         else:
             for i in range(len(model)):

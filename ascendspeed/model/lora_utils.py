@@ -95,7 +95,7 @@ def lora_custom_load_fn_for_deepspeed(src, dst):
     strict = is_lora_state_dict(state_dict=state_dict)
     # At this time, the model is a lora model, but the pre-training weights do not include lora, so strict is False
     result = model.load_state_dict(state_dict, strict=strict)
-    if not strict and result:
+    if strict and result:
         from ascendspeed import print_rank_0
         print_rank_0(f"lora_custom_load_fn_for_deepspeed result:{result}")
 
