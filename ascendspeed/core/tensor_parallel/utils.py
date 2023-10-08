@@ -1,7 +1,91 @@
-# Copyright (c) 2022, HAUWEI CORPORATION. All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 from typing import List, Sequence
+
+import torch
+from deepspeed.accelerator import get_accelerator
+from ascendspeed.core import parallel_state
 from ascendspeed.core.utils import divide
+
+
+def split_tensor_along_last_dim(
+    tensor: torch.Tensor, num_partitions: int, contiguous_split_chunks: bool = False,
+) -> List[torch.Tensor]:
+    """ Split a tensor along its last dimension.
+
+        Arguments:
+            tensor: input tensor.
+            num_partitions: number of partitions to split the tensor
+            contiguous_split_chunks: If True, make each chunk contiguous
+                                     in memory.
+
+        Returns:
+            A list of Tensors
+    """
+    # Get the size and dimension.
+    last_dim = tensor.dim() - 1
+    last_dim_size = divide(tensor.size()[last_dim], num_partitions)
+    # Split.
+    tensor_list = torch.split(tensor, last_dim_size, dim=last_dim)
+    # Note: torch.split does not create contiguous tensors by default.
+    if contiguous_split_chunks:
+        return tuple(chunk.contiguous() for chunk in tensor_list)
+
+    return tensor_list
+
+
+def split_tensor_into_1d_equal_chunks(tensor, new_buffer=False):
+    """ Break a tensor into equal 1D chunks across tensor parallel ranks.
+
+        Returns a Tensor or View with this rank's portion of the data.
+
+        Arguments:
+            tensor: The tensor to split
+
+        Keyword Arguments:
+            new_buffer (bool): If True, returns a new Tensor.
+                               If False, returns a view into the existing Tensor.
+                               Default is False
+
+    """
+    partition_size = torch.numel(tensor) // parallel_state.get_tensor_model_parallel_world_size()
+    start_index = partition_size * parallel_state.get_tensor_model_parallel_rank()
+    end_index = start_index + partition_size
+    if new_buffer:
+        data = torch.empty(
+            partition_size,
+            dtype=tensor.dtype,
+            device=get_accelerator().current_device_name(),
+            requires_grad=False,
+        )
+        data.copy_(tensor.view(-1)[start_index:end_index])
+    else:
+        data = tensor.view(-1)[start_index:end_index]
+    return data
+
+
+def gather_split_1d_tensor(tensor):
+    """ Opposite of split_tensor_into_1d_equal_chunks. Gather values from tensor
+        model parallel ranks.
+
+        Returns a new Tensor with the gathered data.
+
+        Arguments:
+            tensor: A Tensor or view of this rank's portion of the data.
+    """
+    numel_gathered = torch.numel(tensor) * parallel_state.get_tensor_model_parallel_world_size()
+    gathered = torch.empty(
+        numel_gathered, dtype=tensor.dtype, device=get_accelerator().current_device_name(), requires_grad=False
+    )
+    # This API is experimental in pytorch (as of Feb 2022) and
+    # this might break in future pytorch releases. We chose this API
+    # as opposed to torch.distributed.all_gather for efficiency reasons.
+    # This API calls directly NCCL all-gather versus the former does
+    # internal copies and can potentially cause slow down.
+    torch.distributed._all_gather_base(
+        gathered, tensor, group=parallel_state.get_tensor_model_parallel_group()
+    )
+    return gathered
 
 
 class VocabUtility:
