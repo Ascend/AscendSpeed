@@ -5,7 +5,7 @@ AscendSpeed provides end-to-end test scripts for large language models on [Ascen
 ## Why AscendSpeed? 
 
 ---
-### Pretrained Models
+### Prepared Models
 Currently, the pre-training of the following models has been supported: 
 
 * <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[7B/13B](examples/baichuan/README.md)
@@ -323,7 +323,7 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
-      <td  rowspan="8"> -- </td>
+      <td> -- </td>
     </tr>
     <tr>
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
@@ -331,9 +331,11 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
+      <td> -- </td>
     </tr>
     <tr>
       <td> 176B </td>
+      <td> -- </td>
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
@@ -344,29 +346,41 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
+      <td> -- </td>
     </tr>
     <tr>
-      <td rowspan="3">LLaMA</td>
+      <td rowspan="4">LLaMA</td>
       <td>7B</td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
       <td> -- </td>
       <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td>13B</td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
       <td> -- </td>
       <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
+    </tr>
+    <tr>
+      <td>33B</td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
       <td> -- </td>
+      <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td > 65B </td>
       <td > -- </td>
       <td> -- </td>
       <td> -- </td>
+      <td> -- </td>
     </tr>
     <tr>
       <td>LLaMA2</td>
       <td>7B</td>
+      <td> -- </td>
       <td> -- </td>
       <td> -- </td>
       <td> -- </td>
