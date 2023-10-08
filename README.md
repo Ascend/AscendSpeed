@@ -8,13 +8,13 @@ AscendSpeed provides end-to-end test scripts for large language models on [Ascen
 ### Pretrained Models
 Currently, the pre-training of the following models has been supported: 
 
-* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-7B/13B
+* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[7B/13B](examples/baichuan/README.md)
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[7B1/176B](examples/bloom/README.md)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-7B
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-7B/13B/65B
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-7B
 
-Baichuan-13B, LLaMA-33B, LLaMA2-13B/70B, Aquila-7B are coming soon ...
+LLaMA-33B, LLaMA2-13B/70B, Aquila-7B are coming soon ...
 
 ### Acceleration Features
 Currently, the following acceleration features for LLMs have been supported:
@@ -80,7 +80,7 @@ The plan for more tasks, like RLHF and RM, is under way ...
       <td> 1x8</td>
       <td> FP16 </td>
       <td> 1024 tokens/p/s </td>
-      <td> 785 tokens/p/s </td>
+      <td> 824 tokens/p/s </td>
       <td> <a href="examples/baichuan/images/13B_loss_compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
     </tr>
