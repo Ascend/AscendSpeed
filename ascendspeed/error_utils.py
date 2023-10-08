@@ -75,7 +75,7 @@ class NotExistError(Exception):
 
 def check_exist(item, container, error_info=None):
     if item in container:
-        return
+        return True
     raise NotExistError(item, container, error_info)
 
 
