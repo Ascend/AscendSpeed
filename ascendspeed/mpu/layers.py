@@ -14,8 +14,7 @@
 # limitations under the License.
 
 
-# Parts of the code here are adapted from PyTorch
-# repo: https://github.com/pytorch/pytorch
+
 
 
 import math
