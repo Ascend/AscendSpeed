@@ -45,7 +45,6 @@ Currently, the following downstream tasks have been supported:
 
 The plan for more tasks, like RLHF and RM, is under way ...
 
-
 ## Quick Start For Pretraining
 
 ---
@@ -125,19 +124,19 @@ The plan for more tasks, like RLHF and RM, is under way ...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 2862 tokens/p/s </td>
+      <td> 2859 tokens/p/s </td>
+      <td> <a href="sources/images/llama7b_loss.png">Loss</a> </td>
+      <td> <a href="examples/llama/pretrain_llama_7B_zero_8p.sh">Train</a> </td>
     </tr>
     <tr>
       <td>13B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 1800 tokens/p/s </td>
+      <td> 1734 tokens/p/s </td>
+      <td> <a href="sources/images/llama13b_loss.png">Loss</a> </td>
+      <td> <a href="examples/llama/pretrain_llama_13B_zero_8p.sh">Train</a> </td>
     </tr>
     <tr>
       <td rowspan="2">65B</td>
@@ -620,7 +619,7 @@ Finally, only Lora's parameters are saved after turning on Lora. Similarly, when
 --lora-load ${LORA_CHECKPOINT} \
 ```
 
-There is an [example](ascendspeed/examples/llama/tune_llama_ptd_13b.sh) could be referred. 
+There is an [example](examples/llama/tune_llama_ptd_13b.sh) could be referred. 
  
 After using Lora to fine-tune the Llama model, the instruction dialogue effect is as follows:
 
