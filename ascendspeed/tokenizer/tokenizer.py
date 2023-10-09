@@ -383,7 +383,6 @@ class _AutoTokenizer(AbstractTokenizer):
         candidate = self.tokenizer.pad_token_id
 
         # just use eos_token_id if pad_token_id is not available, it is reasonable
-        # https://github.com/huggingface/transformers/blob/aea761499f4b1193f2706f471442da6f9df65d65/src/transformers/trainer_seq2seq.py#L327
         # maybe add a new token, and resize embedding layer is better
         if candidate is None:
             candidate = self.tokenizer.eos_token_id

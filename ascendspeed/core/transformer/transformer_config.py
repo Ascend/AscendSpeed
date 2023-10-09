@@ -79,9 +79,8 @@ class TransformerConfig(ModelParallelConfig):
         recompute_granularity (str): megatron-core supports 'selective' activation checkpointing where only the memory
                                      intensive part of attention is checkpointed.  These memory intensive activations
                                      are also less compute intensive which makes activation checkpointing more efficient
-                                     for LLMs (20B+).  See Reducing Activation Recomputation in Large Transformer
-                                     Models: https://arxiv.org/abs/2205.05198 for more details.  'full' will checkpoint
-                                     the entire transformer layer.  Must be 'selective' or 'full'. Defaults to None.
+                                     for LLMs (20B+). 'full' will checkpoint the entire transformer layer.  Must be
+                                     'selective' or 'full'. Defaults to None.
 
         recompute_method (str): uniform will uniformly divide the total number of transformer layers in a transformer
                                 block and recompute the input activation of each divided chunk at the specified
@@ -98,8 +97,6 @@ class TransformerConfig(ModelParallelConfig):
         distribute_saved_activations (bool): If true, distribute recomputed activations across the model parallel
                                              group. Defaults to None.
 
-        # fp8 related (via Transformer Engine). For detailed info, refer the the Transformer Engine docs at
-        # https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/api/common.html
 
         fp8 (bool): Enables the use of FP8 precision through Transformer Engine.
 
@@ -168,7 +165,8 @@ class TransformerConfig(ModelParallelConfig):
     fp8_amax_compute_algo: str = "most_recent"
 
     def __post_init__(self):
-        """ Python dataclass method that is used to modify attributes after initialization.
+        """
+        Python dataclass method that is used to modify attributes after initialization.
         """
         super().__post_init__()
         if self.fp16 and self.bf16:

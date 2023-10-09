@@ -21,12 +21,11 @@ class ModelParallelConfig:
     virtual_pipeline_model_parallel_size (int): Interleaved pipeline parallelism is used to improve performance by
         reducing the pipeline bubble.  Considers a transformer block as a list of smaller transformer (virtual) blocks.
         The number of virtual blocks per pipeline model parallel rank is the virtual model parallel size.  See Efficient
-        Large-Scale Language Model Training on GPU Clusters Using Megatron-LM: https://arxiv.org/pdf/2104.04473.pdf for
-        more details.  Defaults to None.
+        Large-Scale Language Model Training on GPU Clusters Using Megatron-LM for more details.  Defaults to None.
 
     sequence_parallel (bool): Makes tensor parallelism more memory efficient for LLMs (20B+) by
         parallelizing layer norms and dropout sequentially.  See Reducing Activation Recomputation in Large Transformer
-        Models: https://arxiv.org/abs/2205.05198 for more details. Defaults to False.
+        Models for more details. Defaults to False.
 
     Initialization
     --------------
@@ -147,8 +146,8 @@ class ModelParallelConfig:
     param_sync_func: Callable = None
 
     def __post_init__(self):
-        """ Python dataclass method that is used to modify attributes after initialization.
-            See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more details.
+        """
+        Python dataclass method that is used to modify attributes after initialization.
         """
         if self.sequence_parallel:
             if self.tensor_model_parallel_size <= 1:
