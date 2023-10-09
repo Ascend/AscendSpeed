@@ -638,13 +638,13 @@ def setup_model_and_optimizer(model_provider_func,
             assert model.grid.get_data_parallel_rank() == parallel_state.get_data_parallel_rank()
         model = [model]
 
-    handle_model_with_checkpoint(lr_scheduler, model, optimizer, student_global_steps)
-
     # Compression has its own checkpoint loading path (e.g, loading both teacher and student models). So if compression is enabled, we skip the following checkpoint loading.
     no_post_init_checkpoint_loading = args.kd or args.mos
     if not no_post_init_checkpoint_loading:
+        print_rank_0(f"\tsetup_model_and_optimizer : no_post_init_checkpoint_loading:{no_post_init_checkpoint_loading}")
         if args.load is not None:
             timers = get_timers()
+            print_rank_0(f"\tsetup_model_and_optimizer : args.load:{args.load}")
             # Extra barrier is added to make sure all ranks report the
             # max time.
             torch.distributed.barrier()
@@ -679,29 +679,6 @@ def setup_model_and_optimizer(model_provider_func,
         model[0] = convert_to_random_ltd(model[0], ParallelTransformerLayer)
 
     return model, optimizer, lr_scheduler
-
-
-def handle_model_with_checkpoint(lr_scheduler, model, optimizer, student_global_steps=0):
-    args = get_args()
-    # Compression has its own checkpoint loading path (e.g, loading both teacher and student models). So if compression is enabled, we skip the following checkpoint loading.
-    no_post_init_checkpoint_loading = args.kd or args.mos
-    if not no_post_init_checkpoint_loading:
-        print_rank_0(f"\tsetup_model_and_optimizer : no_post_init_checkpoint_loading:{no_post_init_checkpoint_loading}")
-        if args.load is not None:
-            print_rank_0(f"\tsetup_model_and_optimizer : args.load:{args.load}")
-            timers = get_timers()
-            # Extra barrier is added to make sure all ranks report the
-            # max time.
-            torch.distributed.barrier()
-            timers('load-checkpoint', log_level=0).start(barrier=True)
-            args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
-            torch.distributed.barrier()
-            timers('load-checkpoint').stop(barrier=True)
-            timers.log(['load-checkpoint'])
-        else:
-            args.iteration = 0
-    else:
-        model[0].global_steps = student_global_steps
 
 
 def train_step(forward_step_func, data_iterator,
