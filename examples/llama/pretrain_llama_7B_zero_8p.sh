@@ -2,6 +2,7 @@
 # the number of parameters is not aligned
 export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
+export INF_NAN_MODE_ENABLE=1
 source /path/to/cann/ascend-toolkit/set_env.sh
 
 GPUS_PER_NODE=8

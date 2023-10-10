@@ -127,10 +127,15 @@ conda create -n test python=3.7
 conda activate test
 
 # install torch and torch_npu
+# ARM
+wget https://download.pytorch.org/whl/torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
+wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2.2-pytorch1.11.0/torch_npu-1.11.0.post3-cp37-cp37m-linux_aarch64.whl
+# X86
 pip install torch==1.11 -i https://pypi.tuna.tsinghua.edu.cn/simple
-wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2-pytorch1.11.0/torch_npu-1.11.0.post1-cp37-cp37m-linux_aarch64.whl (ARM)
-or wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2-pytorch1.11.0/torch_npu-1.11.0.post1-cp37-cp37m-linux_x86_64.whl (X86)
-pip install torch_npu-1.11.0.post1-cp37-cp37m-linux_XXXXXX.whl
+wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2.2-pytorch1.11.0/torch_npu-1.11.0.post3-cp37-cp37m-linux_x86_64.whl
+
+pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl (ARM)
+pip install torch_npu-1.11.0.post3-cp37-cp37m-linux_XXXXXX.whl
 
 # install deepspeed and deepspeed_npu
 pip install deepspeed==0.9.2
