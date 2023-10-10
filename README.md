@@ -193,6 +193,9 @@ wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2-pytorch1.11.0/t
 or wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2-pytorch1.11.0/torch_npu-1.11.0.post1-cp37-cp37m-linux_x86_64.whl (X86)
 pip install torch_npu-1.11.0.post1-cp37-cp37m-linux_XXXXXX.whl
 
+# install megatron-core
+pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
+
 # install deepspeed and deepspeed_npu
 pip install deepspeed==0.9.2
 git clone https://gitee.com/ascend/DeepSpeed.git -b v0.9.2 deepspeed_npu

@@ -360,17 +360,17 @@ def get_state_dict_and_release(load_dir, lora_load_dir=None):
         state_dict = load_state_dict_from_checkpoint_with_megatron(checkpoint_name,
                                                                    model_checkpoint_name=model_checkpoint_name)
     except ModuleNotFoundError:
-        from ascendspeed.fp16_deprecated import loss_scaler
+        from megatron.fp16_deprecated import loss_scaler
         # For backward compatibility.
         print_rank_0(' > deserializing using the old code structure ...')
         sys.modules['fp16.loss_scaler'] = sys.modules[
-            'ascendspeed.fp16_deprecated.loss_scaler']
-        sys.modules['ascendspeed.fp16.loss_scaler'] = sys.modules[
-            'ascendspeed.fp16_deprecated.loss_scaler']
+            'megatron.fp16_deprecated.loss_scaler']
+        sys.modules['megatron.fp16.loss_scaler'] = sys.modules[
+            'megatron.fp16_deprecated.loss_scaler']
         state_dict = load_state_dict_from_checkpoint_with_megatron(checkpoint_name,
                                                                    model_checkpoint_name=model_checkpoint_name)
         sys.modules.pop('fp16.loss_scaler', None)
-        sys.modules.pop('ascendspeed.fp16.loss_scaler', None)
+        sys.modules.pop('megatron.fp16.loss_scaler', None)
     except BaseException as e:
         print_rank_0('could not load the checkpoint')
         print_rank_0(e)

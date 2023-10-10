@@ -48,7 +48,7 @@ class BlendableDataset(torch.utils.data.Dataset):
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
 
-        from ascendspeed.data import helpers
+        from megatron.data import helpers
         helpers.build_blending_indices(self.dataset_index,
                                        self.dataset_sample_index,
                                        weights, num_datasets, self.size,
