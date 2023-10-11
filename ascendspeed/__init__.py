@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import sys
 import logging
 
 import torch
@@ -35,6 +36,10 @@ from .package_info import (
     __package_name__,
     __version__,
 )
+
+if 'amp_C' in sys.modules:
+    del sys.modules['amp_C']
+sys.modules['amp_C'] = __import__('ascendspeed.amp_C')
 
 from .global_vars import get_args
 from .global_vars import get_current_global_batch_size

@@ -47,23 +47,26 @@ mkdir ckpt
 ```
 2.Install AscendSpeed requirement environment.
 ```shell
-#python3.7
+# python3.7
 conda create -n test python=3.7
 conda activate test
 
-#install torch and torch_npu
+# install torch and torch_npu
 pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
 pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
 
-#install deepspeed and deepspeed_npu
-pip install deepspeed_npu==0.9.2
+# install megatron-core
+pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
+
+# install deepspeed and deepspeed_npu
+pip install deepspeed==0.9.2
 git clone https://gitee.com/ascend/DeepSpeed.git -b v0.9.2 deepspeed_npu
 cd deepspeed_npu
 pip3 install -e ./
 cd ..
 
-#install other packages
+# install other packages
 pip install -r requirements.txt
 ```
 3.Download llama-65b checkpoint
@@ -71,7 +74,7 @@ pip install -r requirements.txt
 mkdir tokenizer
 cd ./tokenizer
 
-#Make sure you have git-lfs installed (https://git-lfs.com)
+# make sure you have git-lfs installed (https://git-lfs.com)
 git lfs install
 git clone https://huggingface.co/decapoda-research/llama-65b-hf
 cd ..
@@ -91,12 +94,12 @@ python $SCRIPT_PATH \
 
 5.Download dataset
 ```shell
-#for llama, dowload alpaca dataset, like
+# for llama, dowload alpaca dataset, like
 wget http://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.jason
 
-#download tokenizer configs nad (selective) weights from
-#http://huggingface.co/decapoda-research/llama-65b-hf
-#revise "LLaMATokenizer" as "LLaMTokenizer" in tokenizer_config.json
+# download tokenizer configs nad (selective) weights from
+# http://huggingface.co/decapoda-research/llama-65b-hf
+# revise "LLaMATokenizer" as "LLaMTokenizer" in tokenizer_config.json
 mkdir dataset
 python tools/preprocess_data.py --input alpaca_data.json\
                                 --output-prefix dataset/alpaca\
