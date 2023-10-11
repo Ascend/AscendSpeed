@@ -74,6 +74,7 @@ def _gather(input_):
 
     return output
 
+
 def _gather_along_first_dim(input_):
     """Gather tensors and concatinate along the first dimension."""
 
@@ -91,6 +92,7 @@ def _gather_along_first_dim(input_):
                                        group=get_tensor_model_parallel_group())
 
     return output
+
 
 def _reduce_scatter_along_first_dim(input_):
     """Reduce-scatter the input tensor across model parallel group."""
@@ -110,6 +112,7 @@ def _reduce_scatter_along_first_dim(input_):
     torch.distributed._reduce_scatter_base(output, input_.contiguous(),
                                            group=get_tensor_model_parallel_group())
     return output
+
 
 def _split_along_first_dim(input_):
     """Split the tensor along its first dimension and keep the
@@ -131,6 +134,7 @@ def _split_along_first_dim(input_):
     output = input_[dim_offset:dim_offset+local_dim_size].contiguous()
 
     return output
+
 
 class _ScatterToSequenceParallelRegion(torch.autograd.Function):
     """Split the input and keep only the corresponding chuck to the rank."""
@@ -238,7 +242,6 @@ class _ReduceScatterToSequenceParallelRegion(torch.autograd.Function):
         return _gather_along_first_dim(grad_output)
 
 
-
 class _GatherFromModelParallelRegion(torch.autograd.Function):
     """Gather the input from model parallel region and concatinate."""
 
@@ -274,11 +277,14 @@ def scatter_to_tensor_model_parallel_region(input_):
 def gather_from_sequence_parallel_region(input_, tensor_parallel_output_grad=True):
     return _GatherFromSequenceParallelRegion.apply(input_, tensor_parallel_output_grad)
 
+
 def gather_from_tensor_model_parallel_region(input_):
     return _GatherFromModelParallelRegion.apply(input_)
 
+
 def reduce_scatter_to_sequence_parallel_region(input_):
     return _ReduceScatterToSequenceParallelRegion.apply(input_)
+
 
 def scatter_to_sequence_parallel_region(input_):
     return _ScatterToSequenceParallelRegion.apply(input_)

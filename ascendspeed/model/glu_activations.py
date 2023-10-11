@@ -7,6 +7,7 @@ from ascendspeed.model.utils import log_debug_usage
 
 logger = logging.get_logger(__name__)
 
+
 class _GLUBaseModule(nn.Module):
     def __init__(self, activation_fn):
         super().__init__()

@@ -292,6 +292,7 @@ class Embedding(MegatronModule):
                 print('***WARNING*** expected tokentype embeddings in the '
                       'checkpoint but could not find it', flush=True)
 
+
 class EmbeddingPipe(Embedding):
 
     def forward(self, inputs, **kwargs):

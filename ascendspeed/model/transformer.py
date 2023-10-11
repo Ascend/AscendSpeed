@@ -59,6 +59,7 @@ torch._C._jit_override_can_fuse_on_gpu(True)
         hyperparameters: transformer hyperparameters
 """
 
+
 class ParallelMLP(MegatronModule):
     """MLP.
 
@@ -118,6 +119,7 @@ class ParallelMLP(MegatronModule):
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
+
 
 class ParallelAttention(MegatronModule):
     """Parallel self-attention layer abstract class.
@@ -658,6 +660,7 @@ class ParallelTransformerLayer(MegatronModule):
         alibi = alibi.repeat(batch_size, 1, 1)
         return alibi
 
+
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline.
 
@@ -696,6 +699,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
             return super().forward(*inputs, **kwargs)[0], attention_mask
         else:
             raise RuntimeError('Received more inputs than understood.')
+
 
 class ParallelTransformer(MegatronModule):
     """Transformer class."""
@@ -791,6 +795,7 @@ class ParallelTransformer(MegatronModule):
             global get_cuda_rng_tracker, checkpoint
             get_cuda_rng_tracker = deepspeed.checkpointing.get_cuda_rng_tracker
             checkpoint = deepspeed.checkpointing.checkpoint
+
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
 

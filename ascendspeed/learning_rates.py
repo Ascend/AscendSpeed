@@ -19,6 +19,7 @@ import math
 
 from ascendspeed import print_rank_0, get_args
 
+
 class AnnealingLR(object):
     """Anneals the learning rate."""
 

@@ -21,6 +21,7 @@ from abc import abstractmethod
 import torch
 from deepspeed.accelerator import get_accelerator
 
+
 class MegatronGradScaler(ABC):
 
     def __init__(self, initial_scale):

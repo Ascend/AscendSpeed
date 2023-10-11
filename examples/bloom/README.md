@@ -16,8 +16,8 @@ BLOOM model is from: [A 176B-Parameter Open-Access Multilingual Language Model](
   - [Script](#script)
   
   - [Performance](#performance)
-  	- [Machine performance](#machine-performance)
-  	- [Accuracy of the loss](#accuracy-of-the-loss)
+      - [Machine performance](#machine-performance)
+      - [Accuracy of the loss](#accuracy-of-the-loss)
   
 - [Fine-tune and Evaluation](#fine-tune-and-evaluation)
 
