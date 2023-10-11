@@ -17,6 +17,7 @@ from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_datase
 
 logger = logging.getLogger(__name__)
 
+
 def build_train_valid_test_datasets(
     data_prefix,
     data_impl,
@@ -160,6 +161,7 @@ def build_dataset_group(
         all_datasets = BlendableDataset(datasets, weights)
 
         return all_datasets
+
 
 def _build_single_datasets(
     data_prefix,
@@ -390,6 +392,7 @@ def _build_index_mappings(
         time.time() - start_time))
 
     return shuffle_idx
+
 
 def _build_shuffle_idx(nb_documents: int, np_rng):
     """Build the range [0, dataset_size) and shuffle."""

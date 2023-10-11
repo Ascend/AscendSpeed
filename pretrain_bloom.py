@@ -133,6 +133,7 @@ def get_batch(data_iterator):
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 
+
 def data_post_process(data, data_sampler_state_dict):
     args = get_args()
     if args.data_efficiency_curriculum_learning:
@@ -157,6 +158,7 @@ def data_post_process(data, data_sampler_state_dict):
         else:
             args.data_efficiency_curriculum_learning_seqlen_type = None
     return data
+
 
 def get_batch_pipe(data):
     """Modification of `get_batch` to work on `next(data_iterator)` instead of `data_iterator`"""
@@ -212,6 +214,7 @@ def loss_func(loss_mask, output_tensor):
             loss = loss + moe_loss
             return loss, {'lm loss': averaged_loss[0], 'moe loss': moe_loss}
 
+
 def calculate_mos_loss(args, stu_output, teacher_model, tokens, position_ids, attention_mask):
     mos_loss = 0
     alpha = args.kd_alpha_ce
@@ -242,6 +245,7 @@ def calculate_mos_loss(args, stu_output, teacher_model, tokens, position_ids, at
         mos_loss = mos_loss.div(args.seq_length) * beta
     return mos_loss
 
+
 def forward_step(data_iterator, model):
     """Forward step."""
     args = get_args()
@@ -258,6 +262,7 @@ def forward_step(data_iterator, model):
                           labels=labels)
 
     return output_tensor, partial(loss_func, loss_mask)
+
 
 def train_valid_test_datasets_provider(train_val_test_num_samples):
     """Build train, valid, and test datasets."""

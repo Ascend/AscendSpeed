@@ -33,6 +33,7 @@ from ascendspeed.core import parallel_state
 from ascendspeed.model.module import param_is_not_shared
 from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
 
+
 def clip_grad_norm_fp32(parameters, grads_for_norm,
                         max_norm, norm_type=2,
                         model_parallel_group=None):

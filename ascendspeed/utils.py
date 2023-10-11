@@ -34,6 +34,7 @@ from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
 from ascendspeed import get_num_microbatches
 from deepspeed.accelerator import get_accelerator
 
+
 def unwrap_model(model, module_instances=(torchDDP)):
     return_list = True
     if not isinstance(model, list):
@@ -259,6 +260,7 @@ def get_parameters_in_billions(model):
 
     return approx_parameters_in_billions*gpus_per_model/(1e9)
 
+
 def throughput_calculator(model, args, iteration_time, total_iterations):
     gpus_per_model = torch.distributed.get_world_size(group = parallel_state.get_model_parallel_group())
     batch_size = args.micro_batch_size * get_num_microbatches() * args.data_parallel_size
@@ -284,6 +286,7 @@ def throughput_calculator(model, args, iteration_time, total_iterations):
     flops_per_iteration = (24 * checkpoint_activations_factor * batch_size * seq_len * num_layers * (hidden_size**2)) * (1. + (seq_len / (6. * hidden_size)) + (vocab_size / (16. * num_layers * hidden_size)))
     tflops = flops_per_iteration / (elapsed_time_per_iter * args.world_size * (10**12))
     return samples_per_second, tflops, approx_parameters_in_billions
+
 
 def checkpoint_throughput_calculator(model, latency_second):
     approx_parameters_in_billions = get_parameters_in_billions(model)

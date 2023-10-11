@@ -6,4 +6,4 @@ LIBEXT = $(shell python3-config --extension-suffix)
 default: $(LIBNAME)$(LIBEXT)
 
 %$(LIBEXT): %.cpp
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $< -o $@
+    $(CXX) $(CXXFLAGS) $(CPPFLAGS) $< -o $@

@@ -16,8 +16,8 @@ LLaMA model is from: [LLaMA: OPen and Efficient Foundation Language Models](http
   - [Script](#script)
   
   - [Performance](#performance)
-  	- [Machine performance](#machine-performance)
-  	- [Accuracy of the loss](#accuracy-of-the-loss)
+      - [Machine performance](#machine-performance)
+      - [Accuracy of the loss](#accuracy-of-the-loss)
   
 - [Citation](#citation)
 

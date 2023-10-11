@@ -184,6 +184,7 @@ def get_batch_pipe(data):
         args.eod_mask_loss)
     return (tokens, attention_mask), (labels, loss_mask)
 
+
 def loss_func(loss_mask, output_tensor):
     args = get_args()
 
@@ -231,6 +232,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     print_rank_0("> finished creating llama datasets ...")
 
     return train_ds, valid_ds, test_ds
+
 
 if __name__ == "__main__":
     torch.npu.set_compile_mode(jit_compile=True)
