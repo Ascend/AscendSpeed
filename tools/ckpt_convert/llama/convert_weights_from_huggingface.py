@@ -10,7 +10,7 @@
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# See the License for the specific language governing permissions and 
 # limitations under the License.
 
 """Convert weight from huggingface to ascendspeed"""
@@ -46,7 +46,7 @@ def get_args():
                         help="degree of pipeline model parallel")
     parser.add_argument("--added-token-num", type=int, default=0, help="the number of added tokens")
     parser.add_argument("--type", type=str, choices=["7B", "13B", "30B", "65B"], default="7B")
-
+    parser.add_argument("--pse", type=bool, default=False)
     return parser.parse_args()
 
 
@@ -109,11 +109,20 @@ def generate_ascendspeed_weights_again(config):
 
             for pp_i in range(pp_n_layer):
                 ori_i = pp_n_layer * pp_rank + pp_i
-                rank_model[f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"] = get_weight_from_name(
-                    f"model.layers.{ori_i}.self_attn.rotary_emb.inv_freq")
-                qw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.q_proj.weight"), tp_size, tp_rank)
-                kw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.k_proj.weight"), tp_size, tp_rank)
-                vw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.v_proj.weight"), tp_size, tp_rank)
+                if args.pse:
+                    w_pack = get_weight_from_name(f"model.layers.{ori_i}.self_attn.W_pack.weight")
+                    ws = torch.split(w_pack, w_pack.shape[0] // 3)
+                    qw = row_split(ws[0], tp_size, tp_rank)
+                    kw = row_split(ws[1], tp_size, tp_rank)
+                    vw = row_split(ws[2], tp_size, tp_rank)
+                else:
+                    rank_model[f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"] = get_weight_from_name(
+                        f"model.layers.{ori_i}.self_attn.rotary_emb.inv_freq")
+                    qw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.q_proj.weight"), tp_size, tp_rank)
+                    kw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.k_proj.weight"), tp_size, tp_rank)
+                    vw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.v_proj.weight"), tp_size, tp_rank)
+
+   
                 permute_w = permute_qkv_weight(torch.cat([qw, kw, vw], dim=0), n_heads, hidden_size, tp_size)
                 rank_model[f"language_model.layers.{pp_i}.attention.query_key_value.weight"] = permute_w
 

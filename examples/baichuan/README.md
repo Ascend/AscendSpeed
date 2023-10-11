@@ -20,13 +20,24 @@
 
 ## Training
 
-Here's a quick summary of training Baichuan-7B:
+Here's a hardware summary of pre-training Baichuan-7B:
 
-|          |                                               |
-| -------- | --------------------------------------------- |
-| Hardware | 1x8 Ascend NPUs                          |
-| Software | AscendSpeed                                   |
-| Dataset  | train-00000-of-00001-a09b74b3ef9c3b56.parquet |
+| Hardware |                      Value                      |
+| :------: | :---------------------------------------------: |
+|   NPU    |               8 x Ascend NPUs                   |
+
+Here's a software summary of pre-training Baichuan-7B: 
+
+
+|         Software          |                 Version                 |link  |
+| :-----------------------: | :-------------------------------------: | :---:|
+|          Python           |                  3.7.16                 |-|
+|          driver           |               23.0.RC3.B050             |[link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261159045?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743)|
+|         firmware          |              7.0.t8.0.b214              |[link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261159045?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743)|
+|           CANN            |Ascend-cann-toolkit-7.0.T8-linux    |[link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261204647?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)|
+| binary arithmetic package |   Ascend-cann-kernels-XXX_7.0.T8_linux |[link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261204647?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)|
+|           torch           |                 1.11.0                  |[link](https://gitee.com/ascend/pytorch/releases/tag/v5.0.rc2.2-pytorch1.11.0)|
+|         torch_npu         |           1.11.0.post4-20230915         |[link](https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/Daily/v1.11.0/20230915.2/pytorch_v1.11.0_py37.tar.gz)|
 
 
 ### Script
@@ -47,7 +58,7 @@ conda create -n test python=3.7
 conda activate test
 
 # install torch and torch_npu
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
+pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
 pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
 
@@ -137,13 +148,13 @@ The performance of Baichuan-7B in **Ascend NPU** and **Reference**:
 
 #### Accuracy of the loss
 
-NPU vs GPU loss.
+NPU vs Reference loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected. The relative error of the average loss is 0.01093, less than 2%, the maximum relative error is 0.1243, and the maximum absolute error is 0.4859. The precision meets the requirements.
 
 ![NPU-LOSS](./images/7B_loss_compare.png)
 
-NPU vs GPU loss relative error.
+NPU vs Reference loss relative error.
 
 ![NPU-Relative-Error](./images/7B_relative_error.png)
 
@@ -152,16 +163,25 @@ NPU vs GPU loss relative error.
 # Baichuan-13B
 
 ## Training
-Here's a quick summary of training baichuan-13B:
 
-|          |                          |
-| :------: | :----------------------: |
-| Hardware |   1x8 Ascend NPUs   |
-| Software |       AscendSpeed        |
-| Dataset  | alpaca-data-conversation |
+Here's a hardware summary of pre-training Baichuan-13B:
+
+| Hardware |                      Value                      |
+| :------: | :---------------------------------------------: |
+|   NPU    |               8 x Ascend NPUs               |
+
+Here's a software summary of pre-training Baichuan-13B:
 
 
-
+|         Software          |                 Version                 |link  |
+| :-----------------------: | :-------------------------------------: | :---:|
+|          Python           |                  3.7.16                 |-|
+|          driver           |               23.0.RC3.B050             |[link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261159045?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743)|
+|         firmware          |              7.0.t8.0.b214              |[link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261159045?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743)|
+|           CANN            |Ascend-cann-toolkit-7.0.T8-linux    |[link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261204647?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)|
+| binary arithmetic package |   Ascend-cann-kernels-XXX_7.0.T8_linux |[link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261204647?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)|
+|           torch           |                 1.11.0                  |[link](https://gitee.com/ascend/pytorch/releases/tag/v5.0.rc2.2-pytorch1.11.0)|
+|         torch_npu         |           1.11.0.post4-20230915         |[link](https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/Daily/v1.11.0/20230915.2/pytorch_v1.11.0_py37.tar.gz)|
 
 
 
@@ -182,7 +202,7 @@ conda create -n test python=3.7
 conda activate test
 
 # install torch and torch_npu
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
+pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
 pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
 
@@ -235,17 +255,19 @@ python $SCRIPT_PATH \
     --output-model-dir ./model_weights \
     --tensor-model-parallel-size 8 \
     --pipeline-model-parallel-size 1 \
-    --type 13B 
+    --make-vocab-size-divisible-by 1 \
+    --type 13B \
+    --pse True     
 ```
 
 4. Prepare dataset
-Download the Baichuan-13B datasets from [here](https://github.com/lm-sys/FastChat/blob/v0.1.10/playground/data/alpaca-data-conversation.json) 
+Download the Baichuan-13B datasets from [here](https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet) 
 
 ```shell
   mkdir dataset_baichuan
   mkdir model_save
   cd ./dataset_baichuan
-  wget https://github.com/lm-sys/FastChat/blob/v0.1.10/playground/data/alpaca-data-conversation.json
+  wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
   cd ..
 
 ```
@@ -253,13 +275,13 @@ Download the Baichuan-13B datasets from [here](https://github.com/lm-sys/FastCha
 ```shell
 #!/bin/bash
 
-SCRIPT_PATH=./tools/preprocess_data.py
-python $SCRIPT_PATH \
-    --llama-json-data-path ./dataset_baichuan/alpaca-data-conversation.json \
-    --tokenizer-model-path ./tokenizer \
-    --output-prefix internlm_eos_text \
+python ./tools/preprocess_data.py \
+    --input ./dataset_baichuan/train-00000-of-00001-a09b74b3ef9c3b56.parquet \
+    --tokenizer-name-or-path ./tokenizer \
+    --output-prefix ./dataset_baichuan/alpaca \
     --workers 4 \
-    --log-interval 1000 
+    --log-interval 1000 \
+    --tokenizer-type PretrainedFromHF 
 ```
 
 
@@ -272,9 +294,9 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # modify script orign dataset path according to your own dataset path
 TOKENIZER_PATH=./tokenizer/  
-DATA_PATH=./dataset_baichuan/internlm_eos_text  
+DATA_PATH=./dataset_baichuan/aplaca_text_document  
 LOAD_PATH=./model_weights
-CHECKPOINT_PATH=./model_save
+CHECKPOINT_PATH=./ckpt
 ```
 
 6. Launch Baichuan-13B pre-training script: /examples/baichuan/pretrain_baichuan_ptd_13B.sh
@@ -296,23 +318,23 @@ The performance of the Baichuan-13B in **Ascend NPU** and **Reference**:
 | Device |    Model     | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
 | :----: | :----------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
 |  NPUs  | Baichuan-13B |       1000       |             1.928             |             1024             |          16.067           |                89.37                |
-|  Reference  | Baichuan-13B |       1000       |             1.535             |             785              |          20.852           |                68.39                |
+|  Reference  | Baichuan-13B |       1000       |             1.535             |             862              |          19.852           |                72.39                |
 
 
 
 #### Accuracy of the loss
 
-NPU vs GPU loss.
+NPU vs Reference loss.
 
-The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
+The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected. The relative error of the average loss is 0.00725, less than 2%, the maximum relative error is 0.01978, and the maximum absolute error is 0.10811. The precision meets the requirements.
 
-![NPU-LOSS](./images/13B_loss_compare.png)
+![NPU-LOSS](./images/13B-loss-compare.png)
 
-NPU vs GPU loss relative error.
+NPU vs Reference loss relative error.
 
-The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
+The relative error between NPU and Reference Loss is less than 0.02 throughout, as expected.
 
-![NPU-Relative-Error](./images/13B_relative_error.png)
+![NPU-Relative-Error](./images/baichuan13B-loss-relative-error.png)
 
 
 
