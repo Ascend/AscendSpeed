@@ -1,257 +1,166 @@
-# BLOOM
-
-This directory contains some of the scripts that were used to produce the results in the AscendSpeed. These scripts is to show the example how to run BLOOM in terminal.
-
-BLOOM model is from: [A 176B-Parameter Open-Access Multilingual Language Model](https://arxiv.org/abs/2211.05100)
-
-> Scao, Teven Le, et al. "Bloom: A 176b-parameter open-access multilingual language model." arXiv preprint arXiv:2211.05100 (2022).
 
 # Contents
 
-- [Contents](#contents)
-
-- [Pre-Training](#pre-training)
-  - [Datasets](#datasets)
-  
+- [Bloom-7B1](#contents)
+  - [Training](#pre-training)
   - [Script](#script)
-  
   - [Performance](#performance)
-      - [Machine performance](#machine-performance)
-      - [Accuracy of the loss](#accuracy-of-the-loss)
-  
-- [Fine-tune and Evaluation](#fine-tune-and-evaluation)
+    - [Machine performance](#machine-performance)
+    - [Accuracy of the loss](#accuracy-of-the-loss)
 
-- [Inference](#inference)
-  - [Model weights](#model-weights)
+- [Bloom-176B](#contents)
+  - [Training](#pre-training)
   - [Script](#script)
-  - [Samples](#samples)
-  
-- [Citation](#citation)
+  - [Performance](#performance)
+    - [Machine performance](#machine-performance)
+    - [Accuracy of the loss](#accuracy-of-the-loss)
+  - [Inference](#inference)
 
+# Bloom-7B1
 
-## Pre-Training
+# Bloom-176B
 
-BLOOM's architecture is very similar to GPT3 with a few added improvements as will be discussed later in this article.
+## Training
 
-Here's a quick summary of training bloom:
+BLOOM model is from: [A 176B-Parameter Open-Access Multilingual Language Model](https://arxiv.org/abs/2211.05100).
 
-|              |                         |
-| :----------: | :---------------------: |
-|   Hardware   | 96 64GB Altas 910B NPUs |
-|   Software   |       AscendSpeed       |
-| Architecture |     GPT3 w/ extras      |
-|   Dataset    |        Oscar-1GB        |
+> Scao, Teven Le, et al. "Bloom: A 176b-parameter open-access multilingual language model." arXiv preprint arXiv:2211.05100 (2022).
 
-### Datasets
+Here's a hardware summary of pre-training Bloom-176B:
 
-**OSCAR** or Open Super-large Crawled ALMAnaCH coRpus is a huge multilingual corpus obtained by language classification and filtering of the Common Crawl corpus using the goclassy architecture. The dataset used for training multilingual models such as BART incorporates 138 GB of text.The Oscar-1GB dataset was used for this Bloom-7B1 pre-training, and the data was processed into FastChat dialog format.
+| **Hardware** | **Value** |
+| ------------ | --------- |
+| NPU          | 12x8 Ascend 910B | 
 
-### Script
+Here's a software summary of pre-training Bloom-176B:
 
-1.Install AscendSpeed requirement environment.
+| **Software** | **Version**                                             | **Link**                                                                                                                                                                        |
+| ---------------------- |---------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Python                 | 3.8.0                                                   | <center>-</center>                                                                                                                                                              |
+| Driver                 | Ascend-hdk-910b-npu-driver_23.0.rc2.3_linux-aarch64.run | [link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261129105?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743) |
+| Fireware               | Ascend-hdk-910b-npu-firmware_6.4.0.3.220.run            | [link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261129105?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743) |
+| CANN                   | Ascend-cann-toolkit_6.3.RC3.1_linux-aarch64.run         | [link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261213460?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)       |
+| CANN-kernels           | Ascend-cann-kernels-910b_6.3.RC3.1_linux.run            | [link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261213460?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)       |
+| torch                  | 2.0.1                                                   | <center>-</center>                                                                                                                                                              |
+| torch_npu              | 2.0.1                                                   | [link](https://gitee.com/ascend/pytorch/releases/tag/v5.0.rc2-pytorch2.0.1)                                                                                                     |
 
-2.Download Oscar-1GB dataset:https://www.huggingface.co/bigscience/misc-test-data/resolve/main/stas/oscar-1GB.jsonl.xz
+## Script
 
-3.Config Bloom-7B1 pre-training script : AscendSpeed/examples/bloom/pretrain_bloom_7b1.sh
-
-```bash
-# add HCCL_OP_BASE_FFTS_MODE_ENABLE
-export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
-
-# modify the script according to your own conda and ascend-toolkit path
-export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH # line 3
-source /usr/local/Ascend/ascend-toolkit/set_env.sh # line 5
-
-# modify script orign dataset path according to your own dataset path
-TOKENIZER_NAME_OR_PATH=./dataset/bloom_vocab/vocab_file/ # line 34
-DATA_PATH=./dataset/oscar_data_1g/my-gpt2_text_document # line 35
-
-# Bloom-7B1 configuration parameters are consistent with the original script configuration
-# PP=1, TP=8, micro_bs=4
-MICRO_BATCH_SIZE=4 # micro_bs in Line 19
---tensor-model-parallel-size 8 # TP in Line 77
---pipeline-model-parallel-size 1 # PP in Line 78
-
-# DeepSpeed config in Line 40 ~ Line59
-cat <<EOT > $config_json
-{
-  "train_micro_batch_size_per_gpu": $MICRO_BATCH_SIZE,
-  "train_batch_size": $GLOBAL_BATCH_SIZE,
-  "gradient_clipping": 1.0,
-  "zero_optimization": {
-    "stage": $ZERO_STAGE
-  },
-  "fp16": {
-    "enabled": true,
-    "loss_scale": 0,
-    "loss_scale_window": 500,
-    "hysteresis": 2,
-    "min_loss_scale": 1,
-    "initial_scale_power": 12
-  },
-  "steps_per_print": 2000,
-  "wall_clock_breakdown": false
-}
-EOT
-
-```
-
-4.Launch Bloom-7B1 pre-training script : AscendSpeed/examples/bloom/pretrain_bloom_7b1.sh
-
-```bash
-bash examples/bloom/pretrain_bloom_7b1.sh
-```
-
-There is an hourly pulse checking script running that checks that the training is either running or scheduled.
-
-The Training log will look like these:
-
-```Shell
-TODO
-```
-
-### Performance
-
-#### Machine performance
-
-The performance of the NPUs in **Ascend910 B1 64GB** and GPUs is **A100**:
-
-|  Device  |   Model   | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
-| :------: | :-------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
-|   GPUs   | Bloom-7B1 |       995        |             1.23              |           2540.23            |           19.44           |                5.68                 |
-|   NPUs   | Bloom-7B1 |       995        |             1.26              |           2588.03            |           19.07           |                5.91                 |
-
-Notes: 
-
-- Bloom-7B1 model trained on oscar-1GB on a single machine with 8 NPUs
-
-Here's a hardware summary of pre-training Bloom-7B:
-
-| Hardware |                      Value                      |
-| :------: | :---------------------------------------------: |
-|   CPU    | 4xKunPeng920@3.0GHz，64 Core Pre Socket 256CPUS |
-|   RAM    |                  32x32 GB DDR4                  |
-|   NPU    |               8 x Ascend910B1 64G               |
-
-Here's a software summary of pre-training Bloom-7B:
-
-|         Software          |                 Version                 |
-| :-----------------------: | :-------------------------------------: |
-|            OS             |       Euler OS release 2.0(SP10)        |
-|           uname           |                 aarch64                 |
-|          Python           |                  3.7.5                  |
-|          driver           |              23.0.RC2.b130              |
-|         firmware          |              23.0.RC2.b130              |
-|           CANN            |                 6.3.RC2                 |
-| binary arithmetic package | Ascend-ccann-kernels-910b_6.3.RC2_linux |
-|           torch           |                 1.11.0                  |
-|         torch_npu         |           1.11.0.dev20230713            |
-|         deepspeed         |                  0.9.2                  |
-|       deepspeed-npu       |                   0.1                   |
-|       transformers        |                 4.30.2                  |
-|        Ascendspeed        |                2023-7-21                |
-
-
-
-#### Accuracy of the loss
-
-NPU vs GPU loss.
-
-The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
-
-![NPU-LOSS](./images/7b_lm_loss.png)
-
-NPU vs GPU loss relative error.
-
-The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
-
-![NPU-Relative-Error](./images/relative_error.png)
-
-## Fine-tune and Evaluation
-
-TODO：提供微调的方式，先加载权重，再微调脚本，跟预训练格式一样；后面需要提供task的验证结果（待开发）。
-
-## Inference
-
-We support AscendSpeed Inference for text generation with BLOOM 7B1.
-
-### Model weights
-
-We provide scripts that support converting pretrained weights into weights that AscendSpeed can load and used for inference. Download the BLOOM-176B checkpoint from [here](https://huggingface.co/bigscience/bloom/tree/main), make sure all chunks are downloaded completely, then use the following command to convert them into checkpoints that AscendSpeed can load. `--partition-layers` specifies the partitioning strategy under the pipeline parallel strategy, you can also modify it to a different strategy, but the sum of all elements of `--partition layers` should be equal to 70 and the number of elements in `--partition-layers` should be equal to `--pipeline-model-parallel-size`.
+1. Clone the repository to your local server
 
 ```shell
-#!/bin/bash
-
-SCRIPT_PATH=./tasks/ckpt_convert/bloom/convert_weights_from_huggingface.py
-python $SCRIPT_PATH \
-    --input-model-dir "your huggingface checkpoint path" \
-    --output-model-dir "your ascendspeed checkpoint path" \
-    --tensor-model-parallel-size 8 \
-    --pipeline-model-parallel-size 12 \
-    --type 176B \
-    --deepspeed \
-    --partition-layers 6,6,6,6,6,6,6,6,6,6,6,4
+git clone https://gitee.com/ascend/AscendSpeed.git
+cd AscendSpeed
 ```
 
-Download the BLOOM model checkpoint from [here](TODO: XXXXX), make sure all chunks are downloaded completely, then use the following command to merge them into a single archive file and extract it:
-
-```bash
-cat bloom-7b1.tar.part_* > gbloom-7b1.tar
-tar xvf bloom-7b1.tar
-```
-
-Set `CHECKPOINT_PATH` in `/generate_bloom.sh` to the path of the extracted folder. Since the checkpoint file is large, it is recommended to use the SSD or RAM disk to reduce the checkpoint loading time. Since the checkpoint we distribute is in 8-way tensor parallel, a conversion scripts is also provided if you need to change the tensor parallel dimension.
-
-```bash
-TODO: add convert_tp tools.
-
-python tools/convert_tp.py \
-    --input-folder <SRC_CKPT_PATH>  \
-    --output-folder <DST_CKPT_PATH> \
-    --target-tp <TARGET_TP>
-```
-
-### Script
-
-We generate text samples using the `generate_bloom` script. Inference different from pre-training, such as we need to Load pre training checkpoint and the length of the output samples:
+2. Build enviroment
 
 ```shell
-bash ./generate_bloom_7b1.sh
+# python3.8
+conda create -n bloom176b python=3.8
+conda activate bloom176b
+
+# install torch and torch_npu and apex
+pip install torch-2.0.1-cp38-cp38-manylinux2014_aarch64.whl
+pip install torch_npu-2.0.1rc1.postxxxxxxxx-cp38-cp38-linux_aarch64.whl
+pip install apex-0.1_ascend_xxxxxxxx-cp38-cp38-linux_aarch64.whl
+
+# install megatron-core
+pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
+
+# install deepspeed and deepspeed_npu
+pip install deepspeed==0.9.2
+git clone https://gitee.com/ascend/DeepSpeed.git -b v0.9.2 deepspeed_npu
+cd deepspeed_npu
+pip3 install -e ./
+cd ..
+
+# install other packages
+pip install -r requirements.txt
 ```
 
-Alternatively you can also use DeepSpeed from source:
+3. Prepare pretrained weights
 
-```Shell
-TODO: XXXX
+Download the Bloom-176B tokensizer from [here](https://huggingface.co/bigscience/bloom/tree/main).
+
+```shell
+mkdir tokenizer
+cd tokenizer
+wget https://huggingface.co/bigscience/bloom/resolve/main/special_tokens_map.json
+wget https://huggingface.co/bigscience/bloom/resolve/main/tokenizer.json
+wget https://huggingface.co/bigscience/bloom/resolve/main/tokenizer_config.json
+cd ..
 ```
 
-### Samples
+4. Prepare dataset
 
-<details>
-<summary><b>Left-To-Right Generation Examples</b></summary>
+Download the Bloom-176B datasets from [here](https://huggingface.co/datasets/teven/enwiki_100k). The downloaded dataset is in the parquet format by default.
+You need to convert the dataset to the loose json format and preprocess the dataset.
 
-#### Example 1
-Input: Who is the greatest artist? The greatest artist is ?
+```shell
+# download datasets
+mkdir enwiki_100k_datasets
+cd enwiki_100k_datasets
+wget https://huggingface.co/datasets/teven/enwiki_100k/resolve/main/data/train-00000-of-00006-67bcc7d401923db0.parquet
+wget https://huggingface.co/datasets/teven/enwiki_100k/resolve/main/data/train-00001-of-00006-6b8562cbb05789a4.parquet
+wget https://huggingface.co/datasets/teven/enwiki_100k/resolve/main/data/train-00002-of-00006-62d2b426a93b0912.parquet
+wget https://huggingface.co/datasets/teven/enwiki_100k/resolve/main/data/train-00003-of-00006-36c3d6da04c724b6.parquet
+wget https://huggingface.co/datasets/teven/enwiki_100k/resolve/main/data/train-00004-of-00006-48bdf99256dcfa5d.parquet
+wget https://huggingface.co/datasets/teven/enwiki_100k/resolve/main/data/train-00005-of-00006-bcb3b3af8d7a4140.parquet
+cd ..
 
-Output: TODO: XXXX.
+# preprocess datasets
+python ./tools/preprocess_data.py \
+  --input ./enwiki_100k_datasets/ \
+  --tokenizer-name-or-path ./tokenizer \
+  --output-prefix ./enwiki_100k_datasets/enwiki-100k \
+  --worker 4 \
+  --log-interval 1000 \
+  --tokenizer-type PretrainedFromHF
+```
 
-#### Example 2 (Chinese)
-Input: 问题：冬天，中国哪座城市最适合避寒？问题描述：能推荐一些国内适合冬天避寒的城市吗？回答用户：旅游爱好者 回答：?
+5. Config Bloom-176B pre-training script: examples/bloom/pretrain_bloom_176b.sh
 
-Output: 问题: XXXX.
-</details>
+```shell
+# modify MASTER_ADDR to the IP address of the master node in the cluster.
+# the master node is localhost, and the other nodes are the IP address of the master node, for example, 90.90.2.166
+MASTER_ADDR=localhost
 
-All the provided scripts are tested on 8 910B 64GB GPUs for BLOOM 7B1 (fp16). These scripts might not work for other models or a different number of NPUs.
+# modify the rank number of a node. The rank number of the master node is 0, and the rank number of other nodes increases in ascending order.
+NODE_RANK=0
 
-> Note: Sometimes NPUs memory is not freed when inference deployment crashes. You can free this memory by running kill all python in terminal.
+# modify the datasets path and tokenizer path
+TOKENIZER_NAME_OR_PATH=/home/bloom_data/vocab_file/
+DATA_PATH=/home/bloom_data/enwiki_100k/enwiki-100k_text_document
+```
 
-## Citation
+6. Launch Bloom-176B pre-training script: examples/bloom/pretrain_bloom_176b.sh
 
-You may also consider original work in your reference:
+Run the examples/bloom/pretrain_bloom_176b.sh on all nodes in the cluster.
 
-@article{scao2022bloom,
-  title={Bloom: A 176b-parameter open-access multilingual language model},
-  author={Scao, Teven Le and Fan, Angela and Akiki, Christopher and Pavlick, Ellie and Ili{\'c}, Suzana and Hesslow, Daniel and Castagn{\'e}, Roman and Luccioni, Alexandra Sasha and Yvon, Fran{\c{c}}ois and Gall{\'e}, Matthias and others},
-  journal={arXiv preprint arXiv:2211.05100},
-  year={2022}
-}
+```shell
+bash examples/bloom/pretrain_bloom_176b.sh
+```
+
+## Performance
+
+### Machine Performance
+
+The performance of Bloom-176B in **Ascend NPU** and **Reference**:
+
+| Devices | Model | total iterations | throughput rate (tokens/s/p) |
+| ------- | ----- |-----------------| ---------------------------- |
+| NPUs    | Bloom-176B | 1000            | 100                          |
+| Reference | Bloom-176B | NA              | 107                          |
+
+### Accuracy of the loss
+
+NPU vs GPU loss. The loss curves of GPUs and NPUs basically coincide.
+
+![bloom176b_lm_loss_compare](./images/bloom176b_lm_loss_compare.PNG)
+
+We reduce the number of layers of the model to six, the following figure shows the loss comparsion between the NPU 
+and GPU on a single-node system. The average relative error is 0.1%, less than 2%, and the proportion of relative error less than 2% reaches 99.9%. The average absolute error is 0.04. The precision meets the requirements.
+
+![bloom176b_1node_lm_loss_compare](./images/bloom176b_lm_loss_1node_compare.PNG)
+

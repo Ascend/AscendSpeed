@@ -29,6 +29,7 @@ from ascendspeed import get_adlr_autoresume
 from ascendspeed import get_args
 from ascendspeed import get_tensorboard_writer
 from ascendspeed import mpu
+from ascendspeed.utils import is_rank_0
 from ascendspeed.core import parallel_state
 from ascendspeed.global_vars import set_global_variables
 from ascendspeed.core.parallel_state import (set_tensor_model_parallel_rank,
@@ -97,7 +98,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
 
 def _compile_dependencies():
-    if torch.distributed.get_rank() == 0:
+    if is_rank_0():
         start_time = time.time()
         print('> compiling dataset index builder ...')
         from megatron.data.dataset_utils import compile_helper
