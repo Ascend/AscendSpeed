@@ -32,6 +32,7 @@ if get_accelerator().device_name() == 'cuda':
 from ascendspeed.core import parallel_state
 from ascendspeed.model.module import param_is_not_shared
 from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
+from ascendspeed.error_utils import check_equal
 
 
 def clip_grad_norm_fp32(parameters, grads_for_norm,
@@ -68,7 +69,7 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
     grads = []
     for param in parameters:
         if param.grad is not None:
-            assert param.grad.type() == 'torch.npu.FloatTensor'
+            check_equal(param.grad.type(), 'torch.npu.FloatTensor')
             grads.append(param.grad.detach())
 
     # Norm parameters.

@@ -8,15 +8,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers.pytorch_utils import Conv1D
 import peft
-
-assert peft.__version__ == "0.4.0"
-
 from peft import LoraModel as PeftLoraModel
 from peft.tuners.lora import LoraLayer, Embedding, Conv2d, Linear
 from peft.import_utils import is_bnb_4bit_available, is_bnb_available
 from peft.utils import transpose, _get_submodules, ModulesToSaveWrapper
 
 from ascendspeed.mpu import RowParallelLinear, ColumnParallelLinear
+from ascendspeed.error_utils import check_equal
+
+check_equal(peft.__version__, "0.4.0")
 
 if is_bnb_available():
     import bitsandbytes as bnb

@@ -20,6 +20,7 @@ import torch
 import random
 from ascendspeed import get_args
 from ascendspeed.core import parallel_state
+from ascendspeed.error_utils import check_divisible
 
 
 def build_pretraining_data_loader(dataset, consumed_samples):
@@ -144,7 +145,7 @@ class MegatronPretrainingRandomSampler:
         active_total_samples = self.total_samples - self.last_batch_size
         self.epoch = self.consumed_samples // active_total_samples
         current_epoch_samples = self.consumed_samples % active_total_samples
-        assert current_epoch_samples % self.micro_batch_times_data_parallel_size == 0
+        check_divisible(current_epoch_samples, self.micro_batch_times_data_parallel_size)
 
         # data sharding and random sampling
         bucket_size = (self.total_samples // self.micro_batch_times_data_parallel_size) \

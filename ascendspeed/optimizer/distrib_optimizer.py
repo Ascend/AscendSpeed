@@ -7,7 +7,8 @@ import torch
 
 from ascendspeed import print_rank_0
 from ascendspeed import mpu
-from functools import reduce
+from ascendspeed.error_utils import check_divisible
+from ascendspeed.error_utils import check_equal
 
 from .optimizer import MixedPrecisionOptimizer, _zero_grad_group_helper
 
@@ -506,7 +507,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         view_items = []
         for model_index, buffers in enumerate(model_buffers):
             for dtype, buf in buffers.items():
-                assert buf.numel() % data_parallel_world_size == 0
+                check_divisible(buf.numel(), data_parallel_world_size)
                 shard_size = int(buf.numel() / data_parallel_world_size)
                 buf_views = [buf[(r * shard_size):((r + 1) * shard_size)]
                              for r in range(data_parallel_world_size)]
@@ -652,7 +653,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                                                          shard_main_group):
                     param_range_map = self.get_model_param_range_map(model_param)
                     param_range = param_range_map["param"]
-                    assert param_range.size == shard_main_param.nelement()
+                    check_equal(param_range.size, shard_main_param.nelement())
 
                     model_grad = model_param.main_grad
                     shard_model_grad = model_grad.view(-1) \
@@ -683,7 +684,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                     param_range_map = self.get_model_param_range_map(model_param)
                     world_range = param_range_map["gbuf_world"]
 
-                    assert world_range.size == shard_main_param.nelement()
+                    check_equal(world_range.size, shard_main_param.nelement())
 
                     model_id, dtype = self.model_param_gbuf_map[model_param]
                     model_param_buffer = self.param_buffers[model_id][dtype]
@@ -717,7 +718,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
 
                     param_range_map = self.get_model_param_range_map(model_param)
                     param_range = param_range_map["param"]
-                    assert param_range.size == shard_main_param.nelement()
+                    check_equal(param_range.size, shard_main_param.nelement())
 
                     shard_model_param = model_param.view(-1)[param_range.start: param_range.end]
                     shard_main_param.data.copy_(shard_model_param)

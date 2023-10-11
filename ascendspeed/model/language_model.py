@@ -27,6 +27,9 @@ from ascendspeed.model.utils import get_linear_layer
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal
 from ascendspeed.mpu.mappings import gather_from_sequence_parallel_region
 from ascendspeed.mpu.mappings import scatter_to_sequence_parallel_region
+from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import ensure_var_is_none
+from ascendspeed.error_utils import ensure_var_is_not_none
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
@@ -160,7 +163,7 @@ class Embedding(MegatronModule):
         self.position_embedding_type = args.position_embedding_type
         if self.position_embedding_type == PositionEmbeddingType.absolute:
             max_position_embeddings = args.max_position_embeddings
-            assert max_position_embeddings is not None
+            ensure_var_is_not_none(max_position_embeddings)
             self.position_embeddings = torch.nn.Embedding(
                 max_position_embeddings, self.hidden_size)
             self._position_embeddings_key = 'position_embeddings'
@@ -208,16 +211,16 @@ class Embedding(MegatronModule):
         embeddings = words_embeddings
 
         if self.position_embedding_type == PositionEmbeddingType.absolute:
-            assert self.position_embeddings is not None
+            ensure_var_is_not_none(self.position_embeddings)
             embeddings = embeddings + self.position_embeddings(position_ids)
         else:
-            assert self.position_embeddings is None
+            ensure_var_is_none(self.position_embeddings)
 
         if tokentype_ids is not None:
-            assert self.tokentype_embeddings is not None
+            ensure_var_is_not_none(self.tokentype_embeddings)
             embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
         else:
-            assert self.tokentype_embeddings is None
+            ensure_var_is_none(self.tokentype_embeddings)
 
         if self.sequence_parallel:
             embeddings = embeddings.transpose(0, 1).contiguous()
@@ -387,8 +390,8 @@ class TransformerLanguageModel(MegatronModule):
 
         # Decoder
         if self.add_decoder:
-            assert args.pipeline_model_parallel_size == 1, \
-                'pipeline parallelism is not supported in the presence of decoder'
+            error_info = 'pipeline parallelism is not supported in the presence of decoder'
+            check_equal(args.pipeline_model_parallel_size, 1, error_info)
             self.decoder = ParallelTransformer(
                 self.init_method,
                 output_layer_init_method,

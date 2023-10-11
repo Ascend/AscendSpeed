@@ -20,6 +20,8 @@ from abc import abstractmethod
 from transformers import AutoTokenizer, GPT2Tokenizer
 from transformers import BertTokenizer as FullBertTokenizer
 
+from ascendspeed.error_utils import ensure_var_is_not_none
+
 
 def build_tokenizer(args):
     """Initialize tokenizer."""
@@ -38,10 +40,10 @@ def build_tokenizer(args):
                                             lower_case=False,
                                             vocab_extra_ids=args.vocab_extra_ids)
     elif args.tokenizer_type == 'GPT2BPETokenizer':
-        assert args.merge_file is not None
+        ensure_var_is_not_none(args.merge_file)
         tokenizer = _GPT2BPETokenizer(args.vocab_file, args.merge_file)
     elif args.tokenizer_type == "PretrainedFromHF":
-        assert args.tokenizer_name_or_path is not None
+        ensure_var_is_not_none(args.tokenizer_name_or_path)
 
         # prevent transformers from logging info and warnings on each rank
         import transformers

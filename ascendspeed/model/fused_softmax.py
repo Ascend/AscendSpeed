@@ -17,6 +17,7 @@ import torch
 import torch_npu
 import torch.nn as nn
 from ascendspeed.core.enums import AttnMaskType
+from ascendspeed.error_utils import check_equal
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
@@ -126,7 +127,7 @@ class NPUFusedScaleMaskSoftmax(nn.Module):
 
     def forward(self, input_, mask):
         # [b, np, sq, sk]
-        assert input_.dim() == 4
+        check_equal(input_.dim(), 4)
 
         if self.is_kernel_available(mask, *input_.size()):
             return self.npu_forward_fused_softmax(input_, mask)

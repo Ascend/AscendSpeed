@@ -31,6 +31,7 @@ from ascendspeed.utils import unwrap_model
 from ascendspeed.model import Float16Module, DistributedDataParallel as LocalDDP
 from deepspeed.accelerator import get_accelerator
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
+from ascendspeed.error_utils import check_equal
 from .clip_grads import clip_grad_norm_fp32, count_zeros_fp32
 
 
@@ -242,8 +243,8 @@ class MegatronOptimizer(ABC):
             unwrapped_model = self.models[0]
             unwrapped_model = unwrap_model(
                 unwrapped_model, self.unwrap_model_classes)
-            assert args.DDP_impl == 'local', \
-                'T5 model is only supported with local DDP mode'
+            error_info = 'T5 model is only supported with local DDP mode'
+            check_equal(args.DDP_impl, 'local', error_info)
             grad = unwrapped_model.language_model.embedding.position_embeddings.weight.main_grad
             torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
 

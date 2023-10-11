@@ -38,6 +38,7 @@ from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
 from ascendspeed.arguments import core_transformer_config_from_args
+from ascendspeed.error_utils import check_equal, ensure_var_is_not_none
 
 import deepspeed
 from deepspeed.runtime.utils import see_memory_usage
@@ -227,16 +228,16 @@ def calculate_mos_loss(args, stu_output, teacher_model, tokens, position_ids, at
     if teacher_model:
         with torch.no_grad():
             if args.curriculum_learning_legacy and args.curriculum_seqlen < args.seq_length:
-                assert args.curriculum_seqlen is not None
+                ensure_var_is_not_none(args.curriculum_seqlen)
                 curriculum_seqlen = args.curriculum_seqlen
                 tokens = tokens[:, :curriculum_seqlen].contiguous()
                 position_ids = position_ids[:, :curriculum_seqlen].contiguous()
                 attention_mask = attention_mask[:, :, :curriculum_seqlen, :curriculum_seqlen].contiguous()
                 # No need to truncate labels as we do not need it for the teacher logits
             tea_output, *tea_other_losses = teacher_model(tokens, position_ids, attention_mask)
-            assert stu_output.size() == tea_output.size(), \
-                'teacher and student output should match in size. Student: {}, Teacher: {}, CL seq length {}'.format(
-                    stu_output.size(), tea_output.size(), args.curriculum_seqlen)
+            error_info = 'teacher and student output should match in size. Student: {}, Teacher: {}, CL seq length {}'.format(
+                            stu_output.size(), tea_output.size(), args.curriculum_seqlen)
+            check_equal(stu_output.size(), tea_output.size(), error_info)
 
         student_logits = F.log_softmax(stu_output / kd_temp, dim=2)
         tea_logits = F.softmax(tea_output / kd_temp,
@@ -271,7 +272,7 @@ def forward_step(data_iterator, model):
         # The forward func can return either the loss or the logits, depending on whether passing in the labels or not.
         stu_output, *other_losses = model(tokens, position_ids, attention_mask)
         if args.curriculum_learning_legacy and args.curriculum_seqlen < args.seq_length:
-            assert args.curriculum_seqlen is not None
+            ensure_var_is_not_none(args.curriculum_seqlen)
             labels = labels[:, :args.curriculum_seqlen].contiguous()
         output_tensor = tensor_parallel.vocab_parallel_cross_entropy(stu_output.contiguous().float(), labels)
     else:
