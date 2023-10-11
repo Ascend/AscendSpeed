@@ -21,6 +21,7 @@ import numpy as np
 import torch
 
 from ascendspeed import print_rank_0
+from ascendspeed.error_utils import check_equal
 
 
 class BlendableDataset(torch.utils.data.Dataset):
@@ -30,7 +31,7 @@ class BlendableDataset(torch.utils.data.Dataset):
 
         self.datasets = datasets
         num_datasets = len(datasets)
-        assert num_datasets == len(weights)
+        check_equal(num_datasets, len(weights))
 
         self.size = 0
         for dataset in self.datasets:

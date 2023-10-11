@@ -24,6 +24,7 @@ from ascendspeed.model import LayerNorm
 from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm
 from ascendspeed.model.module import float16_to_fp32
 from ascendspeed.core.enums import AttnMaskType
+from ascendspeed.error_utils import check_equal
 
 from .language_model import parallel_lm_logits
 from .language_model import get_language_model
@@ -58,7 +59,7 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         return output
     else:
         if fp16_lm_cross_entropy:
-            assert output.dtype == torch.half
+            check_equal(output.dtype, torch.half)
             loss = tensor_parallel.vocab_parallel_cross_entropy(output, labels)
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)

@@ -19,11 +19,10 @@ import math
 
 import torch
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
-
-from ascendspeed import get_args
-from .module import MegatronModule
 from deepspeed.accelerator import get_accelerator
+from .module import MegatronModule
 from ascendspeed.core import parallel_state
+from ascendspeed.error_utils import ensure_var_is_not_none
 
 
 class MemoryBuffer:
@@ -201,7 +200,8 @@ class DistributedDataParallel(DistributedDataParallelBase):
     def zero_grad_buffer(self):
         """Set the grad buffer data to zero. Needs to be called at the
         begining of each iteration."""
-        assert self._grad_buffers is not None, 'buffers are not initialized.'
+        error_message = 'buffers are not initialized.'
+        ensure_var_is_not_none(self._grad_buffers, error_message)
         for _, buffer_ in self._grad_buffers.items():
             buffer_.zero()
 
