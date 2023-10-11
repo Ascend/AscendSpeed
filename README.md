@@ -8,8 +8,8 @@ AscendSpeed provides end-to-end test scripts for large language models on [Ascen
 ### Prepared Models
 Currently, the pre-training of the following models has been supported: 
 
-* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[7B/13B](examples/baichuan/README.md)
-* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[7B1/176B](examples/bloom/README.md)
+* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[[README: 7B/13B]](examples/baichuan/README.md)
+* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[README: 7B1/176B]](examples/bloom/README.md)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-7B
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-7B/13B/65B
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-7B
@@ -188,10 +188,15 @@ conda create -n test python=3.7
 conda activate test
 
 # install torch and torch_npu
+# ARM
+wget https://download.pytorch.org/whl/torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
+wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2.2-pytorch1.11.0/torch_npu-1.11.0.post3-cp37-cp37m-linux_aarch64.whl
+# X86
 pip install torch==1.11 -i https://pypi.tuna.tsinghua.edu.cn/simple
-wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2-pytorch1.11.0/torch_npu-1.11.0.post1-cp37-cp37m-linux_aarch64.whl (ARM)
-or wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2-pytorch1.11.0/torch_npu-1.11.0.post1-cp37-cp37m-linux_x86_64.whl (X86)
-pip install torch_npu-1.11.0.post1-cp37-cp37m-linux_XXXXXX.whl
+wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2.2-pytorch1.11.0/torch_npu-1.11.0.post3-cp37-cp37m-linux_x86_64.whl
+
+pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl (ARM)
+pip install torch_npu-1.11.0.post3-cp37-cp37m-linux_XXXXXX.whl
 
 # install megatron-core
 pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -207,13 +212,11 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 
-3. Prepare dataset:
+3. Prepare dataset (download tokenizer configs from [here](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main)):
 ```bash
 # for llama, download alpaca dataset, like
-wget http://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json
+wget https://raw.githubusercontent.com/tatsu-lab/stanford_alpaca/main/alpaca_data.json
 
-# download tokenizer configs and (selective) weights from 
-# https://huggingface.co/decapoda-research/llama-7b-hf/tree/main
 # revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
 mkdir dataset
 python tools/preprocess_data.py --input alpaca_data.json \
@@ -224,7 +227,7 @@ python tools/preprocess_data.py --input alpaca_data.json \
                                 --handler-name GeneralInstructionHandler
 ```
 
-4. (Selective) Prepare pretrained weights
+4. (Selective) Prepare pretrained weights (download weights from [here](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main)):
 ```bash
 python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir ../llama-7b-hf \
                                                                     --output-model-dir ckpt \
