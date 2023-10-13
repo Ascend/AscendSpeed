@@ -25,12 +25,12 @@ from ascendspeed.error_utils import check_divisible, check_equal
 logging.basicConfig(level=logging.NOTSET)
 
 
-def make_ascendspeed_model_dirs(output_model_dir):
+def make_ascendspeed_model_dirs(output_model_dir, filename="latest_checkpointed_iteration.txt"):
     if not os.path.exists(output_model_dir):
         os.makedirs(output_model_dir)
     flags = os.O_RDWR | os.O_CREAT
     modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IWGRP | stat.S_IRGRP
-    with os.fdopen(os.open(os.path.join(output_model_dir, "latest_checkpointed_iteration.txt"), flags, modes),
+    with os.fdopen(os.open(os.path.join(output_model_dir, filename), flags, modes),
                    'w') as fout:
         fout.write("release\n")
 
@@ -82,6 +82,20 @@ def permute_qkv_weight(w, n_head, hidden_size, tp, split=False):
     else:
         return w.reshape(np, 3, hn, w.shape[1]).contiguous().permute(1, 0, 2, 3).reshape(w_s0,
                                                                                          w_s1).contiguous().clone()
+
+
+def permute_qkv_bias(bias, n_head, hidden_size, tp, split=False):
+    """ adapt for ascendspeed llama qkv layer """
+    check_divisible(n_head, tp)
+    check_divisible(hidden_size, n_head)
+    np = n_head // tp
+    hn = hidden_size // n_head
+    bias_shape = bias.shape[0]
+    check_equal(bias_shape, np * hn * 3)
+    if not split:
+        return bias.reshape(3, np, hn).contiguous().permute(1, 0, 2).reshape(bias_shape).contiguous().clone()
+    else:
+        return bias.reshape(np, 3, hn).contiguous().permute(1, 0, 2).reshape(bias_shape).contiguous().clone()
 
 
 def print_model(model):

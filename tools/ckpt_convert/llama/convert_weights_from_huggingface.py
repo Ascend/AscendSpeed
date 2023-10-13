@@ -25,7 +25,7 @@ import torch
 from ckpt_utils import column_split
 from ckpt_utils import make_ascendspeed_model_dirs
 from ckpt_utils import pad_embed
-from ckpt_utils import permute_qkv_weight
+from ckpt_utils import permute_qkv_weight, permute_qkv_bias
 from ckpt_utils import print_model
 from ckpt_utils import row_split
 from ckpt_utils import save_ascendspeed_model
@@ -46,6 +46,9 @@ def get_args():
                         help="degree of pipeline model parallel")
     parser.add_argument("--added-token-num", type=int, default=0, help="the number of added tokens")
     parser.add_argument("--type", type=str, choices=["7B", "13B", "30B", "65B"], default="7B")
+    parser.add_argument("--bias", action="store_true", default=False)
+    parser.add_argument("--deepspeed", action="store_true", default=False)
+
     parser.add_argument("--pse", type=bool, default=False)
     return parser.parse_args()
 
@@ -129,6 +132,18 @@ def generate_ascendspeed_weights_again(config):
                 rank_model[f"language_model.layers.{pp_i}.attention.dense.weight"] = column_split(
                     get_weight_from_name(f"model.layers.{ori_i}.self_attn.o_proj.weight"), tp_size, tp_rank)
 
+                if args.bias:
+                    qwb = row_split(get_weight_from_name(
+                        f"model.layers.{ori_i}.self_attn.q_proj.bias"), tp_size, tp_rank)
+                    kwb = row_split(get_weight_from_name(
+                        f"model.layers.{ori_i}.self_attn.k_proj.bias"), tp_size, tp_rank)
+                    vwb = row_split(get_weight_from_name(
+                        f"model.layers.{ori_i}.self_attn.v_proj.bias"), tp_size, tp_rank)
+                    permute_bias = permute_qkv_bias(torch.cat([qwb, kwb, vwb], dim=0), n_heads, hidden_size, tp_size)
+                    rank_model[f"language_model.layers.{pp_i}.attention.query_key_value.bias"] = permute_bias
+                    rank_model[f"language_model.layers.{pp_i}.attention.dense.bias"] = \
+                        get_weight_from_name(f"model.layers.{ori_i}.self_attn.o_proj.bias")
+                    
                 rank_model[f"language_model.layers.{pp_i}.mlp.gate_proj.weight"] = row_split(
                     get_weight_from_name(f"model.layers.{ori_i}.mlp.gate_proj.weight"), tp_size, tp_rank)
                 rank_model[f"language_model.layers.{pp_i}.mlp.up_proj.weight"] = row_split(
@@ -142,10 +157,16 @@ def generate_ascendspeed_weights_again(config):
                     f"model.layers.{ori_i}.post_attention_layernorm.weight").clone()
             if tp_rank == 0 and pp_rank == 0:
                 print_model(rank_model)
-
-            save_ascendspeed_model_config = SaveAscendspeedModelConfig(model_dic, rank_model, pp_size,
+            if not args.deepspeed:
+                save_ascendspeed_model_config = SaveAscendspeedModelConfig(model_dic, rank_model, pp_size,
                                                                        tp_rank, pp_rank, release_model_dir)
-            save_ascendspeed_model(save_ascendspeed_model_config)
+                save_ascendspeed_model(save_ascendspeed_model_config)
+            else:
+                model_dic['module'] = rank_model
+                model_dic['dp_world_size'] = 0
+                model_dir = release_model_dir
+                os.makedirs(model_dir, exist_ok=True)
+                torch.save(model_dic, os.path.join(model_dir, f"{'mp_rank_{:02d}'.format(tp_rank)}_model_states.pt"))
     logging.info("=" * 100)
     logging.info("llama %s weight has been converted to ascendspeed format"
                  " which stored in %s", str(model_type), str(output_model_dir))
@@ -153,7 +174,10 @@ def generate_ascendspeed_weights_again(config):
 
 
 if __name__ == '__main__':
-    make_ascendspeed_model_dirs(args.output_model_dir)
+    if args.deepspeed:  
+        make_ascendspeed_model_dirs(args.output_model_dir, filename="latest")
+    else:
+        make_ascendspeed_model_dirs(args.output_model_dir)
     generate_ascendspeed_weights_again_config = GenAscendWeightsAgaConfig(args.tensor_model_parallel_size,
                                                                           args.pipeline_model_parallel_size, args.type,
                                                                           args.output_model_dir,

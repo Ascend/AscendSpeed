@@ -24,6 +24,7 @@ import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
 from ascendspeed.enums import PositionEmbeddingType
+from ascendspeed.utils import WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
 
 
 from ascendspeed import (get_args,
@@ -222,7 +223,7 @@ def save_checkpoint_post_process(iteration):
     # And update the latest iteration
     if is_rank_0():
         tracker_filename = get_checkpoint_tracker_filename(args.save)
-        with open(tracker_filename, 'w') as f:
+        with os.fdopen(os.open(tracker_filename, WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES), 'w') as f:
             f.write(str(iteration))
 
     # Wait so everyone is done (not necessary)

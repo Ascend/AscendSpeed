@@ -14,8 +14,8 @@
 # limitations under the License.
 
 """General utilities."""
-
 import os
+import stat
 import sys
 
 import torch
@@ -33,6 +33,10 @@ from ascendspeed.model.module import param_is_not_shared
 from ascendspeed.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from ascendspeed import get_num_microbatches
 from deepspeed.accelerator import get_accelerator
+
+
+WRITE_FILE_DEFAULT_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+WRITE_FILE_DEFAULT_MODES = stat.S_IWUSR | stat.S_IRUSR
 
 
 def print_rank_0(message):
