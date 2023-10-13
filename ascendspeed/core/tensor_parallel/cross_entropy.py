@@ -22,14 +22,13 @@ from ascendspeed.core.parallel_state import (
     get_tensor_model_parallel_world_size
 )
 
-from .utils import VocabUtility
+from ascendspeed.core.tensor_parallel.utils import VocabUtility
 
 
 class _VocabParallelCrossEntropy(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, vocab_parallel_logits, target, label_smoothing=0.0):
-
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
         torch.distributed.all_reduce(logits_max,
@@ -37,7 +36,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
                                      group=get_tensor_model_parallel_group())
 
         # Subtract the maximum value.
-        vocab_parallel_logits.sub_(logits_max.unsqueeze(dim=-1))
+        vocab_parallel_logits = vocab_parallel_logits - logits_max.unsqueeze(dim=-1)
 
         # Get the partition's vocab indecies
         get_vocab_range = VocabUtility.vocab_range_from_per_partition_vocab_size
@@ -101,6 +100,8 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
             loss = (1.0 - smoothing) * loss - smoothing * mean_log_probs
 
         ctx.label_smoothing, ctx.vocab_size = label_smoothing, vocab_size
+
+        # Store softmax, target-mask and masked-target for backward pass.
         ctx.save_for_backward(exp_logits, target_mask, masked_target_1d)
 
         return loss

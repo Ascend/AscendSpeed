@@ -18,8 +18,7 @@ import torch
 
 import ascendspeed.model.llama_model as llama_model
 from ascendspeed import get_args
-from ascendspeed import mpu
-from ascendspeed.core import parallel_state
+from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.core.enums import AttnMaskType
 from ascendspeed.model.llama_model import LlamaModel
 from ascendspeed.model.llama_model import LlamaParallelTransformerLayer
@@ -30,7 +29,7 @@ from ascendspeed.model.module import MegatronModule
 class BaichuanParallelTransformer(MegatronModule):
     """Transformer class."""
 
-    def __init__(self, init_method, output_layer_init_method,
+    def __init__(self, config, init_method, output_layer_init_method,
                  self_attn_mask_type=AttnMaskType.causal,
                  pre_process=True, post_process=True):
 
@@ -51,6 +50,8 @@ class BaichuanParallelTransformer(MegatronModule):
         self.checkpoint_num_layers = args.checkpoint_num_layers
         self.checkpoint_policy = args.checkpoint_policy
         self.checkpoint_block_layer = args.checkpoint_block_layer
+        self.distribute_saved_activations = \
+            config.distribute_saved_activations and not config.sequence_parallel
 
         # Number of layers.
         self.num_layers = args.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
@@ -58,6 +59,7 @@ class BaichuanParallelTransformer(MegatronModule):
         # Transformer layers.
         def build_layer(layer_number):
             return LlamaParallelTransformerLayer(
+                config,
                 self.init_method,
                 self.output_layer_init_method,
                 layer_number)
@@ -105,7 +107,10 @@ class BaichuanParallelTransformer(MegatronModule):
         used by internal code to bypass the input provided by the
         forward_step_func
         """
-        self.input_tensor = input_tensor
+        if isinstance(input_tensor, (list, tuple)):
+            self.input_tensor = input_tensor[0]
+        else:
+            self.input_tensor = input_tensor
 
     def forward(self, hidden_states, attention_mask, layer_past=None, get_key_value=False):
         # Reza's note: DeepSpeed inference does not support transposes
@@ -173,11 +178,12 @@ class BaichuanParallelTransformer(MegatronModule):
             return custom_forward
 
         # Make sure memory is freed.
-        mpu.reset_checkpointed_activations_memory_buffer()
+        tensor_parallel.reset_checkpointed_activations_memory_buffer()
         idx = 0
         while idx < self.num_layers:
-            hidden_states = mpu.checkpoint(
+            hidden_states = tensor_parallel.checkpoint(
                 custom(idx, idx + self.checkpoint_num_layers),
+                self.distribute_saved_activations,
                 hidden_states, attention_mask)
             idx += self.checkpoint_num_layers
 
@@ -185,7 +191,6 @@ class BaichuanParallelTransformer(MegatronModule):
 
     def _checkpointed_forward_block(self, hidden_states, attention_mask):
         """Forward method with activation checkpointing."""
-
         def custom(start, end):
             def custom_forward(*inputs):
                 x_ = inputs[0]
@@ -200,8 +205,9 @@ class BaichuanParallelTransformer(MegatronModule):
         # Make sure memory is freed.
         for idx in range(self.num_layers):
             if idx < self.checkpoint_block_layer:
-                hidden_states = mpu.checkpoint(
+                hidden_states = tensor_parallel.checkpoint(
                     custom(idx, idx + 1),
+                    self.distribute_saved_activations,
                     hidden_states, attention_mask)
             else:
                 hidden_states = custom(idx, idx + 1)(hidden_states, attention_mask)
@@ -215,6 +221,7 @@ class BaichuanModel(LlamaModel):
         super(BaichuanModel, self).__init__(config, pre_process, post_process, parallel_output, add_pooler)
         # Transformer.
         self.language_model = BaichuanParallelTransformer(
+            config,
             self.init_method,
             self.output_layer_init_method,
             self_attn_mask_type=self.self_attn_mask_type,

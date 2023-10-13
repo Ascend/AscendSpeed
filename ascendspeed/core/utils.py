@@ -6,7 +6,7 @@ import operator
 
 import torch
 
-from ascendspeed.error_utils import check_divisible
+from ascendspeed.error_utils import check_divisible, ensure_var_is_none
 
 
 def divide(numerator, denominator):
@@ -131,25 +131,36 @@ def make_viewless_tensor(inp, requires_grad, keep_graph):
         return _kernel_make_viewless_tensor(inp, requires_grad)
 
 
-def split_tensor_along_last_dim(tensor, num_partitions,
-                                contiguous_split_chunks=False):
-    """Split a tensor along its last dimension.
-    Arguments:
-        tensor: input tensor.
-        num_partitions: number of partitions to split the tensor
-        contiguous_split_chunks: If True, make each chunk contiguous
-                                 in memory.
+def assert_viewless_tensor(tensor, extra_msg=None):
     """
-    # Get the size and dimension.
-    last_dim = tensor.dim() - 1
-    last_dim_size = divide(tensor.size()[last_dim], num_partitions)
-    # Split.
-    tensor_list = torch.split(tensor, last_dim_size, dim=last_dim)
-    # Note: torch.split does not create contiguous tensors by default.
-    if contiguous_split_chunks:
-        return tuple(chunk.contiguous() for chunk in tensor_list)
+    Assert that a tensor is not a view (i.e., its '._base' field is
+    not set).
+    """
+    if isinstance(tensor, list):
+        [assert_viewless_tensor(t) for t in tensor]
+        return tensor
+    if not isinstance(tensor, torch.Tensor):
+        return tensor
+    ensure_var_is_none(tensor._base, error_message=(
+        "Ensure tensor._base is None before setting tensor.data or storing "
+        "tensor to memory buffer. Otherwise, a memory leak will occur (and "
+        "likely accumulate over iterations). %s"
+    ) % extra_msg)
+    return tensor
 
-    return tensor_list
+
+def safely_set_viewless_tensor_data(tensor, new_data_tensor):
+    '''Safely set tensor's '.data' field.
+
+    Check first that the tensor is viewless (i.e., '._base' not set). If not,
+    raise an exception.
+    '''
+    assert_viewless_tensor(
+        tensor,
+        extra_msg="FYI, tensor._base has shape %s, and new_data_tensor has shape %s."
+        % ("--" if tensor._base is None else tensor._base.shape, new_data_tensor.shape),
+    )
+    tensor.data = new_data_tensor
 
 
 def init_method_normal(sigma):

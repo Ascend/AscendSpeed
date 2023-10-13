@@ -30,7 +30,7 @@ from ascendspeed.global_vars import get_args
 from ascendspeed.global_vars import get_adlr_autoresume
 from ascendspeed.core import parallel_state
 from ascendspeed.model.module import param_is_not_shared
-from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
+from ascendspeed.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from ascendspeed import get_num_microbatches
 from deepspeed.accelerator import get_accelerator
 

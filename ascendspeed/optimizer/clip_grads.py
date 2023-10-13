@@ -31,7 +31,7 @@ if get_accelerator().device_name() == 'cuda':
 
 from ascendspeed.core import parallel_state
 from ascendspeed.model.module import param_is_not_shared
-from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
+from ascendspeed.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from ascendspeed.error_utils import check_equal
 
 

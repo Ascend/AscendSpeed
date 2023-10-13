@@ -18,15 +18,15 @@ import torch
 import torch.nn.functional as F
 
 from ascendspeed import get_args
-from ascendspeed import mpu
+from ascendspeed.core import tensor_parallel, parallel_state
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.core.enums import LayerType, AttnMaskType
 from ascendspeed.model.module import MegatronModule
 from ascendspeed.model.transformer import ParallelTransformer
 from ascendspeed.model.utils import get_linear_layer
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal
-from ascendspeed.mpu.mappings import gather_from_sequence_parallel_region
-from ascendspeed.mpu.mappings import scatter_to_sequence_parallel_region
+from ascendspeed.core.tensor_parallel.mappings import gather_from_sequence_parallel_region
+from ascendspeed.core.tensor_parallel.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.error_utils import check_equal
 from ascendspeed.error_utils import ensure_var_is_none
 from ascendspeed.error_utils import ensure_var_is_not_none
@@ -37,30 +37,36 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
     """LM logits using word embedding weights."""
     args = get_args()
     # Parallel logits.
-    if args.sequence_parallel:
+    if args.async_tensor_model_parallel_allreduce or \
+            args.sequence_parallel:
         input_parallel = input_.transpose(1, 0).contiguous()
-        logits_parallel = mpu.layers.linear_with_grad_accumulation_and_async_allreduce(
-            input_=input_parallel,
-            weight=word_embeddings_weight,
-            bias=bias,
-            sequence_parallel_enabled=args.sequence_parallel)
-
-        logits_parallel = logits_parallel.transpose(1, 0).contiguous()
+        model_parallel = parallel_state.get_tensor_model_parallel_world_size() > 1
+        async_grad_allreduce = args.async_tensor_model_parallel_allreduce and \
+                               model_parallel and not args.sequence_parallel
     else:
-        input_parallel = mpu.copy_to_tensor_model_parallel_region(input_)
+        input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
+        async_grad_allreduce = False
+
     # Matrix multiply.
-        if bias is None:
-            logits_parallel = F.linear(input_parallel, word_embeddings_weight)
-        else:
-            logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+    logits_parallel = tensor_parallel.linear_with_grad_accumulation_and_async_allreduce(
+        inputs=input_parallel,
+        weight=word_embeddings_weight,
+        bias=bias,
+        gradient_accumulation_fusion=args.gradient_accumulation_fusion,
+        async_grad_allreduce=async_grad_allreduce,
+        sequence_parallel=args.sequence_parallel)
+    if args.async_tensor_model_parallel_allreduce or \
+            args.sequence_parallel:
+        logits_parallel = logits_parallel.transpose(1, 0).contiguous()
     # Gather if needed.
+
     if parallel_output:
         return logits_parallel
 
-    return mpu.gather_from_tensor_model_parallel_region(logits_parallel)
+    return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
 
 
-def get_language_model(num_tokentypes, add_pooler,
+def get_language_model(config, num_tokentypes, add_pooler,
                        encoder_attn_mask_type, init_method=None,
                        scaled_init_method=None, add_decoder=False,
                        decoder_attn_mask_type=AttnMaskType.causal,
@@ -77,6 +83,7 @@ def get_language_model(num_tokentypes, add_pooler,
 
     # Language model.
     language_model = TransformerLanguageModel(
+        config,
         init_method,
         scaled_init_method,
         encoder_attn_mask_type,
@@ -139,6 +146,7 @@ class Embedding(MegatronModule):
     """
 
     def __init__(self,
+                 config,
                  hidden_size,
                  vocab_size,
                  max_sequence_length,
@@ -153,9 +161,10 @@ class Embedding(MegatronModule):
 
         args = get_args()
         self.sequence_parallel = args.sequence_parallel
-        # Word embeddings (parallel).
-        self.word_embeddings = mpu.VocabParallelEmbedding(
+        # Word embeddings (parallel)
+        self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
             vocab_size, self.hidden_size,
+            config=config,
             init_method=self.init_method)
         self._word_embeddings_key = 'word_embeddings'
 
@@ -241,11 +250,11 @@ class Embedding(MegatronModule):
         if self.position_embeddings == PositionEmbeddingType.absolute:
             state_dict_[self._position_embeddings_key] \
                 = self.position_embeddings.state_dict(
-                    destination, prefix, keep_vars)
+                destination, prefix, keep_vars)
         if self.num_tokentypes > 0:
             state_dict_[self._tokentype_embeddings_key] \
                 = self.tokentype_embeddings.state_dict(
-                    destination, prefix, keep_vars)
+                destination, prefix, keep_vars)
 
         return state_dict_
 
@@ -343,6 +352,7 @@ class TransformerLanguageModel(MegatronModule):
     """
 
     def __init__(self,
+                 config,
                  init_method,
                  output_layer_init_method,
                  encoder_attn_mask_type,
@@ -360,7 +370,7 @@ class TransformerLanguageModel(MegatronModule):
         self.post_process = post_process
         self.hidden_size = args.hidden_size
         self.num_tokentypes = num_tokentypes
-        self.init_method = init_method
+        self.init_method = config.init_method
         self.encoder_attn_mask_type = encoder_attn_mask_type
         self.add_decoder = add_decoder
         self.decoder_attn_mask_type = decoder_attn_mask_type
@@ -369,7 +379,8 @@ class TransformerLanguageModel(MegatronModule):
 
         # Embeddings.
         if self.pre_process:
-            self.embedding = Embedding(self.hidden_size,
+            self.embedding = Embedding(config,
+                                       self.hidden_size,
                                        args.padded_vocab_size,
                                        args.max_position_embeddings,
                                        args.hidden_dropout,
@@ -379,6 +390,7 @@ class TransformerLanguageModel(MegatronModule):
 
         # Transformer.
         self.encoder = ParallelTransformer(
+            config,
             self.init_method,
             output_layer_init_method,
             self_attn_mask_type=self.encoder_attn_mask_type,
@@ -393,6 +405,7 @@ class TransformerLanguageModel(MegatronModule):
             error_info = 'pipeline parallelism is not supported in the presence of decoder'
             check_equal(args.pipeline_model_parallel_size, 1, error_info)
             self.decoder = ParallelTransformer(
+                config,
                 self.init_method,
                 output_layer_init_method,
                 layer_type=LayerType.decoder,

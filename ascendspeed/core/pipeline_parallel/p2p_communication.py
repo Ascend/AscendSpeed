@@ -6,7 +6,8 @@ from typing import List, Optional, Tuple, Union
 import torch
 from deepspeed.accelerator import get_accelerator
 import torch.distributed as dist
-from ascendspeed import core, mpu
+from ascendspeed import core
+from ascendspeed.core import tensor_parallel
 from ascendspeed import get_args
 from ascendspeed.core import ModelParallelConfig
 from ascendspeed.core.parallel_state import (
@@ -126,10 +127,10 @@ def _communicate(
     # Split tensor into smaller chunks if using scatter-gather optimization.
     if args.scatter_gather_tensors_in_pipeline and not config.sequence_parallel:
         if tensor_send_next is not None:
-            tensor_send_next = mpu.split_tensor_into_1d_equal_chunks(tensor_send_next)
+            tensor_send_next = tensor_parallel.split_tensor_into_1d_equal_chunks(tensor_send_next)
 
         if tensor_send_prev is not None:
-            tensor_send_prev = mpu.split_tensor_into_1d_equal_chunks(tensor_send_prev)
+            tensor_send_prev = tensor_parallel.split_tensor_into_1d_equal_chunks(tensor_send_prev)
 
     # Send tensors in both the forward and backward directions as appropriate.
     if config.use_ring_exchange_p2p:
@@ -165,11 +166,11 @@ def _communicate(
     # If using scatter-gather optimization, gather smaller chunks.
     if args.scatter_gather_tensors_in_pipeline and not config.sequence_parallel:
         if recv_prev:
-            tensor_recv_prev = mpu.gather_split_1d_tensor(
+            tensor_recv_prev = tensor_parallel.gather_split_1d_tensor(
                 tensor_recv_prev).view(tensor_shape).requires_grad_()
 
         if recv_next:
-            tensor_recv_next = mpu.gather_split_1d_tensor(
+            tensor_recv_next = tensor_parallel.gather_split_1d_tensor(
                 tensor_recv_next).view(tensor_shape).requires_grad_()
 
     return tensor_recv_prev, tensor_recv_next, reqs
@@ -211,10 +212,10 @@ def async_communicate(tensor_send_next, tensor_send_prev, recv_prev, recv_next):
     # Split tensor into smaller chunks if using scatter-gather optimization.
     if args.scatter_gather_tensors_in_pipeline and not args.sequence_parallel:
         if tensor_send_next is not None:
-            tensor_send_next = mpu.split_tensor_into_1d_equal_chunks(tensor_send_next)
+            tensor_send_next = tensor_parallel.split_tensor_into_1d_equal_chunks(tensor_send_next)
 
         if tensor_send_prev is not None:
-            tensor_send_prev = mpu.split_tensor_into_1d_equal_chunks(tensor_send_prev)
+            tensor_send_prev = tensor_parallel.split_tensor_into_1d_equal_chunks(tensor_send_prev)
 
     ops = []
     if tensor_send_prev is not None:
@@ -241,7 +242,7 @@ def recv_gather(tensor_recv):
     tensor_shape = (args.seq_length, args.micro_batch_size, args.hidden_size)
 
     if args.scatter_gather_tensors_in_pipeline and not args.sequence_parallel:
-        tensor_recv = mpu.gather_split_1d_tensor(
+        tensor_recv = tensor_parallel.gather_split_1d_tensor(
             tensor_recv).view(tensor_shape).requires_grad_()
 
     return tensor_recv

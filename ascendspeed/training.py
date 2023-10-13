@@ -34,10 +34,9 @@ from ascendspeed import get_current_global_batch_size
 from ascendspeed import get_num_microbatches
 from ascendspeed import is_last_rank
 from ascendspeed import update_num_microbatches
-from ascendspeed import mpu
 from ascendspeed import print_rank_0
 from ascendspeed import print_rank_last
-from ascendspeed.core import parallel_state
+from ascendspeed.core import tensor_parallel, parallel_state
 from ascendspeed.checkpointing import load_checkpoint
 from ascendspeed.checkpointing import save_checkpoint
 from ascendspeed.model import Float16Module
@@ -51,13 +50,13 @@ from ascendspeed.utils import check_adlr_autoresume_termination
 from ascendspeed.utils import unwrap_model
 from ascendspeed.data.data_samplers import build_pretraining_data_loader
 from ascendspeed.utils import calc_params_l2_norm
-from ascendspeed.core.utils import get_model_config
 from ascendspeed.utils import report_memory, throughput_calculator, checkpoint_throughput_calculator
 from ascendspeed.model.transformer import ParallelTransformerLayer
 from ascendspeed.model.lora_utils import is_enable_lora, handle_model_with_lora
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_fifo
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_aiao
 from ascendspeed.core.pipeline_parallel.schedules import get_forward_backward_func, get_forward_func
+from ascendspeed.core.utils import get_model_config
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
 
@@ -126,7 +125,7 @@ def pretrain(train_valid_test_dataset_provider,
         train_valid_test_dataset_provider: a function that takes the size of
             train/valid/test dataset and returns `train, valid, test` datasets.
         model_provider: a function that returns a vanilla version of the
-            model. By vanilla we mean a simple model on cpu with no fp16 or ddp.
+            model. By vanilla, we mean a simple model on cpu with no fp16 or ddp.
         model_type: an enum that specifies the type of model being trained.
         forward_step_func: a function that takes a `data iterator` and `model`,
             and returns a `loss` scalar with a dictionary with key:values being
@@ -134,7 +133,7 @@ def pretrain(train_valid_test_dataset_provider,
             `lm-loss: value`. We also require that this function add
             `batch generator` to the timers class.
         process_non_loss_data_func: a function to post process outputs of the
-            network. It can be used for dumping output tensors (e.g images) to
+            network. It can be used for dumping output tensors (e.g. images) to
             tensorboard. It takes `collected data`(list of tensors),
             `current iteration index` and `tensorboard writer` as arguments.
         extra_args_provider: a function that takes a parser and adds arguments
@@ -148,7 +147,7 @@ def pretrain(train_valid_test_dataset_provider,
     initialize_megatron(extra_args_provider=extra_args_provider,
                         args_defaults=args_defaults)
 
-    # Adjust the startup time so it reflects the largest value.
+    # Adjust the startup time, so it reflects the largest value.
     # This will be closer to what scheduler will see (outside of
     # image ... launches.
     global _TRAIN_START_TIME
@@ -158,7 +157,7 @@ def pretrain(train_valid_test_dataset_provider,
     _TRAIN_START_TIME = start_time_tensor.item()
     print_rank_0('time to initialize ascendspeed (seconds): {:.3f}'.format(
         time.time() - _TRAIN_START_TIME))
-    print_datetime('after ascendspeed is initialized')
+    print_datetime('after ascendspeed is initialized.')
 
     args = get_args()
     timers = get_timers()
@@ -239,9 +238,9 @@ def pretrain(train_valid_test_dataset_provider,
     # args.teacher_model is used as global variable to pass the teacher model
     # for knowledge distillation. Users do not need to set it in the command
     # line to use kd, but users do need to provide teacher model configurations
-    # like args.num_layers_teacher as described in setup_teacher_model()
+    # like args.num_layers_teacher as described in setup_teacher_model().
     args.teacher_model = None
-    if args.mos or args.kd:  # Set up teacher model
+    if args.mos or args.kd:  # Set up teacher model.
         args.teacher_model = setup_teacher_model(args, model_provider)
 
     # Print setup timing.
@@ -265,7 +264,7 @@ def pretrain(train_valid_test_dataset_provider,
 
     # Clean the model and do evaluation again
     if args.compression_training:
-        model = [redundancy_clean(model[0], args.deepspeed_config, mpu)]
+        model = [redundancy_clean(model[0], args.deepspeed_config, tensor_parallel)]
         if args.do_valid:
             prefix = 'the end of training and after model cleaning for val data'
             for iterator in valid_data_iterator:
@@ -403,7 +402,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     # are set for all params so the optimizer can use them.
     for model_module in model:
         for param in model_module.parameters():
-            mpu.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
+            tensor_parallel.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
     if parallel_state.get_data_parallel_rank() == 0:
@@ -568,7 +567,7 @@ def setup_model_and_optimizer(model_provider_func,
             mpu=parallel_state if args.no_pipeline_parallel else None
         )
         model = [model]
-        model = [init_compression(model[0].module, args.deepspeed_config, mpu)]
+        model = [init_compression(model[0].module, args.deepspeed_config, tensor_parallel)]
 
     unwrapped_model = unwrap_model(model,
                                    (torchDDP, LocalDDP, Float16Module))
@@ -617,7 +616,7 @@ def setup_model_and_optimizer(model_provider_func,
                 args=args,
                 lr_scheduler=lr_scheduler,
                 training_data=train_ds,
-                mpu=mpu if args.no_pipeline_parallel else None
+                mpu=parallel_state if args.no_pipeline_parallel else None
             )
             model.set_data_post_process_func(data_post_process)
         else:
@@ -626,7 +625,7 @@ def setup_model_and_optimizer(model_provider_func,
                 optimizer=optimizer,
                 args=args,
                 lr_scheduler=lr_scheduler,
-                mpu=mpu if args.no_pipeline_parallel else None
+                mpu=parallel_state if args.no_pipeline_parallel else None
             )
             assert model.fp16_enabled() == args.fp16, "megatron fp16 config does not match deepspeed"
         if isinstance(model, deepspeed.PipelineEngine):

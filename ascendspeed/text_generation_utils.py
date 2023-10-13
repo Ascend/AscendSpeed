@@ -19,6 +19,8 @@ import time
 import copy
 import json
 
+
+# These are needed to unwrap the model, would be nice to put these in ascendspeed.utils if possible ?
 import torch
 import torch.nn.functional as F
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
