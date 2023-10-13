@@ -18,6 +18,8 @@
 import math
 
 from ascendspeed import print_rank_0, get_args
+from ascendspeed.error_utils import check_equal
+
 
 
 class AnnealingLR(object):
@@ -150,9 +152,9 @@ class AnnealingLR(object):
             return cls_value
 
         if not self.use_checkpoint_lr_scheduler:
-            assert cls_value == sd_value, \
-                f'AnnealingLR: class input value {cls_value} and checkpoint' \
-                f'value {sd_value} for {name} do not match'
+            error_info = f'AnnealingLR: class input value {cls_value} and checkpoint' \
+                         f'value {sd_value} for {name} do not match'
+            check_equal(cls_value, sd_value, error_info)
         print_rank_0(' > using checkpoint value {} for {}'.format(sd_value,
                                                                   name))
         return sd_value

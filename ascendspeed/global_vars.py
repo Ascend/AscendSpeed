@@ -18,12 +18,10 @@
 import os
 import sys
 
-import torch
-
 from ascendspeed.tokenizer import build_tokenizer
+from ascendspeed.error_utils import ensure_var_is_not_none, ensure_var_is_none
 from .arguments import parse_args
 from .microbatches import build_num_microbatches_calculator
-from deepspeed.accelerator import get_accelerator
 from .timers import Timers
 
 _GLOBAL_ARGS = None
@@ -177,9 +175,11 @@ def _set_timers(args):
 
 def _ensure_var_is_initialized(var, name):
     """Make sure the input variable is not None."""
-    assert var is not None, '{} is not initialized.'.format(name)
+    error_message = '{} is not initialized.'.format(name)
+    ensure_var_is_not_none(var, error_message)
 
 
 def _ensure_var_is_not_initialized(var, name):
     """Make sure the input variable is not None."""
-    assert var is None, '{} is already initialized.'.format(name)
+    error_message = '{} is already initialized.'.format(name)
+    ensure_var_is_none(var, error_message)

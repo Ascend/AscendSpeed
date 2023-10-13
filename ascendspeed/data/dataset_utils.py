@@ -22,6 +22,7 @@ import collections
 
 import numpy as np
 import torch
+from deepspeed.accelerator import get_accelerator
 
 from ascendspeed import (
     get_args,
@@ -29,7 +30,8 @@ from ascendspeed import (
 )
 from ascendspeed.core import parallel_state
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
-from deepspeed.accelerator import get_accelerator
+from ascendspeed.error_utils import check_divisible, check_equal
+
 
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
@@ -43,7 +45,7 @@ def get_datasets_weights_and_num_samples(data_prefix,
 
     # The data prefix should be in the format of:
     #   weight-1, data-prefix-1, weight-2, data-prefix-2, ..
-    assert len(data_prefix) % 2 == 0
+    check_divisible(len(data_prefix), 2)
     num_datasets = len(data_prefix) // 2
     weights = [0]*num_datasets
     prefixes = [0]*num_datasets
@@ -372,8 +374,8 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions,
     num_tokens = len(tokens)
     padding_length = max_seq_length - num_tokens
     assert padding_length >= 0
-    assert len(tokentypes) == num_tokens
-    assert len(masked_positions) == len(masked_labels)
+    check_equal(len(tokentypes), num_tokens)
+    check_equal(len(masked_positions, len(masked_labels)))
 
     # Tokens and token types.
     filler = [pad_id] * padding_length
@@ -405,7 +407,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
     indexed_dataset = make_indexed_dataset(data_prefix,
                                            data_impl,
                                            skip_warmup)
-    assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
+    check_equal(indexed_dataset.sizes.shape[0], indexed_dataset.doc_idx[-1])
     print_rank_0(' > finished creating indexed dataset in {:4f} '
                  'seconds'.format(time.time() - start_time))
 
@@ -425,12 +427,12 @@ def get_split_by_range_(range_string, size):
     """
     # some checks that range is given in the correct form
     splits = [float(i) for i in range_string.split(":")]
-    assert len(splits) == 2, "splits should be passed as start:end"
+    check_equal(len(splits), 2, "splits should be passed as start:end")
     assert splits[0] <= 1 and splits[1] <= 1
     splits_sum = sum(splits)
     assert splits_sum > 0.0
     splits_index = [round(s * float(size)) for s in splits]
-    assert len(splits_index) == 2
+    check_equal(len(splits_index), 2)
     return splits_index
 
 
@@ -457,8 +459,8 @@ def get_train_valid_test_split_(splits_string, size):
     diff = splits_index[-1] - size
     for index in range(1, len(splits_index)):
         splits_index[index] -= diff
-    assert len(splits_index) == 4
-    assert splits_index[-1] == size
+    check_equal(len(splits_index), 4)
+    check_equal(splits_index[-1], size)
     return splits_index
 
 def get_samples_mapping(indexed_dataset,
@@ -511,8 +513,8 @@ def get_samples_mapping(indexed_dataset,
               'the indices on rank 0 ...'.format(indexmap_filename))
 
         # Make sure the types match the helpers input types.
-        assert indexed_dataset.doc_idx.dtype == np.int64
-        assert indexed_dataset.sizes.dtype == np.int32
+        check_equal(indexed_dataset.doc_idx.dtype, np.int64)
+        check_equal(indexed_dataset.sizes.dtype, np.int32)
 
         # Build samples mapping
         verbose = torch.distributed.get_rank() == 0

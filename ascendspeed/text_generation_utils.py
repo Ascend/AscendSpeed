@@ -35,7 +35,8 @@ from ascendspeed.core.pipeline_parallel.p2p_communication import recv_forward, s
 from ascendspeed.model import DistributedDataParallel as LocalDDP
 from ascendspeed.model import Float16Module
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
-from ascendspeed.core.utils import get_attr_wrapped_model, get_model_config, get_model_type
+from ascendspeed.core.utils import get_model_config
+from ascendspeed.error_utils import ensure_var_is_not_none, check_equal
 from ascendspeed.utils import WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
 
 
@@ -96,8 +97,8 @@ def generate_samples_input_from_file(model):
     tokenizer = get_tokenizer()
 
     # Read the sample file and open the output file.
-    assert args.sample_input_file is not None, \
-        'sample input file is not provided.'
+    error_message = 'sample input file is not provided.'
+    ensure_var_is_not_none(args.sample_input_file, error_message)
     if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
         fname = open(args.sample_input_file, "r")
         all_raw_text = fname.readlines()
@@ -352,7 +353,7 @@ def generate_samples_unconditional(model, latencies=[], model_latencies=[], sing
             length = len(token_stream)
             token_batch = token_stream[0].cpu().numpy().tolist()
             length_batch = token_stream[1].cpu().numpy().tolist()
-            assert len(length_batch) == args.micro_batch_size
+            check_equal(len(length_batch), args.micro_batch_size)
             for tokens, length in zip(token_batch, length_batch):
                 tokens = tokens[1:length - 1]
                 text = tokenizer.detokenize(tokens)
@@ -375,7 +376,7 @@ def generate_samples_unconditional(model, latencies=[], model_latencies=[], sing
 def generate_and_write_samples_unconditional(model, latencies=[], single_token_latency=[], model_latencies=[]):
 
     args = get_args()
-    assert args.genfile is not None
+    ensure_var_is_not_none(args.genfile)
     with os.fdopen(os.open(args.genfile, WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES), 'w') as f:
         for datum in generate_samples_unconditional(model, latencies=latencies, model_latencies=model_latencies, single_token_latency=single_token_latency):
             if parallel_state.is_pipeline_last_stage() and \
@@ -552,7 +553,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                                       tokentype_ids=type_ids,
                                       forward_method_parallel_output=False)
                 if parallel_state.is_pipeline_last_stage():
-                    assert output is not None
+                    ensure_var_is_not_none(output)
                     logits = output[:, context_length - 1, :]
             else:
                 types2use = None
@@ -577,7 +578,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                                                   tokentype_ids=types2use,
                                                   forward_method_parallel_output=False, model_latencies=model_latencies)
                 if parallel_state.is_pipeline_last_stage():
-                    assert output is not None
+                    ensure_var_is_not_none(output)
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
             if parallel_state.is_pipeline_last_stage():

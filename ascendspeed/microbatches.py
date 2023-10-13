@@ -18,6 +18,8 @@
 from abc import ABC
 from abc import abstractmethod
 
+from ascendspeed.error_utils import check_equal, check_divisible
+
 
 def build_num_microbatches_calculator(args):
 
@@ -31,9 +33,10 @@ def build_num_microbatches_calculator(args):
                 num_microbatches_calculator.get()), flush=True)
 
     else:
-        assert len(args.rampup_batch_size) == 3, 'expected the following ' \
-            'format: --rampup-batch-size <start batch size> ' \
-            '<batch size incerement> <ramp-up samples>'
+        error_info = 'expected the following ' \
+                     'format: --rampup-batch-size <start batch size> ' \
+                     '<batch size incerement> <ramp-up samples>'
+        check_equal(len(args.rampup_batch_size), 3, error_info)
         start_batch_size = int(args.rampup_batch_size[0])
         batch_size_increment = int(args.rampup_batch_size[1])
         ramup_samples = int(args.rampup_batch_size[2])
@@ -74,11 +77,11 @@ class ConstantNumMicroBatches(NumMicroBatchesCalculator):
     def __init__(self, global_batch_size, micro_batch_size, data_parallel_size):
         micro_batch_times_data_parallel = micro_batch_size * \
                                           data_parallel_size
-        assert global_batch_size % micro_batch_times_data_parallel == 0, \
-            'global batch size ({}) is not divisible by micro batch size ({})' \
-            ' times data parallel size ({})'.format(global_batch_size,
-                                                    micro_batch_size,
-                                                    data_parallel_size)
+        error_info = 'global batch size ({}) is not divisible by micro batch size ({})' \
+                         ' times data parallel size ({})'.format(global_batch_size,
+                                                                 micro_batch_size,
+                                                                 data_parallel_size)
+        check_divisible(global_batch_size, micro_batch_times_data_parallel, error_info)
         self.num_micro_batches = global_batch_size // \
                                  micro_batch_times_data_parallel
         assert self.num_micro_batches >= 1
@@ -123,9 +126,9 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
         assert diff_batch_size >= 0
         assert batch_size_increment > 0
         self.batch_size_increment = batch_size_increment
-        assert diff_batch_size % batch_size_increment == 0, 'expected ' \
-            'global batch size interval ({}) to be divisible by global batch ' \
-            'size increment ({})'.format(diff_batch_size, batch_size_increment)
+        error_info = 'global batch size interval ({}) to be divisible by global batch ' \
+                     'size increment ({})'.format(diff_batch_size, batch_size_increment)
+        check_divisible(diff_batch_size, batch_size_increment, error_info)
 
         num_increments = diff_batch_size // self.batch_size_increment
         self.ramup_samples = ramup_samples
@@ -147,11 +150,10 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
             assert self.current_global_batch_size <= self.global_batch_size
 
         if consistency_check:
-            assert self.current_global_batch_size % \
-                self.micro_batch_times_data_parallel_size == 0, 'current global ' \
-                'batch size ({}) is not divisible by micro-batch-size ({}) times' \
-                'data parallel size ({})'.format(self.current_global_batch_size,
-                                                 self.micro_batch_size,
-                                                 self.data_parallel_size)
+            error_info = 'current global batch size ({}) is not divisible by micro-batch-size ({}) times' \
+                         'data parallel size ({})'.format(self.current_global_batch_size,
+                                                          self.micro_batch_size,
+                                                          self.data_parallel_size)
+            check_divisible(self.current_global_batch_size, self.micro_batch_times_data_parallel_size, error_info)
         self.num_micro_batches = self.current_global_batch_size // \
                                  self.micro_batch_times_data_parallel_size

@@ -290,7 +290,6 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
                     output_layer_init_method=scaled_init_method_normal(args.init_method_std,
                                                                        args.num_layers),
                     layer_number=layer_idx,
-                    # TODO: Change naming of class from GPT to something that encapsulate prefix lm.
                     self_attn_mask_type=attn_mask_type)
             )
 

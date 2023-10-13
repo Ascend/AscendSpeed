@@ -25,6 +25,12 @@ import deepspeed
 from ascendspeed.core.transformer import TransformerConfig
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.data.parse import ParseDataPaths, ParseDataPathsPath
+from ascendspeed.error_utils import (
+    check_divisible,
+    check_equal,
+    ensure_var_is_not_none,
+    ensure_var_is_none
+) 
 
 
 def parse_args(extra_args_provider=None, defaults={},
@@ -77,23 +83,23 @@ def parse_args(extra_args_provider=None, defaults={},
     # Tensor model parallel size.
     args.tensor_model_parallel_size = min(
         args.tensor_model_parallel_size, args.world_size)
-    assert args.world_size % args.tensor_model_parallel_size == 0, 'world size'\
-        ' ({}) is not divisible by tensor model parallel size ({})'.format(
-            args.world_size, args.tensor_model_parallel_size)
+    check_divisible(args.world_size, args.tensor_model_parallel_size, error_info='world size'\
+                    ' ({}) is not divisible by tensor model parallel size ({})'.format(
+                    args.world_size, args.tensor_model_parallel_size))
     # Pipeline model parallel size.
     args.pipeline_model_parallel_size = min(
         args.pipeline_model_parallel_size,
         (args.world_size // args.tensor_model_parallel_size))
     # Checks.
     if args.no_pipeline_parallel:
-        assert args.pipeline_model_parallel_size == 1, \
-            "pipeline_model_parallel_size must be 1 if pipeline parallel is disabled"
+        check_equal(args.pipeline_model_parallel_size, 1, error_info="pipeline_model_parallel_size"\
+                    " must be 1 if pipeline parallel is disabled")
     model_parallel_size = args.pipeline_model_parallel_size * \
                           args.tensor_model_parallel_size
-    assert args.world_size % model_parallel_size == 0, 'world size is not'\
-        ' divisible by tensor parallel size ({}) times pipeline parallel ' \
-        'size ({})'.format(args.world_size, args.tensor_model_parallel_size,
-                           args.pipeline_model_parallel_size)
+    check_divisible(args.world_size, model_parallel_size, error_info='world size is not'\
+                    ' divisible by tensor parallel size ({}) times pipeline parallel ' \
+                    'size ({})'.format(args.world_size, args.tensor_model_parallel_size,
+                                       args.pipeline_model_parallel_size))
     args.data_parallel_size = args.world_size // model_parallel_size
     if args.rank == 0:
         print('using world size: {}, data-parallel-size: {}, '
@@ -104,7 +110,7 @@ def parse_args(extra_args_provider=None, defaults={},
                   args.pipeline_model_parallel_size), flush=True)
 
     if args.data_path:
-        assert args.train_weighted_split_paths is None, message
+        ensure_var_is_none(args.train_weighted_split_paths)
         setattr(args, "valid_weighted_split_names", None)
         setattr(args, "valid_weighted_split_weights", None)
         setattr(args, "valid_weighted_split_splits", None)
@@ -114,14 +120,14 @@ def parse_args(extra_args_provider=None, defaults={},
         setattr(args, "test_weighted_split_splits", None)
 
     # Deprecated arguments
-    assert args.batch_size is None, '--batch-size argument is no longer ' \
-        'valid, use --micro-batch-size instead'
+    ensure_var_is_none(args.batch_size, error_message='--batch-size argument is no longer '\
+                                        'valid, use --micro-batch-size instead.')
     del args.batch_size
-    assert args.warmup is None, '--warmup argument is no longer valid, use ' \
-        '--lr-warmup-fraction instead'
+    ensure_var_is_none(args.warmup, error_message='--warmup argument is no longer valid, use ' \
+                                    '--lr-warmup-fraction instead.')
     del args.warmup
-    assert args.model_parallel_size is None, '--model-parallel-size is no ' \
-        'longer valid, use --tensor-model-parallel-size instead'
+    ensure_var_is_none(args.model_parallel_size, error_message='--model-parallel-size is no '\
+                                                 'longer valid, use --tensor-model-parallel-size instead.')
     del args.model_parallel_size
 
     # Set input defaults.
@@ -139,7 +145,7 @@ def parse_args(extra_args_provider=None, defaults={},
             setattr(args, key, defaults[key])
 
     # Batch size.
-    assert args.micro_batch_size is not None
+    ensure_var_is_not_none(args.micro_batch_size)
     assert args.micro_batch_size > 0
     if args.global_batch_size is None:
         args.global_batch_size = args.micro_batch_size * args.data_parallel_size
@@ -151,9 +157,8 @@ def parse_args(extra_args_provider=None, defaults={},
         assert args.pipeline_model_parallel_size > 2, \
             'pipeline-model-parallel size should be greater than 2 with ' \
             'interleaved schedule'
-        assert args.num_layers % args.num_layers_per_virtual_pipeline_stage == 0, \
-            'number of layers is not divisible by number of layers per virtual ' \
-            'pipeline stage'
+        check_divisible(args.num_layers, args.num_layers_per_virtual_pipeline_stage, error_info='number of layers'\
+                        ' is not divisible by number of layers per virtual pipeline stage')
         args.virtual_pipeline_model_parallel_size = \
             (args.num_layers // args.pipeline_model_parallel_size) // \
             args.num_layers_per_virtual_pipeline_stage
@@ -183,13 +188,13 @@ def parse_args(extra_args_provider=None, defaults={},
     # If we do accumulation and all-reduces in fp32, we need to have local DDP
     # and we should make sure use-contiguous-buffers-in-local-ddp is not off.
     if args.accumulate_allreduce_grads_in_fp32:
-        assert args.DDP_impl == 'local'
+        check_equal(args.DDP_impl, 'local')
         assert args.use_contiguous_buffers_in_local_ddp
 
     # If we use the distributed optimizer, we need to have local DDP
     # and we should make sure use-contiguous-buffers-in-local-ddp is on.
     if args.use_distributed_optimizer:
-        assert args.DDP_impl == 'local'
+        check_equal(args.DDP_impl, 'local')
         assert args.use_contiguous_buffers_in_local_ddp
 
     # For torch DDP, we do not use contiguous buffer
@@ -209,33 +214,24 @@ def parse_args(extra_args_provider=None, defaults={},
     if args.train_iters:
         # If we use iteration-based training, make sure the
         # sample-based options are off.
-        assert args.train_samples is None, \
-            'expected iteration-based training'
-        assert args.lr_decay_samples is None, \
-            'expected iteration-based learning rate decay'
-        assert args.lr_warmup_samples == 0, \
-            'expected iteration-based learning rate warmup'
-        assert args.rampup_batch_size is None, \
-            'expected no batch-size rampup for iteration-based training'
+        ensure_var_is_none(args.train_samples, error_message='expected iteration-based training')
+        ensure_var_is_none(args.lr_decay_samples, 'expected iteration-based learning rate decay')
+        check_equal(args.lr_warmup_samples, 0, error_info='expected iteration-based learning rate warmup')
+        ensure_var_is_none(args.rampup_batch_size, 'expected no batch-size rampup for iteration-based training')
         if args.lr_warmup_fraction is not None:
-            assert args.lr_warmup_iters == 0, \
-                'can only specify one of lr-warmup-fraction and lr-warmup-iters'
+            check_equal(args.lr_warmup_iters, 0, error_info='can only specify one of lr-warmup-fraction '\
+                                                            'and lr-warmup-iters')
 
     # Sample-based training.
     if args.train_samples:
         # If we use sample-based training, make sure the
         # iteration-based options are off.
-        assert args.train_iters is None, \
-            'expected sample-based training'
-        assert args.lr_decay_iters is None, \
-            'expected sample-based learning rate decay'
-        assert args.lr_warmup_iters == 0, \
-            'expected sample-based learnig rate warmup'
+        ensure_var_is_none(args.train_iters, error_message='expected sample-based training')
+        ensure_var_is_none(args.lr_decay_iters, error_message='expected sample-based learning rate decay')
+        check_equal(args.lr_warmup_iters, 0, error_info='expected sample-based learnig rate warmup')
         if args.lr_warmup_fraction is not None:
-            assert args.lr_warmup_samples == 0, \
-                'can only specify one of lr-warmup-fraction ' \
-                'and lr-warmup-samples'
-
+            check_equal(args.lr_warmup_samples, 0, error_info='can only specify one of lr-warmup-fraction ' \
+                                                              'and lr-warmup-samples')
 
     # Check required arguments.
     required_args = ['num_layers', 'hidden_size', 'num_attention_heads',
@@ -248,28 +244,28 @@ def parse_args(extra_args_provider=None, defaults={},
         args.ffn_hidden_size = 4 * args.hidden_size
 
     if args.kv_channels is None:
-        assert args.hidden_size % args.num_attention_heads == 0
+        check_divisible(args.hidden_size, args.num_attention_heads)
         args.kv_channels = args.hidden_size // args.num_attention_heads
 
     if args.tensor_model_parallel_size == 1:
         args.sequence_parallel = False
     
     if args.seq_length is not None:
-        assert args.encoder_seq_length is None
+        ensure_var_is_none(args.encoder_seq_length)
         args.encoder_seq_length = args.seq_length
     else:
-        assert args.encoder_seq_length is not None
+        ensure_var_is_not_none(args.encoder_seq_length)
         args.seq_length = args.encoder_seq_length
 
     if (args.position_embedding_type == PositionEmbeddingType.absolute or
      args.position_embedding_type == PositionEmbeddingType.alibi):
-        assert args.max_position_embeddings is not None
+        ensure_var_is_not_none(args.max_position_embeddings)
         if not args.seq_length:
             assert args.max_position_embeddings >= args.seq_length
         if args.decoder_seq_length is not None:
             assert args.max_position_embeddings >= args.decoder_seq_length
     else:
-        assert args.max_position_embeddings is None
+        ensure_var_is_none(args.max_position_embeddings)
 
     if args.seq_length is not None:
         assert args.max_position_embeddings >= args.seq_length
@@ -278,7 +274,7 @@ def parse_args(extra_args_provider=None, defaults={},
     if args.lr is not None:
         assert args.min_lr <= args.lr
     if args.save is not None:
-        assert args.save_interval is not None
+        ensure_var_is_not_none(args.save_interval)
     # Mixed precision checks.
     if args.fp16_lm_cross_entropy:
         assert args.fp16, 'lm cross entropy in fp16 only support in fp16 mode.'
@@ -342,7 +338,7 @@ def _print_args(args):
 
 
 def _check_arg_is_not_none(args, arg):
-    assert getattr(args, arg) is not None, '{} argument is None'.format(arg)
+    ensure_var_is_not_none(getattr(args, arg), error_message='{} argument is None'.format(arg))
 
 
 def core_transformer_config_from_args(args):
@@ -1172,9 +1168,9 @@ def _add_manual_layer_allocation(parser):
 
 def _get_manual_layer_allocation(args=None):
     if args is not None and args.use_manual_layer_allocation:
-        assert args.manual_layers is not None
+        ensure_var_is_not_none(args.manual_layers)
         manual_layers = list(map(int, args.manual_layers.split(',')))
-        assert len(manual_layers) == args.pipeline_model_parallel_size
+        check_equal(len(manual_layers), args.pipeline_model_parallel_size)
         args.manual_layers = manual_layers
 
 

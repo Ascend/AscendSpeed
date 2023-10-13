@@ -17,13 +17,16 @@
 import re
 import argparse
 
+from ascendspeed.error_utils import check_equal
+
 
 class ParseDataPaths(argparse.Action):
     def __call__(self, parser, args, values, option_string=None):
 
         if option_string == "--train-weighted-split-paths":
-            assert len(values) == 1, 'Only 1 dataset group is allowed to'
+            error_info = 'Only 1 dataset group is allowed to'
             'be passed for the argument --train-weighted-split-paths'
+            check_equal(len(values), 1, error_info)
 
         # make sure string given in the correct format
         err_message = 'Each data group should be input on the following format'
@@ -35,7 +38,7 @@ class ParseDataPaths(argparse.Action):
             datasets = prefix.split(",")
             # check if each dataset is formatted like `WEIGHT START:END PATH`
             for d in datasets:
-                assert len(d.split()) == 3, err_message
+                check_equal(len(d.split()), 3, error_info=err_message)
                 start, end = d.split()[1].split(":")
                 assert float(start) < float(end), err_message
 
@@ -65,7 +68,8 @@ class ParseDataPathsPath(argparse.Action):
 
         with open(values, "r") as fi:
             lines = fi.readlines()
-            assert len(lines) == 1, f"Got multiple lines {len(lines)} instead of 1 expected"
+            error_info = f"Got multiple lines {len(lines)} instead of 1 expected"
+            check_equal(len(lines), 1, error_info)
             assert lines[0][-2:] == "\"\n" and \
                 lines[0][0] == "\"", f"Invalid input format, got {lines}"
             values = lines[0][1:-2].split("\" \"")

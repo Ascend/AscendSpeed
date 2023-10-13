@@ -17,6 +17,8 @@
 import torch
 from deepspeed.accelerator import get_accelerator
 
+from ascendspeed.error_utils import check_equal
+
 # A dictionary of all the memory buffers allocated.
 _MEM_BUFFS = dict()
 
@@ -89,9 +91,9 @@ class MemoryBuffer:
     def add(self, tensor):
         """Allocate a chunk of memory from the buffer to tensor and copy
         the values."""
-        assert tensor.dtype == self.dtype, \
-            'Input tensor type {} different from buffer type {}'.format(
-                tensor.dtype, self.dtype)
+        error_info = 'Input tensor type {} different from buffer type {}'.format(
+                     tensor.dtype, self.dtype)
+        check_equal(tensor.dtype, self.dtype, error_info)
         # Number of elements of the input tensor.
         tensor_numel = torch.numel(tensor)
         new_start = self._start + tensor_numel
