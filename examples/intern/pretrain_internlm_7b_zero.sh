@@ -71,6 +71,7 @@ deepspeed  pretrain_intern.py \
        --train-iters 500000 \
        --lr-decay-iters 320000 \
        --data-path $DATA \
+       --load $CHECKPOINT \
        --tokenizer-name-or-path ./dataset/internlm \
        --tokenizer-not-use-fast \
        --data-impl mmap \

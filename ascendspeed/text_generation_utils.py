@@ -36,6 +36,7 @@ from ascendspeed.model import DistributedDataParallel as LocalDDP
 from ascendspeed.model import Float16Module
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
 from ascendspeed.core.utils import get_attr_wrapped_model, get_model_config, get_model_type
+from ascendspeed.utils import WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
 
 
 def get_batch(context_tokens):
@@ -108,7 +109,7 @@ def generate_samples_input_from_file(model):
                   'it to {}'.format(sample_output_file))
         else:
             sample_output_file = args.sample_output_file
-        fname_out = open(sample_output_file, "w+")
+        fname_out = os.fdopen(os.open(sample_output_file, WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES), "w+")
 
     context_count = 0
     model.eval()
@@ -375,7 +376,7 @@ def generate_and_write_samples_unconditional(model, latencies=[], single_token_l
 
     args = get_args()
     assert args.genfile is not None
-    with open(args.genfile, 'w') as f:
+    with os.fdopen(os.open(args.genfile, WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES), 'w') as f:
         for datum in generate_samples_unconditional(model, latencies=latencies, model_latencies=model_latencies, single_token_latency=single_token_latency):
             if parallel_state.is_pipeline_last_stage() and \
                parallel_state.get_tensor_model_parallel_rank() == 0:

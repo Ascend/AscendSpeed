@@ -151,6 +151,36 @@ class GeneralPretrainHandler(BaseDatasetHandler):
         return sample
 
 
+class AlpacaPretrainHandler(GeneralPretrainHandler):
+    """
+    alpaca-data-conversation pretrain dataset handler
+    """
+    def __init__(self, args, raw_datasets, tokenizer, splitter):
+        super().__init__(args, raw_datasets, tokenizer, splitter)
+       
+        self.message_format = "A chat between a curious user and an artificial intelligence assistant. " \
+                              "The assistant gives helpful, detailed, and polite answers to the user's questions." \
+                              "USER: Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n" \
+                              "### Instruction:\n{instruction}\n\n###{inputs}\n\n### Response: ASSISTANT: {response}"
+
+    def _filter(self, sample):
+        key = "text"
+        text = self.message_format.format(
+            instruction=sample.get("instruction"), 
+            inputs=f" Input:\n{sample.get('input')}" if sample.get("input") else None,
+            response=sample.get("output"))
+        doc_ids = []
+        for sentence in self.splitter.tokenize(text):
+            if len(sentence) > 0:
+                sentence_ids = self._tokenize(sentence)
+                doc_ids.append(sentence_ids)
+        if len(doc_ids) > 0 and self.args.append_eod:
+            doc_ids[-1]['input_ids'].append(self.tokenizer.eod)
+        sample[key] = doc_ids
+        sample[key] = list(map(lambda x: x['input_ids'], sample[key]))
+        return sample
+    
+
 class GeneralInstructionHandler(BaseDatasetHandler):
     """
     a general instruction dataset handler
