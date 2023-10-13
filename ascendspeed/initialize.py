@@ -28,7 +28,7 @@ from deepspeed import initialize
 from ascendspeed import get_adlr_autoresume
 from ascendspeed import get_args
 from ascendspeed import get_tensorboard_writer
-from ascendspeed import mpu
+from ascendspeed.core import tensor_parallel
 from ascendspeed.utils import is_rank_0
 from ascendspeed.core import parallel_state
 from ascendspeed.global_vars import set_global_variables
@@ -125,7 +125,7 @@ def setup_deepspeed_random_and_activation_checkpointing(args):
         num_layers *= 2
 
     deepspeed.checkpointing.configure(
-        mpu,
+        parallel_state,
         partition_activations=args.partition_activations,
         contiguous_checkpointing=args.contigious_checkpointing,
         num_checkpoints=num_layers,
@@ -133,9 +133,6 @@ def setup_deepspeed_random_and_activation_checkpointing(args):
         synchronize=args.synchronize_each_layer,
         profile=args.profile_backward)
 
-    mpu.checkpoint = deepspeed.checkpointing.checkpoint
-    mpu.get_cuda_rng_tracker = deepspeed.checkpointing.get_cuda_rng_tracker
-    mpu.model_parallel_cuda_manual_seed = deepspeed.checkpointing.model_parallel_cuda_manual_seed
 
 
 def _initialize_distributed():
@@ -224,9 +221,9 @@ def _set_random_seed(seed_):
         np.random.seed(seed)
         torch.manual_seed(seed)
         if get_accelerator().device_count() > 0:
-            mpu.model_parallel_cuda_manual_seed(seed)
+            tensor_parallel.model_parallel_cuda_manual_seed(seed)
     else:
-        raise ValueError('Seed ({}) should be a positive integer.'.format(seed))
+        raise ValueError('Seed ({}) should be a positive integer.'.format(seed_))
 
 
 def write_args_to_tensorboard():
@@ -245,7 +242,7 @@ def _initialize_mem_buffs():
 
     # Initialize memory for checkpointed activations.
     if args.distribute_checkpointed_activations:
-        mpu.init_checkpointed_activations_memory_buffer()
+        tensor_parallel.init_checkpointed_activations_memory_buffer()
 
 
 def _is_rank_0():

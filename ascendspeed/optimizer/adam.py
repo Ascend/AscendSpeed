@@ -5,7 +5,7 @@ import torch_npu
 from torch import Tensor
 from torch.optim.optimizer import Optimizer
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
-from ascendspeed import mpu
+from ascendspeed.core import parallel_state
 from ascendspeed import get_args
 
 
@@ -60,7 +60,7 @@ def allreduce_layernorm_grads(grads):
 
     coalesced = _flatten_dense_tensors(grads)
     torch.distributed.all_reduce(
-        coalesced, group=mpu.get_tensor_model_parallel_group())
+        coalesced, group=parallel_state.get_tensor_model_parallel_group())
     for buf, synced in zip(grads, _unflatten_dense_tensors(
             coalesced, grads)):
         buf.copy_(synced)

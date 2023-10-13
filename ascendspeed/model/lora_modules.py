@@ -13,7 +13,7 @@ from peft.tuners.lora import LoraLayer, Embedding, Conv2d, Linear
 from peft.import_utils import is_bnb_4bit_available, is_bnb_available
 from peft.utils import transpose, _get_submodules, ModulesToSaveWrapper
 
-from ascendspeed.mpu import RowParallelLinear, ColumnParallelLinear
+from ascendspeed.core.tensor_parallel import RowParallelLinear, ColumnParallelLinear
 from ascendspeed.error_utils import check_equal
 
 check_equal(peft.__version__, "0.4.0")
@@ -100,7 +100,6 @@ class LoraParallelLinear(ColumnParallelLinear, RowParallelLinear, LoraParalleLay
         type(parallel_linear).__init__(self, input_size=parallel_linear.input_size,
                                        output_size=parallel_linear.output_size, bias=parallel_linear.bias,
                                        skip_bias_add=parallel_linear.skip_bias_add,
-                                       sequence_parallel_enabled=parallel_linear.sequence_parallel_enabled,
                                        **parallel_linear_kwargs)
         LoraParalleLayer.__init__(self, in_features=parallel_linear.input_size,
                                   out_features=parallel_linear.output_size,

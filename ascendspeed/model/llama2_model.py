@@ -23,12 +23,11 @@ import deepspeed
 from deepspeed.pipe import PipelineModule, LayerSpec
 
 from ascendspeed import get_args
-from ascendspeed import mpu
 from ascendspeed.core import tensor_parallel, parallel_state, utils
 from ascendspeed.model.module import MegatronModule, MegatronModuleForCausalLM, float16_to_fp32, fp32_to_float16
 from ascendspeed.core.enums import AttnMaskType, AttnType
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal, attention_mask_func
-from ascendspeed.mpu.mappings import scatter_to_sequence_parallel_region
+from ascendspeed.core.tensor_parallel.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
 from ascendspeed.model.language_model import Pooler
 
@@ -107,6 +106,7 @@ class Llama2LMHead(MegatronModule):
     """
 
     def __init__(self,
+                 config,
                  hidden_size,
                  vocab_size,
                  init_method,
@@ -117,13 +117,14 @@ class Llama2LMHead(MegatronModule):
         self.init_method = init_method
         self.parallel_output = parallel_output
         self.sequence_parallel = args.sequence_parallel
-        self.lm_head = mpu.ColumnParallelLinear(input_size=self.hidden_size,
+        self.lm_head = tensor_parallel.ColumnParallelLinear(input_size=self.hidden_size,
                                                 output_size=vocab_size,
+                                                config=config,
                                                 bias=False,
                                                 gather_output=not self.parallel_output,
                                                 skip_bias_add=True,
                                                 init_method=self.init_method,
-                                                sequence_parallel_enabled=args.sequence_parallel)
+                                                )
 
     def forward(self, inputs):
         inputs = inputs.transpose(0, 1).contiguous() if self.sequence_parallel else inputs
@@ -168,6 +169,7 @@ class Llama2Embedding(MegatronModule):
     """
 
     def __init__(self,
+                 config,
                  hidden_size,
                  vocab_size,
                  init_method):
@@ -178,8 +180,8 @@ class Llama2Embedding(MegatronModule):
         self.init_method = init_method
 
         # Word embeddings (parallel).
-        self.word_embeddings = mpu.VocabParallelEmbedding(vocab_size, self.hidden_size,
-                                                          init_method=self.init_method)
+        self.word_embeddings = tensor_parallel.VocabParallelEmbedding(vocab_size, self.hidden_size,
+                                                                      init_method=self.init_method, config=config)
         self.sequence_parallel = args.sequence_parallel
 
     def forward(self, input_ids):
@@ -226,51 +228,53 @@ class Llama2ParallelMLP(MegatronModule):
     state back into h hidden dimension.
     """
 
-    def __init__(self, init_method, output_layer_init_method, moe=False, enable_expert_tensor_parallelism=False):
+    def __init__(self, config, init_method, output_layer_init_method, moe=False,
+                 enable_expert_tensor_parallelism=False):
         self.mlp = Llama2ParallelMLP
-        super(self.mlp, self).__init__()
+        super(Llama2ParallelMLP, self).__init__()
         args = get_args()
         self.init_method = init_method
         self.output_layer_init_method = output_layer_init_method
 
         # Project to intermediate.
-        self.gate_proj = mpu.ColumnParallelLinear(
+        self.gate_proj = tensor_parallel.ColumnParallelLinear(
             args.hidden_size,
             args.ffn_hidden_size,
+            config=config,
             bias=False,
             gather_output=False,
             init_method=self.init_method,
             skip_bias_add=True,
             moe=moe,
             enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
-            sequence_parallel_enabled=args.sequence_parallel
         )
 
-        self.up_proj = mpu.ColumnParallelLinear(
+        self.up_proj = tensor_parallel.ColumnParallelLinear(
             args.hidden_size,
             args.ffn_hidden_size,
+            config=config,
             bias=False,
             gather_output=False,
             init_method=self.init_method,
             skip_bias_add=True,
             moe=moe,
             enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
-            sequence_parallel_enabled=args.sequence_parallel
         )
 
         self.activation_func = F.silu
 
         # Project back to h.
-        self.down_proj = mpu.RowParallelLinear(
+        self.down_proj = tensor_parallel.RowParallelLinear(
             args.ffn_hidden_size,
             args.hidden_size,
+            config=config,
             bias=False,
             input_is_parallel=True,
             init_method=self.output_layer_init_method,
             skip_bias_add=True,
             moe=moe,
             enable_expert_tensor_parallelism=enable_expert_tensor_parallelism,
-            sequence_parallel_enabled=args.sequence_parallel)
+            )
 
     def forward(self, hidden_states):
         intermediate_parallel = self.activation_func(self.gate_proj(hidden_states)[0]) * self.up_proj(hidden_states)[0]
@@ -286,7 +290,7 @@ class Llama2ParallelAttention(MegatronModule):
     and returns output of the same size.
     """
 
-    def __init__(self, init_method,
+    def __init__(self, config, init_method,
                  output_layer_init_method, layer_number,
                  attention_type=AttnType.self_attn,
                  attn_mask_type=AttnMaskType.causal):
@@ -323,13 +327,14 @@ class Llama2ParallelAttention(MegatronModule):
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
-            self.query_key_value = mpu.ColumnParallelLinear(
+            self.query_key_value = tensor_parallel.ColumnParallelLinear(
                 args.hidden_size,
                 3 * projection_size,
+                config=config,
                 bias=False,
                 gather_output=False,
                 init_method=self.init_method,
-                sequence_parallel_enabled=self.sequence_parallel)
+                )
 
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
 
@@ -345,14 +350,15 @@ class Llama2ParallelAttention(MegatronModule):
         self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head)
 
         # Output.
-        self.dense = mpu.RowParallelLinear(
+        self.dense = tensor_parallel.RowParallelLinear(
             projection_size,
             args.hidden_size,
+            config=config,
             bias=False,
             input_is_parallel=True,
             init_method=self.output_layer_init_method,
             skip_bias_add=True,
-            sequence_parallel_enabled=self.sequence_parallel)
+            )
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
@@ -379,7 +385,7 @@ class Llama2ParallelAttention(MegatronModule):
             # [sq, b, 3 * h] --> 3 [sq, b, h]
             (query_layer,
              key_layer,
-             value_layer) = utils.split_tensor_along_last_dim(mixed_x_layer, 3)
+             value_layer) = tensor_parallel.utils.split_tensor_along_last_dim(mixed_x_layer, 3)
 
         # ==================================
         # Rotary Position Embedding
@@ -461,7 +467,7 @@ class Llama2ParallelTransformerLayer(MegatronModule):
     output of the same size.
     """
 
-    def __init__(self, init_method, output_layer_init_method,
+    def __init__(self, config, init_method, output_layer_init_method,
                  layer_number,
                  self_attn_mask_type=AttnMaskType.causal):
         args = get_args()
@@ -483,6 +489,7 @@ class Llama2ParallelTransformerLayer(MegatronModule):
 
         # Self attention.
         self.attention = Llama2ParallelAttention(
+            self.config,
             self.init_method,
             self.output_layer_init_method,
             layer_number,
@@ -496,7 +503,7 @@ class Llama2ParallelTransformerLayer(MegatronModule):
 
         # MLP
         self.rank = args.rank
-        self.mlp = Llama2ParallelMLP(self.init_method, self.output_layer_init_method)
+        self.mlp = Llama2ParallelMLP(config, self.init_method, self.output_layer_init_method)
 
     def forward(self, hidden_states, attention_mask=None,
                 layer_past=None, get_key_value=False):
@@ -569,14 +576,14 @@ class Llama2ParallelTransformerLayerPipe(Llama2ParallelTransformerLayer):
 class Llama2ParallelTransformer(MegatronModule):
     """Transformer class."""
 
-    def __init__(self, init_method, output_layer_init_method,
+    def __init__(self, config, init_method, output_layer_init_method,
                  self_attn_mask_type=AttnMaskType.causal,
                  pre_process=True, post_process=True):
 
         super(Llama2ParallelTransformer, self).__init__()
         args = get_args()
         assert self_attn_mask_type == AttnMaskType.causal
-
+        self.config = config
         self.bf16 = args.bf16
         self.fp32_residual_connection = args.fp32_residual_connection
         self.pre_process = pre_process
@@ -589,6 +596,8 @@ class Llama2ParallelTransformer(MegatronModule):
         # Store activation checkpoiting flag.
         self.checkpoint_activations = args.checkpoint_activations
         self.checkpoint_num_layers = args.checkpoint_num_layers
+        self.distribute_saved_activations = \
+            config.distribute_saved_activations and not config.sequence_parallel
 
         # Number of layers.
         assert args.num_layers % parallel_state.get_pipeline_model_parallel_world_size() == 0, \
@@ -598,6 +607,7 @@ class Llama2ParallelTransformer(MegatronModule):
         # Transformer layers.
         def build_layer(layer_number):
             return Llama2ParallelTransformerLayer(
+                config,
                 self.init_method,
                 self.output_layer_init_method,
                 layer_number)
@@ -662,11 +672,12 @@ class Llama2ParallelTransformer(MegatronModule):
             return custom_forward
 
         # Make sure memory is freed.
-        mpu.reset_checkpointed_activations_memory_buffer()
+        tensor_parallel.reset_checkpointed_activations_memory_buffer()
         l = 0
         while l < self.num_layers:
-            hidden_states = mpu.checkpoint(
+            hidden_states = tensor_parallel.checkpoint(
                 custom(l, l + self.checkpoint_num_layers),
+                self.distribute_saved_activations,
                 hidden_states, attention_mask)
             l += self.checkpoint_num_layers
 
@@ -756,7 +767,7 @@ def CrossEntropy(output, labels):
 class Llama2ModelPipe(PipelineModule, MegatronModule, MegatronModuleForCausalLM):
     """llama Language model."""
 
-    def __init__(self, parallel_output=True):
+    def __init__(self, config, parallel_output=True):
         args = get_args()
 
         self.init_method = init_method_normal(args.init_method_std)
@@ -776,7 +787,7 @@ class Llama2ModelPipe(PipelineModule, MegatronModule, MegatronModuleForCausalLM)
         self.specs.append(_to_float16)
 
         # Embedding layer
-        self.specs.append(LayerSpec(Llama2EmbeddingPipe, hidden_size=args.hidden_size, vocab_size=args.padded_vocab_size,
+        self.specs.append(LayerSpec(Llama2EmbeddingPipe, config=config, hidden_size=args.hidden_size, vocab_size=args.padded_vocab_size,
                                     init_method=self.init_method, ))
 
         if args.fp32_residual_connection:
@@ -786,10 +797,11 @@ class Llama2ModelPipe(PipelineModule, MegatronModule, MegatronModuleForCausalLM)
 
         for layer_idx in range(args.num_layers):
             self.specs.append(
-                LayerSpec(Llama2ParallelTransformerLayerPipe
-                          , init_method=self.init_method
-                          , output_layer_init_method=self.output_layer_init_method
-                          , layer_number=layer_idx))
+                LayerSpec(Llama2ParallelTransformerLayerPipe,
+                          config=config,
+                          init_method=self.init_method,
+                          output_layer_init_method=self.output_layer_init_method,
+                          layer_number=layer_idx))
 
         # Undo data format change
         self.specs.append(lambda x: x.transpose(0, 1).contiguous())
@@ -800,7 +812,7 @@ class Llama2ModelPipe(PipelineModule, MegatronModule, MegatronModuleForCausalLM)
                       sequence_parallel=args.sequence_parallel))
 
         self.specs.append(
-            LayerSpec(Llama2LMHeadPipe, hidden_size=args.hidden_size, vocab_size=args.padded_vocab_size,
+            LayerSpec(Llama2LMHeadPipe, config=config, hidden_size=args.hidden_size, vocab_size=args.padded_vocab_size,
                       init_method=self.init_method, parallel_output=self.parallel_output)
         )
 
@@ -831,6 +843,7 @@ class Llama2Model(MegatronModule, MegatronModuleForCausalLM):
     def __init__(self, config, pre_process, post_process, parallel_output=True, add_pooler=False, **kwargs):
         super(Llama2Model, self).__init__(config=config, share_word_embeddings=False)
         args = get_args()
+        self.config = config,
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
         self.hidden_size = args.hidden_size
         self.pre_process = pre_process
@@ -843,12 +856,14 @@ class Llama2Model(MegatronModule, MegatronModuleForCausalLM):
         self.padded_vocab_size = args.padded_vocab_size
 
         if self.pre_process:
-            self.embedding = Llama2Embedding(hidden_size=args.hidden_size,
+            self.embedding = Llama2Embedding(config=config,
+                                             hidden_size=args.hidden_size,
                                              init_method=self.init_method,
                                              vocab_size=self.padded_vocab_size)
 
         # Transformer.
         self.language_model = Llama2ParallelTransformer(
+            self.config,
             self.init_method,
             self.output_layer_init_method,
             self_attn_mask_type=self.self_attn_mask_type,
@@ -861,7 +876,8 @@ class Llama2Model(MegatronModule, MegatronModuleForCausalLM):
             if self.add_pooler:
                 self.pooler = Pooler(self.hidden_size, self.init_method)
 
-            self.lm_head = Llama2LMHead(hidden_size=args.hidden_size,
+            self.lm_head = Llama2LMHead(config=self.config,
+                                        hidden_size=args.hidden_size,
                                        vocab_size=self.padded_vocab_size,
                                        init_method=self.init_method,
                                        parallel_output=self.parallel_output)

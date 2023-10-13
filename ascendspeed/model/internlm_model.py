@@ -14,14 +14,11 @@
 # limitations under the License.
 
 import math
-from functools import partial
 
 import torch
-import torch.nn.functional as F
 
 from ascendspeed import get_args
-from ascendspeed import mpu
-from ascendspeed.core import parallel_state, utils
+from ascendspeed.core import parallel_state, utils, tensor_parallel
 from ascendspeed.model.module import MegatronModule
 from ascendspeed.core.enums import AttnMaskType, AttnType
 from ascendspeed.model.utils import attention_mask_func
@@ -37,7 +34,7 @@ class InternLMParallelAttention(MegatronModule):
     and returns output of the same size.
     """
 
-    def __init__(self, init_method,
+    def __init__(self, config, init_method,
                  output_layer_init_method, layer_number,
                  attention_type=AttnType.self_attn,
                  attn_mask_type=AttnMaskType.causal):
@@ -64,9 +61,9 @@ class InternLMParallelAttention(MegatronModule):
         self.num_attention_heads_per_partition = utils.divide(
             args.num_attention_heads, world_size)
         if attention_type == AttnType.self_attn:
-            self.query_key_value = mpu.ColumnParallelLinear(
-                args.hidden_size, 3 * projection_size, bias=True, gather_output=False,
-                init_method=self.init_method, sequence_parallel_enabled=self.sequence_parallel)
+            self.query_key_value = tensor_parallel.ColumnParallelLinear(
+                args.hidden_size, 3 * projection_size, config=config, bias=True, gather_output=False,
+                init_method=self.init_method)
 
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
 
@@ -83,10 +80,10 @@ class InternLMParallelAttention(MegatronModule):
         if self.use_triangle_attn:
             self.triangle_attn = TriangleAttention(block_size=1024,
                                                    masked_softmax_func=self.scale_mask_softmax)
-        self.dense = mpu.RowParallelLinear(
-            projection_size, args.hidden_size, bias=True, input_is_parallel=True,
+        self.dense = tensor_parallel.RowParallelLinear(
+            projection_size, args.hidden_size, config=config, bias=True, input_is_parallel=True,
             init_method=self.output_layer_init_method, skip_bias_add=False,
-            sequence_parallel_enabled=self.sequence_parallel)
+        )
 
     def forward(self, hidden_states, attention_mask, layer_past=None,
                 get_key_value=False):
@@ -100,7 +97,7 @@ class InternLMParallelAttention(MegatronModule):
             mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
             (query_layer,
              key_layer,
-             value_layer) = utils.split_tensor_along_last_dim(mixed_x_layer, 3)
+             value_layer) = tensor_parallel.utils.split_tensor_along_last_dim(mixed_x_layer, 3)
         
         query_layer = query_layer.permute(1, 2, 0, 3).contiguous()
         key_layer = key_layer.permute(1, 2, 0, 3).contiguous()

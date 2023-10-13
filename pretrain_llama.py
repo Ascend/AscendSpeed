@@ -31,8 +31,7 @@ from ascendspeed import get_args
 from ascendspeed import print_rank_0
 from ascendspeed import get_timers
 from ascendspeed import get_tokenizer
-from ascendspeed import mpu
-from ascendspeed.core import parallel_state
+from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets as build_pretrain_dataset
 from ascendspeed.data.decoder_packed_mtf_dataset import build_train_valid_test_datasets as build_instruction_dataset
 from ascendspeed.model import LlamaModel, LlamaModelPipe
@@ -57,7 +56,7 @@ def model_provider(pre_process=True, post_process=True):
                              enabled=args.zero_stage == 3,
                              mpu=parallel_state):
         if args.deepspeed and not args.no_pipeline_parallel:
-            model = LlamaModelPipe(config, parallel_output=True)
+            model = LlamaModelPipe(config=config, parallel_output=True)
             # This is a hack to give us a reference to get_batch_pipe from within training.py
             # We need to call model.set_batch_fn after deepspeed.initialize
             model._megatron_batch_fn = get_batch_pipe
@@ -150,7 +149,7 @@ def get_batch_pipe(data):
         data_type = torch.int64
 
         # Broadcast data.
-        data_b = mpu.broadcast_data(keys, data, data_type)
+        data_b = tensor_parallel.broadcast_data(keys, data, data_type)
 
         # Unpack.
         labels = data_b.get('labels').long()
@@ -168,7 +167,7 @@ def get_batch_pipe(data):
     data_type = torch.int64
 
     # Broadcast data.
-    data_b = mpu.broadcast_data(keys, data, data_type)
+    data_b = tensor_parallel.broadcast_data(keys, data, data_type)
 
     # Unpack.
     tokens_ = data_b['text'].long()

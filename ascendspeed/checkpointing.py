@@ -28,11 +28,10 @@ from ascendspeed.enums import PositionEmbeddingType
 
 from ascendspeed import (get_args,
                       is_rank_0,
-                      mpu,
                       print_rank_0,
                       update_num_microbatches,
                       utils)
-from ascendspeed.core import parallel_state
+from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.model import DistributedDataParallel as LocalDDP
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_state_dict, lora_custom_load_fn_for_deepspeed, \
     get_lora_model_classes, get_lora_state_dict_with_deepspeed, update_model_state_dict_with_megatron, \
@@ -166,7 +165,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
             state_dict['torch_rng_state'] = torch.get_rng_state()
             state_dict['cuda_rng_state'] = get_accelerator().get_rng_state()
             state_dict['rng_tracker_states'] \
-                = mpu.get_cuda_rng_tracker().get_states()
+                = tensor_parallel.get_cuda_rng_tracker().get_states()
 
         # Save.
         checkpoint_name = get_checkpoint_name(args.save, iteration)
@@ -487,7 +486,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
             # Check for empty states array
             if not state_dict['rng_tracker_states']:
                 raise KeyError
-            mpu.get_cuda_rng_tracker().set_states(
+            tensor_parallel.get_cuda_rng_tracker().set_states(
                 state_dict['rng_tracker_states'])
         except KeyError:
             print_rank_0('Unable to load rng state from checkpoint {}. '

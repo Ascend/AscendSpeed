@@ -95,6 +95,7 @@ class GPTModel(MegatronModule, MegatronModuleForCausalLM):
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
         self.return_moe_loss = return_moe_loss
         self.language_model, self._language_model_key = get_language_model(
+            config=config,
             num_tokentypes=num_tokentypes,
             add_pooler=False,
             encoder_attn_mask_type=AttnMaskType.prefix if prefix_lm else AttnMaskType.causal,
@@ -103,7 +104,7 @@ class GPTModel(MegatronModule, MegatronModuleForCausalLM):
             pre_process=self.pre_process,
             post_process=self.post_process)
 
-        self.initialize_word_embeddings(init_method_normal)
+        self.initialize_word_embeddings()
 
     def set_input_tensor(self, input_tensor):
         """See ascendspeed.model.transformer.set_input_tensor()"""
@@ -140,7 +141,7 @@ class GPTModel(MegatronModule, MegatronModuleForCausalLM):
         if self.post_process:
             lm_output = post_language_model_processing(
                     lm_output, labels,
-                    self.word_embeddings_weight(),
+                    self.shared_embedding_or_output_weight(),
                     get_key_value,
                     self.parallel_output,
                     forward_method_parallel_output,
@@ -258,6 +259,7 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
         # Embedding layer
         self.specs.append(TiedLayerSpec('embed',
                                         EmbeddingPipe,
+                                        config,
                                         args.hidden_size,
                                         args.padded_vocab_size,
                                         args.max_position_embeddings,
@@ -283,6 +285,7 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
             self.specs.append(
                 LayerSpec(
                     ParallelTransformerLayerPipe,
+                    config=config,
                     init_method=init_method,
                     output_layer_init_method=scaled_init_method_normal(args.init_method_std,
                                                                        args.num_layers),
@@ -322,6 +325,7 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
         self.specs.append(
             TiedLayerSpec('embed',
                           EmbeddingPipe,
+                          config,
                           args.hidden_size,
                           args.padded_vocab_size,
                           args.max_position_embeddings,

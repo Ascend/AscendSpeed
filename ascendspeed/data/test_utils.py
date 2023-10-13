@@ -22,7 +22,7 @@ from torch_npu.contrib import transfer_to_npu
 from ascendspeed import get_args
 from ascendspeed import print_rank_0
 from ascendspeed import get_tokenizer
-from ascendspeed import mpu
+from ascendspeed.core import tensor_parallel
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets, build_dataset_group
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 
@@ -41,7 +41,7 @@ def get_batch(data_iterator):
         data = next(data_iterator)
     else:
         data = None
-    data_b = mpu.broadcast_data(keys, data, datatype)
+    data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
     # Unpack.
     tokens_ = data_b['text'].long()
@@ -95,7 +95,7 @@ def get_batch_pipe(data):
     datatype = torch.int64
 
     # Broadcast data.
-    data_b = mpu.broadcast_data(keys, data, datatype)
+    data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
     # Unpack.
     tokens_ = data_b['text'].long()

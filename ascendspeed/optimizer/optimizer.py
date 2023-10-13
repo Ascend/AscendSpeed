@@ -23,10 +23,10 @@ from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from ascendspeed import get_timers
-from ascendspeed import mpu, print_rank_0
-from ascendspeed.core import parallel_state
+from ascendspeed import print_rank_0
+from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.model.module import param_is_not_shared
-from ascendspeed.mpu.layers import param_is_not_tensor_parallel_duplicate
+from ascendspeed.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
 from ascendspeed.utils import unwrap_model
 from ascendspeed.model import Float16Module, DistributedDataParallel as LocalDDP
 from deepspeed.accelerator import get_accelerator
@@ -222,8 +222,8 @@ class MegatronOptimizer(ABC):
             unwrapped_model = unwrap_model(
                 unwrapped_model, self.unwrap_model_classes)
 
-            if unwrapped_model.share_word_embeddings:
-                word_embeddings_weight = unwrapped_model.word_embeddings_weight()
+            if unwrapped_model.share_embeddings_and_output_weights:
+                word_embeddings_weight = unwrapped_model.shared_embedding_or_output_weight()
                 if args.DDP_impl == 'local':
                     grad = word_embeddings_weight.main_grad
                 else:
@@ -548,7 +548,7 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
                         # Create a copy
                         main_param = param.detach().clone().float()
                         # Copy tensor model parallel attributes.
-                        mpu.copy_tensor_model_parallel_attributes(main_param,
+                        tensor_parallel.copy_tensor_model_parallel_attributes(main_param,
                                                                   param)
                         if hasattr(param, 'shared'):
                             main_param.shared = param.shared

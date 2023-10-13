@@ -30,7 +30,6 @@ from ascendspeed import get_args
 from ascendspeed import print_rank_0
 from ascendspeed import get_timers
 from ascendspeed import get_tokenizer
-from ascendspeed import mpu
 from ascendspeed.core import parallel_state
 from ascendspeed.core.enums import ModelType
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets

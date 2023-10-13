@@ -6,7 +6,7 @@ import math
 import torch
 
 from ascendspeed import print_rank_0
-from ascendspeed import mpu
+from ascendspeed.core import tensor_parallel, parallel_state
 from ascendspeed.error_utils import check_divisible
 from ascendspeed.error_utils import check_equal
 
@@ -129,8 +129,8 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         reduce-scatter and all-gather.
         """
 
-        data_parallel_rank = mpu.get_data_parallel_rank()
-        data_parallel_world_size = mpu.get_data_parallel_world_size()
+        data_parallel_rank = parallel_state.get_data_parallel_rank()
+        data_parallel_world_size = parallel_state.get_data_parallel_world_size()
 
         # Grad buffer range.
         grad_buffer = model._grad_buffers[dtype]
@@ -285,9 +285,9 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                     shard_model_param = model_param.detach().view(-1) \
                         [param_range.start:param_range.end]
                     shard_main_param = shard_model_param.clone().float()
-                    mpu.copy_tensor_model_parallel_attributes(
+                    tensor_parallel.copy_tensor_model_parallel_attributes(
                         shard_model_param, model_param)
-                    mpu.copy_tensor_model_parallel_attributes(
+                    tensor_parallel.copy_tensor_model_parallel_attributes(
                         shard_main_param, model_param)
                     if hasattr(model_param, 'shared'):
                         shard_model_param.shared = model_param.shared
@@ -304,7 +304,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                         [param_range.start:param_range.end]
                     model_fp32_params_this_group.append(model_param)
                     shard_fp32_params_this_group.append(shard_model_param)
-                    mpu.copy_tensor_model_parallel_attributes(
+                    tensor_parallel.copy_tensor_model_parallel_attributes(
                         shard_model_param, model_param)
                     if hasattr(model_param, 'shared'):
                         shard_model_param.shared = model_param.shared
@@ -501,7 +501,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         in _reduce_scatter_base and _all_gather_base.
         """
 
-        data_parallel_world_size = mpu.get_data_parallel_world_size()
+        data_parallel_world_size = parallel_state.get_data_parallel_world_size()
 
         # Buffer views.
         view_items = []
@@ -551,9 +551,9 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         # Reduce-scatter setup.
         timers('grads-reduce-scatter', log_level=1).start(
             barrier=args.barrier_with_L1_time)
-        data_parallel_rank = mpu.get_data_parallel_rank()
-        data_parallel_world_size = mpu.get_data_parallel_world_size()
-        data_parallel_group = mpu.get_data_parallel_group()
+        data_parallel_rank = parallel_state.get_data_parallel_rank()
+        data_parallel_world_size = parallel_state.get_data_parallel_world_size()
+        data_parallel_group = parallel_state.get_data_parallel_group()
 
         # Scale grad buffers by '1 / data_parallel_world_size'.
         for model in self.models:
@@ -584,8 +584,8 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         timers('params-all-gather', log_level=1).start(
             barrier=args.barrier_with_L1_time)
 
-        data_parallel_rank = mpu.get_data_parallel_rank()
-        data_parallel_group = mpu.get_data_parallel_group()
+        data_parallel_rank = parallel_state.get_data_parallel_rank()
+        data_parallel_group = parallel_state.get_data_parallel_group()
 
         # All-gather updated main params.
         # - All param buffer views are guaranteed to have the same num elements

@@ -28,7 +28,6 @@ import deepspeed
 from deepspeed.accelerator import get_accelerator
 
 import ascendspeed
-from ascendspeed import mpu
 from ascendspeed import get_args
 from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
@@ -47,10 +46,10 @@ class MegatronModule(torch.nn.Module):
     """Megatron specific extensions of torch Module with support
     for pipelining."""
 
-    def __init__(self, config=None, share_word_embeddings=True):
+    def __init__(self, config=None, share_embeddings_and_output_weights=True):
         super(MegatronModule, self).__init__()
         self.config = config
-        self.share_word_embeddings = share_word_embeddings
+        self.share_embeddings_and_output_weights = share_embeddings_and_output_weights
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='',
                                        keep_vars=False):
@@ -58,30 +57,28 @@ class MegatronModule(torch.nn.Module):
         saving checkpoints."""
         return self.state_dict(destination, prefix, keep_vars)
 
-    def word_embeddings_weight(self):
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+    def shared_embedding_or_output_weight(self):
+        if self.pre_process:
             return self.language_model.embedding.word_embeddings.weight
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
-            if not self.share_word_embeddings:
-                raise Exception('word_embeddings_weight() called for last '
-                                'stage, but share_word_embeddings is false')
+        else:
+            if not self.share_embeddings_and_output_weights:
+                raise Exception('shared_embedding_or_output_weight() called for last '
+                                'stage, but share_embeddings_and_output_weights is false')
             return self.word_embeddings.weight
-        raise Exception('word_embeddings_weight() should be '
-                        'called for first and last stage only')
 
-    def initialize_word_embeddings(self, init_method_normal):
+    def initialize_word_embeddings(self):
         args = get_args()
-        if not self.share_word_embeddings:
+        if not self.share_embeddings_and_output_weights:
             raise Exception('initialize_word_embeddings() was called but '
-                            'share_word_embeddings is false')
+                            'share_embeddings_and_output_weights is false')
 
         # This function just initializes the word embeddings in the final stage
-        # when we are using pipeline parallelism. If we aren't using pipeline
-        # parallelism there is nothing to do.
+        # when we are using pipeline parallelism. Nothing to do if we aren't
+        # using pipeline parallelism.
         if args.pipeline_model_parallel_size == 1:
             return
 
-        # Parameters are shared between the word embeddings layer, and the
+        # Parameters are shared between the word embeddings layers, and the
         # heads at the end of the model. In a pipelined setup with more than
         # one stage, the initial embedding layer and the head are on different
         # workers, so we do the following:
@@ -93,29 +90,48 @@ class MegatronModule(torch.nn.Module):
         # 3. In the training loop, before an all-reduce between the grads of
         #    the two word_embeddings layers to ensure that every applied weight
         #    update is the same on both stages.
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage() and not self.pre_process:
             assert not parallel_state.is_pipeline_first_stage()
             self._word_embeddings_for_head_key = 'word_embeddings_for_head'
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
-            self.word_embeddings = mpu.VocabParallelEmbedding(
-                args.padded_vocab_size, args.hidden_size,
-                init_method=init_method_normal(args.init_method_std))
+            self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
+                args.padded_vocab_size, self.config.hidden_size,
+                config=self.config, init_method=self.config.init_method)
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
 
+        # Zero out initial weights for decoder embedding.
+        # NOTE: We don't currently support T5 with the interleaved schedule.
+        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True) and \
+                self.pre_process:
+            self.language_model.embedding.zero_parameters()
+
+        if not torch.distributed.is_initialized():
+            if not getattr(MegatronModule, "embedding_warning_printed", False):
+                print("WARNING! Distributed processes aren't initialized, so "
+                      "word embeddings in the last layer are not initialized. "
+                      "If you are just manipulating a model this is fine, but "
+                      "this needs to be handled manually. If you are training "
+                      "something is definitely wrong.")
+                MegatronModule.embedding_warning_printed = True
+            return
+
         # Ensure that first and last stages have the same initial parameter
         # values.
-        if torch.distributed.is_initialized():
-            if parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage():
-                torch.distributed.all_reduce(self.word_embeddings_weight().data,
-                                             group=parallel_state.get_embedding_group())
-        else:
-            print("WARNING! Distributed processes aren't initialized, so "
-                  "word embeddings in the last layer are not initialized. "
-                  "If you are just manipulating a model this is fine, but "
-                  "this needs to be handled manually. If you are training "
-                  "something is definitely wrong.")
+        if parallel_state.is_rank_in_embedding_group():
+            torch.distributed.all_reduce(self.shared_embedding_or_output_weight().data,
+                                         group=parallel_state.get_embedding_group())
+
+        # Ensure that encoder(first stage) and decoder(split stage) position
+        # embeddings have the same initial parameter values
+        # NOTE: We don't currently support T5 with the interleaved schedule.
+        if parallel_state.is_rank_in_position_embedding_group() and \
+                args.pipeline_model_parallel_split_rank is not None:
+            self.language_model.embedding.cuda()
+            position_embeddings = self.language_model.embedding.position_embeddings
+            torch.distributed.all_reduce(position_embeddings.weight.data,
+                                         group=parallel_state.get_position_embedding_group())
 
 
 def conversion_helper(val, conversion):
@@ -130,6 +146,7 @@ def conversion_helper(val, conversion):
 
 
 def fp32_to_float16(val, float16_convertor):
+    """Convert fp32 `val` to fp16/bf16"""
     def half_conversion(val):
         val_typecheck = val
         if isinstance(val_typecheck, (torch.nn.parameter.Parameter, torch.autograd.Variable)):
@@ -142,6 +159,7 @@ def fp32_to_float16(val, float16_convertor):
 
 
 def float16_to_fp32(val):
+    """Convert fp16/bf16 `val` to fp32"""
     def float_conversion(val):
         if val is None:
             return val

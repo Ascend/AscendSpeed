@@ -301,6 +301,10 @@ def parse_args(extra_args_provider=None, defaults={},
                   'Defaulting to no_persist_layer_norm=True')
     else:
         args.no_persist_layer_norm = False
+    # disable async_tensor_model_parallel_allreduce when
+    # model parallel memory optimization is enabled
+    if args.sequence_parallel:
+        args.async_tensor_model_parallel_allreduce = False
     args.curriculum_learning_legacy = False
     args.compression_training = False
     args.apply_layernorm_1p = False
@@ -315,7 +319,6 @@ def parse_args(extra_args_provider=None, defaults={},
         for path in args.data_path:
             data_paths.append(f"{args.aml_data_download_path}/{path}")
         args.data_path = data_paths
-
     # manually layer distribute
     _get_manual_layer_allocation(args)
 
@@ -629,6 +632,17 @@ def _add_training_args(parser):
                        help='Very basic inference mode: not allocating optim/lr - requires ZERO_STAGE=0')
     group.add_argument('--use-fused-rotary-pos-emb', action='store_true',
                        help='use fused rotary pos emb')
+    group.add_argument('--no-async-tensor-model-parallel-allreduce',
+                       action='store_false',
+                       help='Disable asynchronous execution of '
+                       'tensor-model-parallel all-reduce with weight '
+                       'gradient compuation of a column-linear layer.',
+                       dest='async_tensor_model_parallel_allreduce')
+    group.add_argument('--no-gradient-accumulation-fusion',
+                       action='store_true',
+                       help='Disable fusing gradient accumulation to weight '
+                       'gradient computation of linear layers',
+                       dest='gradient_accumulation_fusion')
     return parser
 
 
