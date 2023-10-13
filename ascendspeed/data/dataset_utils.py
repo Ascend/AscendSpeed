@@ -30,6 +30,7 @@ from ascendspeed import (
 from ascendspeed.core import parallel_state
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
 from deepspeed.accelerator import get_accelerator
+
 DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
 DSET_TYPE_T5  = 't5'

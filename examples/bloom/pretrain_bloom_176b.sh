@@ -1,11 +1,11 @@
 #!/bin/bash
 export LD_LIBRARY_PATH=/usr/local/lib:/home/anaconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1600
-export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
-export ASCEND_GLOBAL_LOG_LEVEL=3 # 1-INFO 3-ERROR
-export ASCEND_GLOBAL_EVENT_ENABLE=0
-export ASCEND_SLOG_PRINT_TO_STDOUT=0
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
+
+# If this environment variable is set, all nodes will compile the dataset,
+# which is suitable for cluster training.
+export AZUREML_EXPERIMENT_ID=0
 
 # output data path
 CHECKPOINT_PATH='./ckpt'
@@ -22,7 +22,7 @@ NODE_RANK=0
 PP_SIZE=12
 TP_SIZE=8
 
-MICRO_BATCH_SIZE=1
+MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SIZE=2048
 
 NLAYERS=70
@@ -114,5 +114,7 @@ TRANSFORMERS_OFFLINE=1  \
     --zero-stage ${ZERO_STAGE} \
     --deepspeed-activation-checkpointing  \
     --sequence-parallel \
-    --checkpoint-activations
+    --checkpoint-activations \
+    --use-manual-layer-allocation \
+    --manual-layers 5,6,6,6,6,6,6,6,6,6,6,5
 

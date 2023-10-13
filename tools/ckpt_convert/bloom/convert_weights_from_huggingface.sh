@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_PATH=./tasks/ckpt_convert/bloom/convert_weights_from_huggingface.py
+SCRIPT_PATH=./tools/ckpt_convert/bloom/convert_weights_from_huggingface.py
 python $SCRIPT_PATH \
     --input-model-dir "your huggingface checkpoint path" \
     --output-model-dir "your ascendspeed checkpoint path" \
