@@ -8,6 +8,8 @@ import time
 
 import torch
 
+from ascendspeed.error_utils import check_equal
+
 
 
 class TimerBase(ABC):
@@ -137,10 +139,10 @@ class Timers:
         # is provided, it matches the one that the timer was created with.
         if name in self._timers:
             if log_level is not None:
-                assert log_level == self._log_levels[name], \
-                    'input log level {} does not match already existing '\
-                    'log level {} for {} timer'.format(
-                        log_level, self._log_levels[name], name)
+                error_info = 'input log level {} does not match already existing '\
+                             'log level {} for {} timer'.format(
+                                log_level, self._log_levels[name], name)
+                check_equal(log_level, self._log_levels[name], error_info)
             return self._timers[name]
         # If timer does not exist and no log level is provided,
         # set it to the max log level which is 2.

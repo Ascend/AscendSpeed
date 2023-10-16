@@ -39,6 +39,7 @@ from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
 from ascendspeed.arguments import core_transformer_config_from_args
+from ascendspeed.error_utils import ensure_var_is_not_none, check_equal
 
 
 def model_provider(pre_process=True, post_process=True):
@@ -223,16 +224,16 @@ def calculate_mos_loss(args, stu_output, teacher_model, tokens, position_ids, at
     if teacher_model:
         with torch.no_grad():
             if args.curriculum_learning_legacy and args.curriculum_seqlen < args.seq_length:
-                assert args.curriculum_seqlen is not None
+                ensure_var_is_not_none(args.curriculum_seqlen)
                 curriculum_seqlen = args.curriculum_seqlen
                 tokens = tokens[:, :curriculum_seqlen].contiguous()
                 position_ids = position_ids[:, :curriculum_seqlen].contiguous()
                 attention_mask = attention_mask[:, :, :curriculum_seqlen, :curriculum_seqlen].contiguous()
                 # No need to truncate labels as we do not need it for the teacher logits
             tea_output, *tea_other_losses = teacher_model(tokens, position_ids, attention_mask)
-            assert stu_output.size() == tea_output.size(), \
-                'teacher and student output should match in size. Student: {},' \
-                ' Teacher: {}, CL seq length {}'.format(stu_output.size(), tea_output.size(), args.curriculum_seqlen)
+            error_info = 'teacher and student output should match in size. Student: {},' \
+                         ' Teacher: {}, CL seq length {}'.format(stu_output.size(), tea_output.size(), args.curriculum_seqlen)
+            check_equal(stu_output.size(), tea_output.size(), error_info)
 
         student_logits = F.log_softmax(stu_output / kd_temp, dim=2)
         tea_logits = F.softmax(tea_output / kd_temp, dim=2)

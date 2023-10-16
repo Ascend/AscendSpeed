@@ -34,6 +34,7 @@ from ascendspeed.core import parallel_state
 from ascendspeed.global_vars import set_global_variables
 from ascendspeed.core.parallel_state import (set_tensor_model_parallel_rank,
                                              set_tensor_model_parallel_world_size)
+from ascendspeed.error_utils import check_equal
 
 
 def initialize_megatron(extra_args_provider=None, args_defaults=None,
@@ -161,8 +162,8 @@ def _initialize_distributed():
         if device_count > 0:
             device = args.rank % device_count
             if args.local_rank is not None:
-                assert args.local_rank == device, \
-                    'expected local-rank to be the same as rank % device-count.'
+                error_info = 'expected local-rank to be the same as rank % device-count.'
+                check_equal(args.local_rank, device, error_info)
             else:
                 args.local_rank = device
 

@@ -339,8 +339,6 @@ def _build_index_mappings(
     """
     - `shuffle_index` is [num_epoch * len(self.mtf)]
     - `sample_index` is [num_sample, 2] (storing the start and end of the sample). We query the sample via `self.shuffle_index[start:end]`
-
-    TODO @thomas21 Instead of loading individually samples, we save the packing one and for all
     """
     # rng state
     np_rng = np.random.RandomState(seed=seed)

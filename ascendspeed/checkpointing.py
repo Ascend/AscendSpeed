@@ -37,6 +37,7 @@ from ascendspeed.model import DistributedDataParallel as LocalDDP
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_state_dict, lora_custom_load_fn_for_deepspeed, \
     get_lora_model_classes, get_lora_state_dict_with_deepspeed, update_model_state_dict_with_megatron, \
     get_lora_load_fn_with_deepspeed, handle_lora_modules_to_save_key_with_megatron
+from ascendspeed.error_utils import check_equal
 
 _CHECKPOINT_VERSION = None
 
@@ -44,8 +45,8 @@ _CHECKPOINT_VERSION = None
 def set_checkpoint_version(value):
     global _CHECKPOINT_VERSION
     if _CHECKPOINT_VERSION is not None:
-        assert _CHECKPOINT_VERSION == value, \
-            "checkpoint versions do not match"
+        error_info = "checkpoint versions do not match"
+        check_equal(_CHECKPOINT_VERSION, value, error_info)
     _CHECKPOINT_VERSION = value
 
 
@@ -65,10 +66,10 @@ def check_checkpoint_args(checkpoint_args):
         else:
             checkpoint_value = getattr(checkpoint_args, arg_name)
         args_value = getattr(args, arg_name)
-        error_message = '{} value from checkpoint ({}) is not equal to the ' \
+        error_info = '{} value from checkpoint ({}) is not equal to the ' \
                         'input argument value ({}).'.format(
                             arg_name, checkpoint_value, args_value)
-        assert checkpoint_value == args_value, error_message
+        check_equal(checkpoint_value, args_value, error_info)
 
     if not args.mos and not args.kd:
         _compare('num_layers')
@@ -277,7 +278,7 @@ def fix_query_key_value_ordering(model, checkpoint_version):
     """
     if checkpoint_version < 2.0:
         if isinstance(model, list):
-            assert len(model)==1
+            check_equal(len(model), 1)
             model = model[0]
         for name, param in model.named_parameters():
             if name.endswith(('.query_key_value.weight', '.query_key_value.bias')):
@@ -441,8 +442,8 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     # Check arguments.
     reset_train_valid_samples = args.reset_iteration
     if not load_only_weights and not reset_train_valid_samples:
-        assert args.consumed_train_samples == 0
-        assert args.consumed_valid_samples == 0
+        check_equal(args.consumed_train_samples, 0)
+        check_equal(args.consumed_valid_samples, 0)
         if 'args' in state_dict:
             checkpoint_args = state_dict['args']
             check_checkpoint_args(checkpoint_args)
@@ -590,7 +591,7 @@ def load_biencoder_checkpoint(model, only_query_model=False,
     if only_context_model:
         ret_state_dict.pop('query_model')
 
-    assert len(model) == 1
+    check_equal(len(model), 1)
     model[0].load_state_dict(ret_state_dict)
     torch.distributed.barrier()
 

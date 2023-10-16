@@ -56,6 +56,7 @@ from ascendspeed.model.lora_utils import is_enable_lora, handle_model_with_lora
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_fifo
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_aiao
 from ascendspeed.core.pipeline_parallel.schedules import get_forward_backward_func, get_forward_func
+from ascendspeed.error_utils import check_equal, check_type, ensure_var_is_not_none, ensure_var_is_none
 from ascendspeed.core.utils import get_model_config
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
@@ -73,17 +74,17 @@ def _initialize_optimized_pipeline():
     if args.manual_mbs == 'example-config-1':
         # An example config when pipeline-model-parallel-size is 4.
         # This theoretically reduces near 20% pipeline bubble.
-        assert args.micro_batch_size == 4
-        assert args.global_batch_size // parallel_state.get_data_parallel_world_size() == 64
-        assert args.pipeline_model_parallel_size == 4
+        check_equal(args.micro_batch_size, 4)
+        check_equal(args.global_batch_size // parallel_state.get_data_parallel_world_size(), 64)
+        check_equal(args.pipeline_model_parallel_size, 4)
         args.manual_mbs = [1, 2, 3, 4, 5, 5, 5, 5, 5, 5, \
                            5, 5, 5, 4, 3, 2]
     elif args.manual_mbs == 'example-config-2':
         # An example config when pipeline-model-parallel-size is 8
         # # This theoretically reduces near 30% pipeline bubble.
-        assert args.micro_batch_size == 4
-        assert args.global_batch_size // parallel_state.get_data_parallel_world_size() == 96
-        assert args.pipeline_model_parallel_size == 8
+        check_equal(args.micro_batch_size, 4)
+        check_equal(args.global_batch_size // parallel_state.get_data_parallel_world_size(), 96)
+        check_equal(args.pipeline_model_parallel_size, 8)
         args.manual_mbs = [1, 2, 2, 3, 4, 5, 5, 5, 5, 5, 5, 5, \
                            5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 3, 2]
     elif args.maual_mbs is not '':
@@ -98,7 +99,9 @@ def _initialize_optimized_pipeline():
         raise ValueError('A proper manual-mbs has to be provided.')
 
     # sanity check
-    assert isinstance(args.manual_mbs, list), 'A proper manual-mbs has to be provided'
+    error_message = 'A proper manual-mbs has to be provided'
+    check_type(args.manual_mbs, list, error_message)
+    
     assert len(args.manual_mbs) == args.global_batch_size // parallel_state.get_data_parallel_world_size() \
            // args.micro_batch_size, 'Check number of micro batches.'
     assert sum(args.manual_mbs) * parallel_state.get_data_parallel_world_size() == args.global_batch_size, \
@@ -371,8 +374,8 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
         add_decoder = True
         if model_type == ModelType.encoder_and_decoder:
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-                assert args.pipeline_model_parallel_split_rank is not None, \
-                    "Split rank needs to be specified for model with both encoder and decoder"
+                ensure_var_is_not_none(args.pipeline_model_parallel_split_rank, error_message="Split rank needs"\
+                                       " to be specified for model with both encoder and decoder")
                 rank = parallel_state.get_pipeline_model_parallel_rank()
                 split_rank = args.pipeline_model_parallel_split_rank
                 world_size = parallel_state.get_pipeline_model_parallel_world_size()
@@ -627,14 +630,14 @@ def setup_model_and_optimizer(model_provider_func,
                 lr_scheduler=lr_scheduler,
                 mpu=parallel_state if args.no_pipeline_parallel else None
             )
-            assert model.fp16_enabled() == args.fp16, "megatron fp16 config does not match deepspeed"
+            check_equal(model.fp16_enabled(), args.fp16, error_info="megatron fp16 config does not match deepspeed")
         if isinstance(model, deepspeed.PipelineEngine):
             # hack to get batch_fn from pretrain_gpt.py
             model.set_batch_fn(model.module._megatron_batch_fn)
 
-            assert model.grid.get_pipe_parallel_rank() == parallel_state.get_pipeline_model_parallel_rank()
-            assert model.grid.get_slice_parallel_rank() == parallel_state.get_tensor_model_parallel_rank()
-            assert model.grid.get_data_parallel_rank() == parallel_state.get_data_parallel_rank()
+            check_equal(model.grid.get_pipe_parallel_rank(), parallel_state.get_pipeline_model_parallel_rank())
+            check_equal(model.grid.get_slice_parallel_rank(), parallel_state.get_tensor_model_parallel_rank())
+            check_equal(model.grid.get_data_parallel_rank(), parallel_state.get_data_parallel_rank())
         model = [model]
 
     # Compression has its own checkpoint loading path (e.g, loading both teacher and student models). So if compression is enabled, we skip the following checkpoint loading.
@@ -663,7 +666,7 @@ def setup_model_and_optimizer(model_provider_func,
 
     # We only support local DDP with multiple micro-batches.
     if len(model) > 1 or parallel_state.get_pipeline_model_parallel_world_size() > 1:
-        assert args.DDP_impl == 'local'
+        check_equal(args.DDP_impl, 'local')
 
     # get model without FP16 and/or TorchDDP wrappers
     if args.iteration == 0 and len(unwrapped_model) == 1 \
@@ -689,7 +692,7 @@ def train_step(forward_step_func, data_iterator,
     if args.deepspeed and args.ds_pipeline_enabled:
         skipped_iter = 0
         num_zeros_in_grad = 0
-        assert isinstance(model[0], deepspeed.PipelineEngine)
+        check_type(model[0], deepspeed.PipelineEngine)
         loss = model[0].train_batch(data_iter=data_iterator)
         grad_norm = model[0].get_global_grad_norm()
         return {'lm loss': loss}, skipped_iter, grad_norm, num_zeros_in_grad
@@ -1398,13 +1401,13 @@ def build_train_valid_test_data_iterators(
 
     # Backward compatibility, assume fixed batch size.
     if args.iteration > 0 and args.consumed_train_samples == 0:
-        assert args.train_samples is None, \
-            'only backward compatiblity support for iteration-based training'
+        ensure_var_is_none(args.train_samples, error_message='only backward compatiblity'\
+                           ' support for iteration-based training')
         args.consumed_train_samples = args.iteration * args.global_batch_size
 
     if args.iteration // args.eval_interval > 0 and args.consumed_valid_samples == 0:
-        assert args.train_samples is None, \
-            'only backward compatiblity support for iteration-based training'
+        ensure_var_is_none(args.train_samples, error_message='only backward compatiblity'\
+                           ' support for iteration-based training')
         args.consumed_valid_samples = (args.iteration // args.eval_interval) * \
                                       args.eval_iters * args.global_batch_size
 
