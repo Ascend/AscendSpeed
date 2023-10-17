@@ -35,6 +35,7 @@ EOT
 
 deepspeed --num_nodes $NNODES --num_gpus $NPUS_PER_NODE \
        ./tasks/inference/inference_alpaca.py \
+       --no-contiguous-buffers-in-local-ddp \
        --num-layers 40  \
        --hidden-size 5120  \
        --ffn-hidden-size 13824 \
