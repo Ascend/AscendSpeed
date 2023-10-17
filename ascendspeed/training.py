@@ -399,6 +399,9 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     if not isinstance(model, list):
         model = [model]
 
+    if is_enable_lora():
+        model = handle_model_with_lora(model)
+
     # Set tensor model parallel attributes if not set.
     # Only parameters that are already tensor model parallel have these
     # attributes set for them. We should make sure the default attributes
@@ -424,9 +427,6 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
             model_module.to(device_name)
 
         model = wrap_model(model, wrap_with_ddp=wrap_with_ddp)
-
-    if is_enable_lora():
-        model = handle_model_with_lora(model)
 
     return model
 

@@ -13,6 +13,8 @@ from peft.tuners.lora import LoraLayer, Embedding, Conv2d, Linear
 from peft.import_utils import is_bnb_4bit_available, is_bnb_available
 from peft.utils import transpose, _get_submodules, ModulesToSaveWrapper
 
+from ascendspeed import get_args
+from ascendspeed.arguments import core_transformer_config_from_args
 from ascendspeed.core.tensor_parallel import RowParallelLinear, ColumnParallelLinear
 from ascendspeed.error_utils import check_equal
 
@@ -42,12 +44,15 @@ class LoraParalleLayer(LoraLayer):
             if self.is_paralle_a:
                 lora_a = RowParallelLinear(input_size=self.in_features, output_size=r, bias=False,
                                            input_is_parallel=kwargs.get('input_is_parallel', True), skip_bias_add=True,
+                                           config=kwargs.get('config', None),
                                            dtype=torch.float32)  # lora需要强制升格到32位精度，否则会溢出
                 lora_b = nn.Linear(in_features=r, out_features=self.out_features, bias=False, dtype=torch.float32)
             else:
                 lora_a = nn.Linear(in_features=self.in_features, out_features=r, bias=False, dtype=torch.float32)
                 lora_b = ColumnParallelLinear(input_size=r, output_size=self.out_features, bias=False,
-                                              gather_output=kwargs.get('gather_output', False), dtype=torch.float32)
+                                              gather_output=kwargs.get('gather_output', False), 
+                                              config=kwargs.get('config', None),
+                                              dtype=torch.float32)
             self.lora_A.update(nn.ModuleDict({adapter_name: lora_a}))
             self.lora_B.update(nn.ModuleDict({adapter_name: lora_b}))
 
@@ -92,7 +97,8 @@ class LoraParallelLinear(ColumnParallelLinear, RowParallelLinear, LoraParalleLay
         init_lora_weights = kwargs.pop("init_lora_weights", True)
 
         self.parallel_linear_class = type(parallel_linear)
-        parallel_linear_kwargs = {}
+        config = core_transformer_config_from_args(get_args())
+        parallel_linear_kwargs = {'config': config}
         if isinstance(parallel_linear, RowParallelLinear):
             parallel_linear_kwargs['input_is_parallel'] = parallel_linear.input_is_parallel
         else:
@@ -184,6 +190,17 @@ class LoraParallelLinear(ColumnParallelLinear, RowParallelLinear, LoraParalleLay
 
 
 class AscendLoraModel(PeftLoraModel):
+    
+    def __getattr__(self, name: str):
+        """Forward missing attributes to the wrapped module."""
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            if name == 'module':
+                return self.model
+            else:
+                return getattr(self.model, name)
+
     def _create_new_module(self, lora_config, adapter_name, target):
         bias = hasattr(target, "bias") and target.bias is not None
         kwargs = {
@@ -302,13 +319,12 @@ class AscendLoraModel(PeftLoraModel):
                         dilation=target.dilation,
                     )
                 elif isinstance(target, (ColumnParallelLinear, RowParallelLinear)):
-                    parallel_linear_kwargs = {}
+                    config = core_transformer_config_from_args(get_args())
+                    parallel_linear_kwargs = {'config': config}
                     if target.parallel_linear_class is RowParallelLinear:
                         parallel_linear_kwargs['input_is_parallel'] = target.input_is_parallel
-                        parallel_linear_kwargs['sequence_parallel_enabled'] = target.sequence_parallel_enabled
                     else:
                         parallel_linear_kwargs['gather_output'] = target.gather_output
-                        parallel_linear_kwargs['sequence_parallel_enabled'] = target.sequence_parallel_enabled
                     new_module = target.parallel_linear_class(input_size=target.input_size,
                                                               output_size=target.output_size, bias=target.bias,
                                                               skip_bias_add=target.skip_bias_add,

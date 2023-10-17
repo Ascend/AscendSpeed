@@ -33,7 +33,7 @@ from ascendspeed import (get_args,
                       update_num_microbatches,
                       utils)
 from ascendspeed.core import parallel_state, tensor_parallel
-from ascendspeed.model import DistributedDataParallel as LocalDDP
+from ascendspeed.model import DistributedDataParallel as LocalDDP, Float16Module
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_state_dict, lora_custom_load_fn_for_deepspeed, \
     get_lora_model_classes, get_lora_state_dict_with_deepspeed, update_model_state_dict_with_megatron, \
     get_lora_load_fn_with_deepspeed, handle_lora_modules_to_save_key_with_megatron
@@ -131,7 +131,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
     # Only rank zero of the data parallel writes to the disk.
     if not args.deepspeed:
-        unwrap_model_classes = (torchDDP, LocalDDP)
+        unwrap_model_classes = (torchDDP, LocalDDP, Float16Module)
         if is_enable_lora():
             unwrap_model_classes += get_lora_model_classes()
         model = utils.unwrap_model(model, unwrap_model_classes)
@@ -416,7 +416,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
             return 0
         checkpoint_name = loaded_dir  # 开启lora时主要参数会从lora_load里读取，所以最后打印时用checkpoint_name传递
     else:
-        unwrap_model_classes = (torchDDP, LocalDDP)
+        unwrap_model_classes = (torchDDP, LocalDDP, Float16Module)
         if is_enable_lora():
             unwrap_model_classes += get_lora_model_classes()
         model = utils.unwrap_model(model, unwrap_model_classes)

@@ -599,7 +599,15 @@ In addition, `BelleMultiTurnInstructionHandler` is used to handle [belle dataset
 ## <span id="jump13"> Finetune with Lora </span>
 ### Lora
  
-Now, we support Lora to fine-tune your models. You just need to add this argument in your script to open Lora:
+Now, we support Lora to fine-tune your models. 
+
+First, you need to install version 0.4.0 of the peft library, like this:
+```shell
+pip install peft==0.4.0
+```
+You can also choose to install from [the source package in the GitHub repository](https://github.com/huggingface/peft/archive/refs/tags/v0.4.0.tar.gz), so you can modify the setup.py file to avoid some dependency issues.
+
+Next, you just need to add this argument in your script to open Lora:
  
 ```shell
 # Llama example

@@ -676,7 +676,9 @@ class ColumnParallelLinear(torch.nn.Module):
             output = output_parallel
         output_bias = self.bias if self.skip_bias_add else None
         return output, output_bias
-
+    
+    def extra_repr(self) -> str:
+        return f'input_size={self.input_size}, output_size={self.output_size}, bias={self.bias is not None}'
 
 
 class RowParallelLinear(torch.nn.Module):
@@ -853,3 +855,6 @@ class RowParallelLinear(torch.nn.Module):
             output = output_
             output_bias = self.bias
         return output, output_bias
+    
+    def extra_repr(self) -> str:
+        return f'input_size={self.input_size}, output_size={self.output_size}, bias={self.bias is not None}'
