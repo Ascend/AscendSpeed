@@ -159,10 +159,10 @@ The plan for more tasks, like RLHF and RM, is under way ...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16 </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 2460 tokens/p/s </td>
+      <td> 2348 tokens/p/s </td>
+      <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
+      <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">Train</a> </td>
     </tr>
   </tbody>
 </table>
