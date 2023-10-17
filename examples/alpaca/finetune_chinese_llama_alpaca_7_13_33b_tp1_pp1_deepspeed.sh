@@ -15,6 +15,7 @@ NNODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
+SAVE_PATH=<save-path>
 # modify script orign dataset path and tokenizer path according to your own dataset path and tokenizer path
 TOKENIZER_PATH=<tokenizer-path>
 DATA_PATH=<data-path>
@@ -23,16 +24,19 @@ MODEL_PATH=<model-path>
 
 DS_CONFIG=deepspeed_config_13B.json
 ZERO_STAGE=2
-GLOBAL_BATCH=16
-MICRO_BATCH=2
+MICRO_BATCH=4
+GRADIENT_ACCUMULATION_STEP=8
+GLOBAL_BATCH=$(($MICRO_BATCH * $GRADIENT_ACCUMULATION_STEP * $WORLD_SIZE))
+TRAIN_ITERS=3000
+SAVE_INTERVAL=$(($TRAIN_ITERS / 4))
 
 # 7b/13b/33b models use the following parameters respectively 
-if [[ "$MODEL_PATH" == *13b* ]]; then
+if [[ "$MODEL_PATH" == *13[Bb]* ]]; then
   num_layers=40
   hidden_size=5120
   ffn_hidden_size=13824
   num_heads=40
-elif [[ "$MODEL_PATH" == *33b* ]]; then
+elif [[ "$MODEL_PATH" == *33[Bb]* ]]; then
   num_layers=60
   hidden_size=6656
   ffn_hidden_size=17920
@@ -70,7 +74,7 @@ cat <<EOT > $DS_CONFIG
         "contiguous_gradients": true
     },
 
-    "gradient_accumulation_steps": 1,
+    "gradient_accumulation_steps": $GRADIENT_ACCUMULATION_STEP,
     "train_batch_size": $GLOBAL_BATCH,
     "train_micro_batch_size_per_gpu":$MICRO_BATCH,
     "zero_allow_untested_optimizer": true
@@ -85,6 +89,7 @@ ds_args=" --deepspeed-activation-checkpointing ${ds_args}"
 
 deepspeed pretrain_llama.py \
          --DDP-impl local \
+         --no-contiguous-buffers-in-local-ddp \
          --is-instruction-dataset \
          --tensor-model-parallel-size 1 \
          --pipeline-model-parallel-size 1 \
@@ -94,31 +99,34 @@ deepspeed pretrain_llama.py \
          --num-attention-heads $num_heads \
          --micro-batch-size $MICRO_BATCH \
          --global-batch-size $GLOBAL_BATCH \
-         --seq-length 1024 \
+         --seq-length 256 \
          --max-position-embeddings 2048 \
-         --train-iters 1 \
-         --lr-decay-iters 320000 \
+         --train-iters $TRAIN_ITERS \
+         --lr-decay-iters $TRAIN_ITERS \
+         --save $SAVE_PATH \
          --load $MODEL_PATH \
          --data-path $DATA_PATH \
          --tokenizer-name-or-path $TOKENIZER_PATH \
          --tokenizer-not-use-fast \
+         --checkpoint-activations \
+         --checkpoint_policy block \
+         --checkpoint_block_layer 8 \
          --data-impl mmap \
          --split 949,50,1 \
          --distributed-backend nccl \
-         --lr 1e-4 \
+         --lr 1e-6 \
          --lr-decay-style cosine \
-         --min-lr 1.0e-5 \
+         --min-lr 0 \
          --weight-decay 1e-2 \
          --clip-grad 1.0 \
-         --lr-warmup-fraction .01 \
-         --checkpoint-activations \
+         --lr-warmup-iters 200 \
          --log-interval 1 \
-         --save-interval 10000 \
+         --save-interval $SAVE_INTERVAL \
          --eval-interval 1000 \
          --eval-iters 10 \
+         --use-cpu-initialization \
          --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
          --lora-r 64 \
          --lora-alpha 128 \
-         --lora-modules-to-save word_embeddings lm_head.lm_head \
          $ds_args \
          --fp16 | tee logs/train.log

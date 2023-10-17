@@ -26,12 +26,12 @@ MICRO_BATCH=2
 DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 
 # 7b/13b/33b models use the following parameters respectively 
-if [[ "$MODEL_PATH" == *13b* ]]; then
+if [[ "$MODEL_PATH" == *13[Bb]* ]]; then
   num_layers=40
   hidden_size=5120
   ffn_hidden_size=13824
   num_heads=40
-elif [[ "$MODEL_PATH" == *33b* ]]; then
+elif [[ "$MODEL_PATH" == *33[Bb]* ]]; then
   num_layers=60
   hidden_size=6656
   ffn_hidden_size=17920
