@@ -34,10 +34,13 @@ class ST_Test:
             TEST_DIR, st_dir, bloom_dir, "test_bloom_ptd.sh")
         llama_shell_file = os.path.join(
             TEST_DIR, st_dir, llama_dir, "test_llama_ptd.sh")
+        lora_shell_file = os.path.join(
+            TEST_DIR, st_dir, llama_dir, "test_lora_llama_ptd.sh")
 
         self.shell_file_list = [
             llama_shell_file,
-            bloom_shell_file
+            bloom_shell_file,
+            lora_shell_file
         ]
 
     def run_shell(self):

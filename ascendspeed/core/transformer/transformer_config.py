@@ -228,9 +228,9 @@ class TransformerConfig(ModelParallelConfig):
                              f'1 and num_layers_per_pipeline_rank:'
                              f' {self.num_layers // self.pipeline_model_parallel_size}')
 
-        if self.distribute_saved_activations and self.sequence_parallel_enabled:
+        if self.distribute_saved_activations and self.sequence_parallel:
             raise ValueError(f'distribute_saved_activations: {self.distribute_saved_activations} '
-                             f'must be false when sequence parallel is enabled: {self.sequence_parallel_enabled}')
+                             f'must be false when sequence parallel is enabled: {self.sequence_parallel}')
 
         if self.virtual_pipeline_model_parallel_size is not None:
             if not self.num_layers % self.virtual_pipeline_model_parallel_size == 0:

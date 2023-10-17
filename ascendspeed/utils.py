@@ -35,7 +35,7 @@ from ascendspeed import get_num_microbatches
 from deepspeed.accelerator import get_accelerator
 
 
-WRITE_FILE_DEFAULT_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+WRITE_FILE_DEFAULT_FLAGS = os.O_WRONLY | os.O_CREAT
 WRITE_FILE_DEFAULT_MODES = stat.S_IWUSR | stat.S_IRUSR
 
 

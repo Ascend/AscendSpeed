@@ -77,11 +77,11 @@ def _get_sp_params_for_weight_decay_optimization(modules):
             if getattr(list(local_module.named_parameters(recurse=False))[0][1], 'sequence_parallel', False):
                 no_weight_decay_layernorm_params[params].extend(
                     [p for _, p in local_module.named_parameters(recurse=False)
-                        if p is not None])
+                        if p is not None and p.requires_grad])
             else:
                 no_weight_decay_params[params].extend(
                     [p for _, p in local_module.named_parameters(recurse=False)
-                        if p is not None])
+                        if p is not None and p.requires_grad])
         else:
             for n, p in local_module.named_parameters(recurse=False):
                 if p is not None and p.requires_grad:
@@ -151,7 +151,7 @@ def get_megatron_optimizer(model):
 
     # Determine whether the params have main-grad field.
     params_have_main_grad = False
-    if args.DDP_impl == 'local' and not is_enable_lora():
+    if args.DDP_impl == 'local':
         params_have_main_grad = True
 
     if args.fp16 or args.bf16:
