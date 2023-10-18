@@ -84,7 +84,7 @@ The plan for more tasks, like RLHF and RM, is under way ...
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
     </tr>
     <tr>
-      <td rowspan="3"><a href="examples/bloom/README.md">Bloom</a></td>
+      <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
       <td>7B1</td>
       <td> 1x8</td>
       <td> FP16 </td>
@@ -94,19 +94,12 @@ The plan for more tasks, like RLHF and RM, is under way ...
       <td> <a href="examples/bloom/pretrain_bloom_7b1.sh">Train</a> </td>
     </tr>
     <tr>
-      <td rowspan="2">176B</td>
-      <td rowspan="2">12x8</td>
-      <td> FP16 </td>
-      <td> 106 tokens/p/s </td>
-      <td> 107 tokens/p/s </td>
-      <td> <a href="sources/images/bloom176B_fp16_loss.png">Loss</a> </td>
-      <td> -- </td>
-    </tr>
-    <tr>
+      <td >176B</td>
+      <td >12x8</td>
       <td> BF16 </td>
-      <td> -- </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> 100 tokens/p/s </td>
+      <td> 107 tokens/p/s </td>
+      <td> <a href="examples/bloom/images/bloom176b_lm_loss_compare.PNG">Loss</a> </td>
       <td> <a href="examples/bloom/pretrain_bloom_176b.sh">Train</a> </td>
     </tr>
     <tr>
@@ -334,14 +327,14 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
       <td> 7B1 </td>
       <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_bloom_7B_tp8_pp1.sh">inference</a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
     <tr>
       <td> 176B </td>
       <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_176b_2nodes.sh">inference</a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>

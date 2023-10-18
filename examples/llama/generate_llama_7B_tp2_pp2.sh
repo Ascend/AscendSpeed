@@ -17,6 +17,7 @@ CHECKPOINT="your megatron checkpoint path"
 VOCAB_FILE="your vocab path"
 
 python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference_llama.py \
+       --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 2  \
        --pipeline-model-parallel-size 2  \
        --num-layers 32  \
