@@ -56,7 +56,6 @@ conda activate test
 # install torch and torch_npu
 pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
-pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
 # install megatron-core
 pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
 # install deepspeed and deepspeed_npu

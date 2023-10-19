@@ -15,6 +15,8 @@
 
 import json
 import os
+import logging
+import stat
 import re
 import subprocess
 from typing import Iterable, Dict
@@ -23,9 +25,8 @@ from tasks.evaluation.eval_api.dataset_eval import DatasetEval
 from tasks.evaluation.eval_api.llm_chat import LlmChat
 from tasks.evaluation.eval_impl.template import CODE_TEST_LOG_DIR
 from ascendspeed.error_utils import check_divisible_by_zero
+from ascendspeed.utils WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
 logger = logging.getLogger(__name__)
-flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-modes = stat.S_IWUSR | stat.S_IRUSR
 
 
 def extract_answer_code(answer, task: dict):
@@ -45,7 +46,7 @@ def extract_answer_code(answer, task: dict):
     if not os.path.exists(CODE_TEST_LOG_DIR):
         os.makedirs(CODE_TEST_LOG_DIR)
     test_code_path = "{}{}".format(CODE_TEST_LOG_DIR, save_file)
-    with os.fdopen(os.open(test_code_path, flags, modes), 'w') as f:
+    with os.fdopen(os.open(test_code_path, WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES), 'w') as f:
         f.write("from typing import List\n")
         f.write("import math\n")
         for i, line in enumerate(code_lines):
@@ -90,7 +91,7 @@ class HumanEval(DatasetEval):
         """
         for file in os.listdir(test_dir):
             file_path = os.path.join(self.test_dir, file)
-           with os.fdopen(os.open(test_code_path, flags, modes)) as fp::
+            with os.fdopen(os.open(test_code_path, WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES)) as fp:
                 for line in fp:
                     if any(not x.isspace() for x in line):
                         yield json.loads(line)

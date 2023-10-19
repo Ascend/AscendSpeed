@@ -17,9 +17,9 @@ import logging
 import json
 import pandas as pd
 import tqdm
-from tasks.task_eval.eval_api.dataset_eval import DatasetEval
-from tasks.task_eval.eval_api.llm_chat import LlmChat
-from tasks.task_eval.eval_impl.template import CEVAL_TEMPLATE_DIR
+from tasks.evaluation.eval_api.dataset_eval import DatasetEval
+from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_impl.template import CEVAL_TEMPLATE_DIR
 logger = logging.getLogger(__name__)
 
 
