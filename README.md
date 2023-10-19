@@ -71,7 +71,7 @@ The plan for more tasks, like RLHF and RM, is under way ...
       <td> FP16 </td>
       <td> 1914 tokens/p/s </td>
       <td> 2068 tokens/p/s </td>
-      <td> <a href="examples/baichuan/images/7B_loss_compare.png">Loss</a> </td>
+      <td> <a href="./sources/images/baichuan/7B_loss_compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">Train</a> </td>
     </tr>
     <tr>
@@ -80,7 +80,7 @@ The plan for more tasks, like RLHF and RM, is under way ...
       <td> FP16 </td>
       <td> 1024 tokens/p/s </td>
       <td> 824 tokens/p/s </td>
-      <td> <a href="examples/baichuan/images/13B_loss_compare.png">Loss</a> </td>
+      <td> <a href="./sources/images/baichuan/13B-loss-compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
     </tr>
     <tr>

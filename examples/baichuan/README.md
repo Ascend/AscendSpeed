@@ -60,7 +60,6 @@ conda activate test
 # install torch and torch_npu
 pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
-pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
 
 # install megatron-core
 pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -152,11 +151,11 @@ NPU vs Reference loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected. The relative error of the average loss is 0.01093, less than 2%, the maximum relative error is 0.1243, and the maximum absolute error is 0.4859. The precision meets the requirements.
 
-![NPU-LOSS](./images/7B_loss_compare.png)
+![NPU-LOSS](../../sources/images/baichuan/7B_loss_compare.png)
 
 NPU vs Reference loss relative error.
 
-![NPU-Relative-Error](./images/7B_relative_error.png)
+![NPU-Relative-Error](../../sources/images/baichuan/7B_relative_error.png)
 
 
 
@@ -204,7 +203,6 @@ conda activate test
 # install torch and torch_npu
 pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
-pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
 
 #install megatron
 git clone https://github.com/NVIDIA/Megatron-LM.git -b 23.05
@@ -328,13 +326,13 @@ NPU vs Reference loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected. The relative error of the average loss is 0.00725, less than 2%, the maximum relative error is 0.01978, and the maximum absolute error is 0.10811. The precision meets the requirements.
 
-![NPU-LOSS](./images/13B-loss-compare.png)
+![NPU-LOSS](../../sources/images/baichuan/13B-loss-compare.png)
 
 NPU vs Reference loss relative error.
 
 The relative error between NPU and Reference Loss is less than 0.02 throughout, as expected.
 
-![NPU-Relative-Error](./images/baichuan13B-loss-relative-error.png)
+![NPU-Relative-Error](../../sources/images/baichuan/baichuan13B-loss-relative-error.png)
 
 
 

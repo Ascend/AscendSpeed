@@ -60,7 +60,6 @@ conda activate bloom7b
 # install torch and torch_npu and apex
 pip install torch-2.0.1-cp38-cp38-manylinux2014_aarch64.whl
 pip install torch_npu-2.0.1rc1.postxxxxxxxx-cp38-cp38-linux_aarch64.whl
-pip install apex-0.1_ascend_xxxxxxxx-cp38-cp38-linux_aarch64.whl
 
 # install megatron-core
 pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -356,12 +355,12 @@ The performance of Bloom-176B in **Ascend NPU** and **Reference**:
 
 NPU vs GPU loss. The loss curves of GPUs and NPUs basically coincide.
 
-![bloom176b_lm_loss_compare](./images/bloom176b_lm_loss_compare.PNG)
+![bloom176b_lm_loss_compare](../../sources/images/bloom/bloom176b_lm_loss_compare.PNG)
 
 We reduce the number of layers of the model to six, the following figure shows the loss comparsion between the NPU 
 and GPU on a single-node system. The average relative error is 0.1%, less than 2%, and the proportion of relative error less than 2% reaches 99.9%. The average absolute error is 0.04. The precision meets the requirements.
 
-![bloom176b_1node_lm_loss_compare](./images/bloom176b_lm_loss_1node_compare.PNG)
+![bloom176b_1node_lm_loss_compare](../../sources/images/bloom/bloom176b_lm_loss_1node_compare.PNG)
 
 ## Inference
 
