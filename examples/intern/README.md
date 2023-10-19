@@ -52,6 +52,8 @@ conda activate test
 pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
 pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
+# install megatron-core
+pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
 # install deepspeed and deepspeed_npu
 pip install deepspeed==0.9.2
 git clone https://gitee.com/ascend/DeepSpeed.git -b v0.9.2 deepspeed_npu
@@ -60,6 +62,19 @@ pip3 install -e ./
 cd ..
 # install other packages
 pip install -r requirements.txt 
+```
+*Note that if you want to train with the weight from huggingface, please run fix a deepspeed loading checkpointing bug by modified `if zero_sd_list is None` as `if zero_sd_list is None or len(zero_sd_list) == 0` in the `_load_zero_checkpoint` function of `<deepspeed-installed-path>/runtime/engine.py`*
+
+```python
+    # original deepspeed/runtime/engine.py, about #Lines2746-2748
+    zero_sd_list = self._get_all_zero_checkpoints(load_dir, tag)
+    if zero_sd_list is None:
+        return False
+    
+    # modified
+    zero_sd_list = self._get_all_zero_checkpoints(load_dir, tag)
+    if zero_sd_list is None or len(zero_sd_list) == 0:
+        return False
 ```
 3. Download the Internlm-7B tokenizer model and file from [here](https://huggingface.co/internlm/internlm-7b/tree/main) 
 
