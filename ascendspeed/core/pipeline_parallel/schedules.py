@@ -527,7 +527,6 @@ def forward_backward_pipelining_with_interleaving(
     # the rest of micro-batches within a window of micro-batches checkpoint
     # all Transformer layers. The window of micro-batches is set by the maximum
     # outstanding backpropagations and becomes smaller at later pipeline stages.
-    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
     max_outstanding_backprops = None
     if config.num_microbatches_with_partial_activation_checkpoints is not None:
         max_outstanding_backprops = num_warmup_microbatches + 1
@@ -1299,7 +1298,6 @@ def forward_backward_pipelining_without_interleaving(
     # the rest of micro-batches within a window of micro-batches checkpoint
     # all Transformer layers. The window of micro-batches is set by the maximum
     # outstanding backpropagations and becomes smaller at later pipeline stages.
-    # Please refer the appendix C in https://arxiv.org/pdf/2205.05198.pdf
     max_outstanding_backprops = None
     if config.num_microbatches_with_partial_activation_checkpoints is not None:
         max_outstanding_backprops = num_warmup_microbatches + 1

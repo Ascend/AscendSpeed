@@ -254,7 +254,6 @@ def create_masked_lm_predictions(tokens,
         else:
             # Sampling "n" from the geometric distribution and clipping it to
             # the max_ngrams. Using p=0.2 default from the SpanBERT paper
-            # https://arxiv.org/pdf/1907.10529.pdf (Sec 3.1)
             n = min(np_rng.geometric(0.2), max_ngrams)
 
         index_set = sum(cand_index_set[n - 1], [])

@@ -148,7 +148,7 @@ class IndexedDataset(torch.utils.data.Dataset):
             version = f.read(8)
             assert struct.unpack('<Q', version) == (1,)
             code, self.element_size = struct.unpack('<QQ', f.read(16))
-            self.dtype = dtypes[code]
+            self.dtype = dtypes.get(code)
             self._len, self.s = struct.unpack('<QQ', f.read(16))
             self.doc_count = struct.unpack('<Q', f.read(8))
             self.dim_offsets = read_longs(f, self._len + 1)
@@ -282,7 +282,7 @@ class IndexedDatasetBuilder(object):
         self.data_offsets = [0]
         self.dim_offsets = [0]
         self.sizes = []
-        self.element_size = self.element_sizes[self.dtype]
+        self.element_size = self.element_sizes.get(self.dtype)
         self.doc_idx = [0]
 
     def add_item(self, tensor):
