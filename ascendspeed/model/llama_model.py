@@ -344,11 +344,13 @@ class LlamaParallelAttention(MegatronModule):
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
+            # 适配internlm
+            bias = getattr(config, "column_parallel_linear_bias", False)
             self.query_key_value = tensor_parallel.ColumnParallelLinear(
                 args.hidden_size,
                 3 * projection_size,
                 config=config,
-                bias=False,
+                bias=bias,
                 gather_output=False,
                 init_method=self.init_method,
             )
@@ -374,16 +376,18 @@ class LlamaParallelAttention(MegatronModule):
         if self.use_triangle_attn:
             self.triangle_attn = TriangleAttention(block_size=1024,
                                                    masked_softmax_func=self.scale_mask_softmax)
-        # Output.
+        # 适配internlm模型
+        bias = getattr(config, "row_parallel_linear_bias", False)
+        skip_bias_add = getattr(config, "row_parallel_linear_skip_bias_add", True)
         self.dense = tensor_parallel.RowParallelLinear(
             projection_size,
             args.hidden_size,
             config=config,
-            bias=False,
+            bias=bias,
             input_is_parallel=True,
             init_method=self.output_layer_init_method,
-            skip_bias_add=True,
-            )
+            skip_bias_add=skip_bias_add,
+        )
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint

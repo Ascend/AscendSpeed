@@ -31,7 +31,8 @@ except ImportError:
 from ascendspeed import get_args
 from ascendspeed import print_rank_0
 from ascendspeed.core import parallel_state
-from ascendspeed.model.internlm_model import InternModel, InternModelPipe
+from ascendspeed.model.llama_model import LlamaModel as InternModel
+from ascendspeed.model.llama_model import LlamaModelPipe as InternModelPipe
 from ascendspeed.core.enums import ModelType
 from ascendspeed.training import pretrain
 from pretrain_llama import (
@@ -49,6 +50,10 @@ def model_provider(pre_process=True, post_process=True):
     see_memory_usage(f"Before Building Model", force=True)
     args = get_args()
     config = core_transformer_config_from_args(args)
+    # internlm模型配置
+    config.column_parallel_linear_bias = True
+    config.row_parallel_linear_bias = True
+    config.row_parallel_linear_skip_bias_add = False
     with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                              remote_device=None if args.remote_device == 'none' else args.remote_device,
                              config_dict_or_path=args.deepspeed_config,
