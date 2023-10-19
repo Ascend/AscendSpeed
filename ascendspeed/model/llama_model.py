@@ -104,14 +104,14 @@ class RMSNorm(torch.nn.Module):  # for cpu
         setattr(self.weight, 'sequence_parallel', sequence_parallel)
 
     def forward(self, hidden_states):
-        variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-
-        # convert into half-precision if necessary.
-        if self.weight.dtype in [torch.float16, torch.bfloat16]:
-            hidden_states = hidden_states.to(self.weight.dtype)
+        if self.weight.dtype == torch.float16:
+            variance = hidden_states.float().pow(2).mean(-1, keepdim=True)
+            variance = torch.rsqrt(variance + self.variance_epsilon).half()
+        else:
+            variance = hidden_states.pow(2).mean(-1, keepdim=True)
+            variance = torch.rsqrt(variance + self.variance_epsilon)
+        hidden_states = hidden_states * variance
         hidden_states = self.weight * hidden_states
-
         return hidden_states
 
 
@@ -367,7 +367,8 @@ class LlamaParallelAttention(MegatronModule):
         self.position_embedding_type = args.position_embedding_type
         if self.position_embedding_type != PositionEmbeddingType.alibi:
             # Rotary Position Embedding
-            self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head)
+            self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head,
+                                              args.max_position_embeddings)
         self.apply_rotary_pos_emb = apply_rotary_pos_emb
         if args.use_fused_rotary_pos_emb:
             self.apply_rotary_pos_emb = apply_fused_rotary_pos_emb

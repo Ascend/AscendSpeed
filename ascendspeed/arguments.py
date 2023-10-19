@@ -395,6 +395,9 @@ def _add_network_size_args(parser):
                        'attention. This is set to '
                        '   args.hidden_size // args.num_attention_heads '
                        'if not provided.')
+    group.add_argument('--group-query-attention', action='store_true',
+                       help='Use group-query attention.')
+    group.add_argument('--num-query-groups', type=int, default=1)
     group.add_argument('--embed-layernorm', action='store_true',
                        help='Use layernorm for embedding.')
     group.add_argument('--max-position-embeddings', type=int, default=None,
@@ -815,7 +818,9 @@ def _add_distributed_args(parser):
                        help='Use scatter/gather to optimize communication of tensors in pipeline',
                        dest='scatter_gather_tensors_in_pipeline')
     group.add_argument('--local_rank', type=int, default=None,
-                       help='local rank passed from distributed launcher.')
+                       help='Local rank passed from distributed launcher.')
+    group.add_argument('--local-rank', type=int, default=None,
+                       help='Local rank passed from distributed launcher for torch2.x.')
     group.add_argument('--lazy-mpu-init', type=bool, required=False,
                        help='If set to True, initialize_megatron() '
                        'skips DDP initialization and returns function to '

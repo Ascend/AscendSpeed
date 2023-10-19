@@ -87,7 +87,7 @@ def _initialize_optimized_pipeline():
         check_equal(args.pipeline_model_parallel_size, 8)
         args.manual_mbs = [1, 2, 2, 3, 4, 5, 5, 5, 5, 5, 5, 5, \
                            5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 3, 2]
-    elif args.maual_mbs is not '':
+    elif args.manual_mbs is not '':
         # Customized manual micro-batch-size
         # Warning: this API will be changed in the future
         # to automatically set args.maual_mbs for minimizing
