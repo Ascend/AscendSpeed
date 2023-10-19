@@ -227,13 +227,24 @@ LLaMA model is from: [LLaMA: OPen and Efficient Foundation Language Models](http
 
 LLaMA's model performace is better than GPT3 with less parameters. The 65B LLaMA model is comparable to Google's Chinchilla-70B and Palm-540B.
 
-Here's a quick summary of training llama:
-|              |                         |
-| :----------: | :---------------------: |
-|   Hardware   |       Ascend NPUs       |
-|   Software   |       AscendSpeed       |
-| Architecture |     GPT3 w/ extras      |
-|   Dataset    |       See datasets      |
+Here's a hardware summary of training llama:
+
+| Hardware |                      Value                      |
+| :------: | :---------------------------------------------: |
+|   NPU    |               8 x Ascend NPUs                   |
+
+
+Here's a software summary of training llama:
+
+|         Software          |                 Version                  |                                                                                      link                                                                                       |
+| :-----------------------: |:----------------------------------------:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+|          Python           |                   3.7                    |                                                                                        -                                                                                        |
+|          driver           | Ascend-hdk-XXX-npu-driver-23.0.rc3_linux | [link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/260867092?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743) |
+|         firmware          |       Ascend-hdk-XXX-npu-firmware        | [link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/260867092?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743) |
+|           CANN            |                 7.0.RC1                  |                                          [link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)                                          |
+| binary arithmetic package |  Ascend-cann-kernels-XXX_7.0.RC1_linux   |                                          [link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)                                          |
+|           torch           |                  1.11.0                  |                                                                                 /                                                                                               |
+|         torch_npu         |          1.11.0.post4-20230915           |                                                  [link](https://gitee.com/ascend/pytorch/releases/tag/v5.0.rc3-pytorch1.11.0)                                                   |
 
 ### Datasets
 The model was trained using alpaca datasets.
@@ -253,9 +264,14 @@ conda create -n test python=3.7
 conda activate test
 
 # install torch and torch_npu
+# ARM
+wget https://download.pytorch.org/whl/torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
 pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
 pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
-pip install apex-0.1_ascend_XXXXXX-cp37-cp37m-linux_aarch64.whl
+
+# X86
+#pip install torch ==1.11 -i https://pypi.tuna.tsinghua.edu.cn/simple
+#pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
 
 # install megatron-core
 pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
