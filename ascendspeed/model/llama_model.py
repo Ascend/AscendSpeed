@@ -648,8 +648,6 @@ class LlamaParallelTransformerLayer(MegatronModule):
 
     @staticmethod
     def _build_alibi_tensor(max_seq_len, num_attention_heads, batch_size):
-        # Based on https://github.com/ofirpress/attention_with_linear_biases/blob/"
-        # "a35aaca144e0eb6b789dfcb46784c4b8e31b7983/fairseq/models/transformer.py#L742
         """Returns tensor shaped (batch_size * num_attention_heads, 1, max_seq_len)"""
 
         def get_slopes(n):

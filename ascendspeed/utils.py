@@ -318,8 +318,7 @@ def throughput_calculator(model, args, iteration_time, total_iterations):
     num_layers = args.num_layers
     vocab_size = args.padded_vocab_size
 
-    # General TFLOPs formula (borrowed from Equation 3 in Section 5.1 of
-    # https://arxiv.org/pdf/2104.04473.pdf).
+    # General TFLOPs formula.
     # The factor of 4 is when used with activation check-pointing,
     # otherwise it will be 3.
     checkpoint_activations_factor = 4 if args.checkpoint_activations else 3

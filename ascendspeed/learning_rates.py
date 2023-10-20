@@ -63,9 +63,6 @@ class AnnealingLR(object):
 
 
     def get_lr(self):
-        """Learning rate decay functions from:
-              https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
-
         # Use linear warmup for the initial part.
         if self.warmup_tokens is None:
             if self.warmup_steps > 0 and self.num_steps <= self.warmup_steps:

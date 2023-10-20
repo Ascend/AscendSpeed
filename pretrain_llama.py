@@ -170,7 +170,7 @@ def get_batch_pipe(data):
     data_b = tensor_parallel.broadcast_data(keys, data, data_type)
 
     # Unpack.
-    tokens_ = data_b['text'].long()
+    tokens_ = data_b.get('text').long()
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
