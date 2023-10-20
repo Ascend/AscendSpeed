@@ -119,7 +119,7 @@ def get_lora_load_fn_with_deepspeed(model, base_model_load_dir=None, tag=None):
 
     is_pipe_parallel = isinstance(model.module, PipelineModule)
 
-    mp_rank = 0 if model.parallel_state is None else model.parallel_state.get_model_parallel_rank()
+    mp_rank = 0 if model.mpu is None else model.mpu.get_model_parallel_rank()
     load_path, checkpoint, _ = sd_loader.load(model.mp_world_size, mp_rank, is_pipe_parallel=is_pipe_parallel)
 
     if checkpoint is None:
