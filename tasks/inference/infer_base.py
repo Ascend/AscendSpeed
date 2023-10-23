@@ -16,8 +16,7 @@ def add_text_generate_args(parser):
     group = parser.add_argument_group(title='text generation')
     group.add_argument("--task",
                        nargs='*',
-                       default=[1, 2, 3], help='The task id to run.')
-    group.add_argument("--local-rank", type=int, default=0)
+                       default=[1, 2, 3, 4, 5, 6], help='The task id to run.')
     group.add_argument("--top-p", type=float, default=0.95, help='Top p sampling.')
     group.add_argument("--top-k", type=int, default=50, help='Top k sampling.')
     group.add_argument("--temperature", type=float, default=0.7, help='Sampling temperature.')
@@ -26,8 +25,8 @@ def add_text_generate_args(parser):
     return parser
 
 
-def task1(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
-    """The most common usage"""
+def task_greedy_search(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
+    """Greedy Search"""
     if 1 not in list(map(int, args.task)):
         return
 
@@ -38,24 +37,111 @@ def task1(args, model, tokenizer=None, system_template="", dialog_template="{ins
     t = time.time()
     output = model.generate(
         instruction,
-        max_length=args.max_length,
         max_new_tokens=args.max_new_tokens,
         tokenizer=tokenizer,
         stream=False
     )
 
     if dist.get_rank() == 0:
-        logging.info("\n===========================================")
+        logging.info("\n=============== Greedy Search ================")
         logging.info("\nYou:\n%s\n\nAscendSpeed:\n%s", prompt, output)
-        logging.info("===========================================")
+        logging.info("==============================================")
         logging.info("\nElapsed: %ss", round(time.time() - t, 2))
 
     dist.barrier()
 
 
-def task2(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
-    """Returns the probability distribution of tokens"""
+def task_do_sample(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
+    """Do Sample"""
     if 2 not in list(map(int, args.task)):
+        return
+
+    prompt = "how are you?"
+    template = system_template + dialog_template
+    instruction = template.format(instruction=prompt)
+
+    t = time.time()
+    output = model.generate(
+        instruction,
+        do_sample=True,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        max_new_tokens=args.max_new_tokens,
+        tokenizer=tokenizer,
+        stream=False
+    )
+
+    if dist.get_rank() == 0:
+        logging.info("\n================ Do Sample =================")
+        logging.info("\nYou:\n%s\n\nAscendSpeed:\n%s", prompt, output)
+        logging.info("============================================")
+        logging.info("\nElapsed: %ss", round(time.time() - t, 2))
+
+    dist.barrier()
+
+
+def task_beam_search(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
+    """Beam Search"""
+    if 3 not in list(map(int, args.task)):
+        return
+
+    prompt = "how are you?"
+    template = system_template + dialog_template
+    instruction = template.format(instruction=prompt)
+
+    t = time.time()
+    output = model.generate(
+        instruction,
+        num_beams=2,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        max_new_tokens=args.max_new_tokens,
+        tokenizer=tokenizer,
+        stream=False
+    )
+
+    if dist.get_rank() == 0:
+        logging.info("\n=============== Beam Search =================")
+        logging.info("\nYou:\n%s\n\nAscendSpeed:\n%s", prompt, output)
+        logging.info("=============================================")
+        logging.info("\nElapsed: %ss", round(time.time() - t, 2))
+
+    dist.barrier()
+
+
+def task_beam_search_with_sampling(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
+    """Beam Search with sampling"""
+    if 4 not in list(map(int, args.task)):
+        return
+
+    prompt = "how are you?"
+    template = system_template + dialog_template
+    instruction = template.format(instruction=prompt)
+
+    t = time.time()
+    output = model.generate(
+        instruction,
+        num_beams=2,
+        do_sample=True,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        max_new_tokens=args.max_new_tokens,
+        tokenizer=tokenizer,
+        stream=False
+    )
+
+    if dist.get_rank() == 0:
+        logging.info("\n======== Beam Search with sampling ==========")
+        logging.info("\nYou:\n%s\n\nAscendSpeed:\n%s", prompt, output)
+        logging.info("=============================================")
+        logging.info("\nElapsed: %ss", round(time.time() - t, 2))
+
+    dist.barrier()
+
+
+def task_return_output_log_probs(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
+    """Returns the probability distribution of tokens"""
+    if 5 not in list(map(int, args.task)):
         return
 
     prompt = "how are you?"
@@ -69,7 +155,6 @@ def task2(args, model, tokenizer=None, system_template="", dialog_template="{ins
         top_k=args.top_k,
         top_p=args.top_p,
         temperature=args.temperature,
-        max_length=args.max_length,
         max_new_tokens=args.max_new_tokens,
         tokenizer=tokenizer,
         stream=False,
@@ -77,18 +162,34 @@ def task2(args, model, tokenizer=None, system_template="", dialog_template="{ins
         return_output_log_probs=True
     )
 
+    tokens, score = model.generate(
+        instruction,
+        num_beams=2,
+        do_sample=True,
+        top_k=args.top_k,
+        top_p=args.top_p,
+        temperature=args.temperature,
+        max_new_tokens=args.max_new_tokens,
+        tokenizer=tokenizer,
+        stream=False,
+        detokenize=False,
+        return_output_log_probs=True,
+        num_return_sequences=4
+    )
+
     if dist.get_rank() == 0:
         logging.info("\n===========================================")
-        logging.info("Probability distribution:\n%s", log_probs)
+        logging.info("Probability Distribution:\n%s", log_probs)
+        logging.info("Beam Search Score:\n%s", score)
         logging.info("===========================================")
         logging.info("\nElapsed: %ss", round(time.time() - t, 2))
 
     dist.barrier()
 
 
-def task3(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
+def task_chat(args, model, tokenizer=None, system_template="", dialog_template="{instruction}"):
     """Interactive dialog mode with multiple rounds of conversation"""
-    if 3 not in list(map(int, args.task)):
+    if 6 not in list(map(int, args.task)):
         return
 
     def get_context(content):
@@ -101,11 +202,8 @@ def task3(args, model, tokenizer=None, system_template="", dialog_template="{ins
         return res
 
     histories = []
-    output = ""
-    prompt = ""
-    instruction = ""
-    input_template = "You >> "
-    response_template = "AscendSpeed:"
+    output, prompt, instruction = "", "", ""
+    input_template, response_template = "You >> ", "AscendSpeed:"
     command_clear = ["clear"]
     command_back = ["tput", "cup", "4", "0"]
     while True:
@@ -128,6 +226,9 @@ def task3(args, model, tokenizer=None, system_template="", dialog_template="{ins
                 histories = []
                 continue
 
+            if not prompt.strip():
+                continue
+
             histories.append((prompt, None))
             instruction = get_context(histories)
             histories.pop()
@@ -143,8 +244,8 @@ def task3(args, model, tokenizer=None, system_template="", dialog_template="{ins
             top_p=args.top_p,
             tokenizer=tokenizer,
             temperature=args.temperature,
-            max_length=args.max_length,
             max_new_tokens=args.max_new_tokens,
+            stream=True
         )
 
         context = "\n"

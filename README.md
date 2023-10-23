@@ -38,12 +38,13 @@ More novel and useful features are developing for LLMs training on Ascend ...
 
 ### Downstream Tasks
 Currently, the following downstream tasks have been supported:
-* [Inference with sampling and greedy search strategies](#jump11)
-* [Dataset processing with prompt or instruction](#jump12)
-* [Efficient-parameter fine-tuning with lora from peft](#jump13)
-* [Evaluation with numerous popular and academic benchmarks](#jump14)
+* [Data-processing](#jump11)
+* [Fine-tuning](#jump12)
+* [Inference](#jump13)
+* [Evaluation](#jump14)
 
-The plan for more tasks, like RLHF and RM, is under way ...
+The plan for more tasks, like RLHF, is under way ...
+
 
 ## Quick Start For Pretraining
 
@@ -154,6 +155,7 @@ The plan for more tasks, like RLHF and RM, is under way ...
     </tr>
   </tbody>
 </table>
+
 
 ### Model Training
 This is an example of model training with AscendSpeed, and the detailed guideline for each model could be found in the `examples/modelname` folder.
@@ -382,103 +384,9 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
 </table>
 
 
-### <span id="jump11"> Inference with Pretrained Weights </span>
-Currently, we support the following four strategies for inference:
-- PTD only
-- Deepspeed ZeRO only
-- Deepspeed ZeRO in Pipe with TP
-- Model finetuned with lora
 
-### Quick Start
-Here are three example scripts in different mode mentioned above for you to launch directly. Note that if you want to use the weight from huggingface, please run the weight conversion script first. 
-Llama-7B here is token as an example.
-```bash
-python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
-                                                                    --output-model-dir llama-7b-tp2-pp2 \
-                                                                    --tensor-model-parallel-size 2 \
-                                                                    --pipeline-model-parallel-size 2 \
-                                                                    --type 7B
-```
-- PTD only: In this mode, the model is split by pipeline parallel and tensor parallel mode in megatron ways.
-```bash
-sh examples/llama/generate_llama_7B_tp2_pp2.sh  #set the weight path
-```
-- Deepspeed ZeRO only: In this mode, the model uses DeepSpeed ZeRO 1, 2 or 3 definition with tp=1, pp=1.
-```bash
-sh examples/llama/generate_alpaca_13B_deepspeed.sh #set the weight path
-```
-- Deepspeed ZeRO in Pipe with TP: In this mode, the model uses pipe model definition in DeepSpeed ZeRO 1, 2 or 3 with tp>1, pp=1.
-```bash
-sh examples/llama/generate_llama_7B_deepspeed_pipeline.sh
-```                                                                  
-- If you want to use lora model, for details, refer to:
-```bash
-sh examples/llama/generate_alpaca_13B_lora_deepspeed.sh
-```
-An example with [Chinese-LLaMA-Alpaca weights](https://github.com/ymcui/Chinese-LLaMA-Alpaca) is as below:<div align=center>
-<img src="sources/images/inference.png" height="600px" width="600px"></div>
-
-
-### Usage Guide
-Follow these steps to write your own inference code:
-
-1. Initializing the Distributed Environment
-```python
-initialize_megatron(args_defaults={'no_load_rng': True, 'no_load_optim': True})
-```
-2. Initializing model and loading weights
-```python
-from ascendspeed import get_args
-from ascendspeed.model import LlamaModel
-from ascendspeed.arguments import core_transformer_config_from_args
-
-def model_provider(pre_process=True, post_process=True):
-    """Build the model."""
-    config = core_transformer_config_from_args(get_args())
-    init_model = LlamaModel(
-        config,
-        parallel_output=False,
-        add_pooler=False,
-        pre_process=pre_process,
-        post_process=post_process
-    )
-    return init_model
-
-
-model = LlamaModel.from_pretrained(
-    model_provider=model_provider,
-    pretrained_model_name_or_path="your model weight path"
-)
-
-"""
-This is an API for initializing model and loading weight.
-
-Parameters:
-----------
-model_provider(`func`):
-    Function used to generate model objects which is similar to the training define.
-pretrained_model_name_or_path(`str`, *optional*, defaults to None):
-    File path of Model weight in megatron format (TP, PP may be used).
-    If it is None, the random initialized weights will be used.
-"""
-```
-**3. Generate text in HuggingFace-like ways**
-```python
-model.generate(
-    input_ids="hello",
-    do_sample=True,
-    top_k=50,
-    top_p=1.0,
-    temperature=1.0,
-    max_length=256,
-    max_new_tokens=64,
-    stream=True,
-)
-```
-
-
-## <span id="jump12"> Dataset Processing </span>
-### Quick Start
+### <span id="jump11"> Dataset Processing </span>
+#### Quick Start
 
 ```bash
 # for llama, download alpaca dataset, like
@@ -496,9 +404,9 @@ python tools/preprocess_data.py --input train-00000-of-00001-a09b74b3ef9c3b56.pa
                                 --handler-name GeneralInstructionHandler
 ```
 
-### Preprocessing pretraining dataset
+#### Preprocessing pretraining dataset
 
-#### wikipedia dataset 
+##### wikipedia dataset 
 
 + download [wikipedia data](https://huggingface.co/datasets/wikipedia/tree/main) from huggingface to WORKSPACE/wikipedia
 + download [llama tokenizer model and config](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main) from huggingface to WORKSPACE/llama-7b-hf
@@ -540,7 +448,7 @@ Note that datasets in huggingface have a format like [this](https://huggingface.
 In wikipedia dataset, it has four columns which are `id`, `url`, `title` and `text`. 
 Then we can specify `--json-key` flag to choose a column used to train.
 
-#### alpaca dataset
+##### alpaca dataset
 
 Besides, we can also use alpaca dataset to pretrain like below.
 
@@ -556,8 +464,8 @@ python tools/preprocess_data.py --input WORKSPACE/train-00000-of-00001-a09b74b3e
 ```
 
 
-### Preprocessing instruction dataset
-#### alpaca dataset
+#### Preprocessing instruction dataset
+##### alpaca dataset
 ```bash
 # for llama, download alpaca dataset, like
 # wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
@@ -584,26 +492,19 @@ If you have an alpaca-style dataset which have `instruction`, `input` and `outpu
 In addition, `BelleMultiTurnInstructionHandler` is used to handle [belle dataset](https://huggingface.co/datasets/BelleGroup/multiturn_chat_0.8M),
 `MOSSInstructionHandler` is used to handle [MOSS dataset](https://huggingface.co/datasets/fnlp/moss-003-sft-data) and `LeetcodePythonInstructionHandler` is used to handle [Leetcode dataset](https://huggingface.co/datasets/mhhmm/leetcode-solutions-python).
 
-## <span id="jump13"> Finetune with Lora </span>
-### Lora
- 
-Now, we support Lora to fine-tune your models. 
 
-First, you need to install version 0.4.0 of the peft library, like this:
-```shell
-pip install peft==0.4.0
-```
-You can also choose to install from [the source package in the GitHub repository](https://github.com/huggingface/peft/archive/refs/tags/v0.4.0.tar.gz), so you can modify the setup.py file to avoid some dependency issues.
+### <span id="jump12"> Finetune </span>
+#### Lora
 
-Next, you just need to add this argument in your script to open Lora:
- 
+Now, we support Lora to fine-tune your models. You just need to add this argument in your script to open Lora:
+
 ```shell
 # Llama example
 --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
 ```
- 
+
 There are other Lora related arguments here, you can find their definitions in the [PEFT](https://github.com/huggingface/peft) library.
- 
+
 ```shell
 # Llama example
 --lora-r 64 \
@@ -611,18 +512,18 @@ There are other Lora related arguments here, you can find their definitions in t
 --lora-modules-to-save word_embeddings lm_head.lm_head \
 --lora-register-forward-hook word_embeddings input_layernorm \
 ```
- 
+
 Among them, the argument `--lora-register-forward-hook` is used to repair the gradient chain break caused by PP. It only needs to be set to the input layer of each PP stage, and the repair will not increase the trainable parameters.
- 
+
 Finally, only Lora's parameters are saved after turning on Lora. Similarly, when loading a model, you need to specify the original model weight path and the Lora weight path. Parameters such as the optimizer are subject to those in the Lora weight path.
- 
+
 ```shell
 --load ${ORIGIN_CHECKPOINT} \
 --lora-load ${LORA_CHECKPOINT} \
 ```
 
 There is an [example](examples/llama/tune_llama_ptd_13b.sh) could be referred. 
- 
+
 After using Lora to fine-tune the Llama model, the instruction dialogue effect is as follows:
 
 ```shell
@@ -635,8 +536,147 @@ AscendSpeed:
 - Take medications regularly.
 ```
 
-## <span id="jump14"> Evaluation with Benchmarks </span>
-### Quick Start
+### <span id="jump13"> Inference </span>
+Currently, we support the following four strategies for inference:
+- PTD only
+- Deepspeed ZeRO only
+- Deepspeed ZeRO in PIPELINE with TP
+- Model fine-tuned with lora
+
+#### Quick Start
+Here are some example scripts in different mode mentioned above for you to launch directly.
+
+***Please Note that:***
+1. If you want to use the weight from huggingface, please run the weight conversion script first. 
+Take Llama-7B, for example:
+    ```bash
+    python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
+                                                                        --output-model-dir llama-7b-tp2-pp2 \
+                                                                        --tensor-model-parallel-size 2 \
+                                                                        --pipeline-model-parallel-size 2 \
+                                                                        --type 7B
+    ```
+    Here are some open source model weights available for download:
+    - [Llama-7B](https://huggingface.co/yahma/llama-7b-hf/tree/main)
+    - [Llama-13B](https://huggingface.co/yahma/llama-13b-hf/tree/main)
+
+2. You need to modify some variables in the shell script such as **model weight path** and **vocab path**.
+
+    - **PTD only:** In this mode, the model is split by pipeline parallel and tensor parallel mode in megatron ways.
+    ```bash
+    sh examples/llama/generate_llama_7B_tp2_pp2.sh
+    ```
+    - **Deepspeed ZeRO only:** In this mode, the model uses DeepSpeed ZeRO 1, 2 or 3 definition with tp=1, pp=1.
+    ```bash
+    sh examples/llama/generate_alpaca_13B_deepspeed.sh
+    ```
+    - **Deepspeed ZeRO in Pipe with TP:** In this mode, the model uses pipe model definition in DeepSpeed ZeRO 1, 2 or 3 with tp>1, pp=1.
+    ```bash
+    sh examples/llama/generate_llama_7B_deepspeed_pipeline.sh
+    ```
+    - **If you want to use lora model**, for details, refer to:
+    ```bash
+    sh examples/llama/generate_alpaca_13B_lora_deepspeed.sh
+    ```
+***Some examples with [Chinese-LLaMA-Alpaca-13B weights](https://github.com/ymcui/Chinese-LLaMA-Alpaca) is see [here](#case1)***
+
+
+
+#### Usage Guide
+Follow these steps to write your own inference code:
+
+##### Initializing the Distributed Environment
+```python
+initialize_megatron(args_defaults={'no_load_rng': True, 'no_load_optim': True})
+```
+##### Initializing model and loading weights
+```python
+from ascendspeed import get_args
+from ascendspeed.model import LlamaModel
+from ascendspeed.arguments import core_transformer_config_from_args
+
+def model_provider(pre_process=True, post_process=True):
+    """Build the model."""
+    config = core_transformer_config_from_args(get_args())
+    init_model = LlamaModel(
+        config,
+        parallel_output=False,
+        add_pooler=False,
+        pre_process=pre_process,
+        post_process=post_process
+    )
+    return init_model
+
+
+model = LlamaModel.from_pretrained(
+    model_provider=model_provider,
+    pretrained_model_name_or_path="your model weight path"
+)
+
+"""
+This is an API for initializing model and loading weight.
+
+Parameters:
+----------
+model_provider(`func`):
+    Function used to generate model objects which is similar to the training define.
+pretrained_model_name_or_path(`str`, *optional*, defaults to None):
+    File path of Model weight in megatron format (TP, PP may be used).
+    If it is None, the random initialized weights will be used.
+"""
+```
+##### <span id="case1"> Generate text in HuggingFace-like ways </span>
+
+###### Greedy
+```python
+responses = model.generate(
+    "Write quick sort code in python",
+    max_new_tokens=512
+)
+```
+<img src="sources/images/greedy.png">
+
+###### Do sample with Top-k and Top-p
+```python
+responses = model.generate(
+    "Write quick sort code in python",
+    do_sample=True,
+    temperature=1.0,
+    top_k=50,
+    top_p=0.95,
+    max_new_tokens=512
+)
+```
+<img src="sources/images/sampling.png">
+
+###### Beam search with Top-k and Top-p
+```python
+responses = model.generate(
+    "Write quick sort code in python",
+    num_beams=4,
+    top_k=50,
+    top_p=0.95,
+    max_new_tokens=512
+)
+```
+<img src="sources/images/beam_search.png">
+
+###### Beam search with Top-k and Top-p sampling
+```python
+responses = model.generate(
+    "Write quick sort code in python",
+    do_sample=True,
+    temperature=0.6,
+    num_beams=4,
+    top_k=50,
+    top_p=0.95,
+    max_new_tokens=512
+)
+```
+<img src="sources/images/beam_search_sampling.png">
+
+### <span id="jump14"> Evaluation </span>
+#### Quick Start
 ```bash
 # Configure model path and vocab_file path
 # Vocab file can be downloaded from https://huggingface.co/decapoda-research/llama-7b-hf
@@ -668,7 +708,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
 # start evaluation
 bash tasks/evaluation/eval.sh
 ```
-### Configuration of models and datasets
+#### Configuration of models and datasets
 As the example shown below, we want to use llama7b model for BoolQ dataset evaluation, so the model path and vocab file should correspond to llama7b model. Model can be segmented with suitable segmentation parameters: the following example set tensor-model-parallel-size(tp) = 2 and pipeline-model-parallel-size(pp) = 4. Segmentation example shows as followed:
 ```bash
 python convert_weights_from_huggingface.py \
@@ -689,7 +729,7 @@ DATA_PATH="dataset/boolq/test"
 TASK="boolq"
 # configure generation parameters 
 ```
-### Configuration of evaluation parameters for different datasets
+#### Configuration of evaluation parameters for different datasets
 The most important evaluation parameters must be `--max-new-tokens`, which means the output length of model generation. For example, multiple-choice
 questions' output length is obviously shorter than coding tasks. Besides, this parameter largely influences the speed of model generation.
 ```bash
@@ -713,7 +753,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
        --micro-batch-size 1  \
        --seed 42 | tee logs/train.log
 ```
-#### Evaluation results and parameter configuration of BoolQ 
+##### Evaluation results and parameter configuration of BoolQ 
 The evaluation of the BoolQ data set is relatively simple, just configure `TASK="boolq"`, `--seq-length=512`, `--max-position-embeddings=512`, `--max-new-token=2`.
 
 <img src="sources/images/boolq_result_of_AscendSpeed.png" height="300px" width="800px"></div>
@@ -725,7 +765,7 @@ The prompt can be modified in `tasks/evaluation/evaluation.py`
 template = {instruction}
 ```
 
-#### Evaluation results and parameter configuration of MMLU 
+##### Evaluation results and parameter configuration of MMLU 
 Since MMLU is a multidisciplinary task and 5 shots are performed, the length of each subject question varies greatly. If you want to run 57 subjects at the same time, you need to set `TASK="mmlu"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=2`. (`--max-new-tokens` can be set to between 2-4).
 On many websites, the accuracy of the MMLU is evaluated according to disciplines. The 57 categories of single subjects belong to four main categories. Therefore, the statistics should be summarized according to the major categories of the subjects. The [website](https://github.com/hendrycks/test/blob/master/categories.py) gives the major categories of subjects for 57 categories of subjects.
 
@@ -757,30 +797,7 @@ Compared to the benchmark accuracy 35.1 from the paper [LLaMA: Open and Efficien
   </tbody>
 </table>
 
-#### Evaluation results and parameter configuration of GSM8K 
+##### Evaluation results and parameter configuration of GSM8K 
 GSM8K is a dataset of 8.5K high quality linguistically diverse grade school math word problems created by human problem writers. The answer of each question is a specific number. Since few shots are performed,  the question length is relatively long in GSM8K, and the output answer contains a chain of thoughts, it is necessary to configure `TASK="gsm8k"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=128`. (`--max-new-tokens` can be set between 256-512).
 As the benchmark shows on [OpenCompass](https://opencompass.org.cn/dataset-detail/GSM8K), LLama7B model's evaluation gets only 10 points with pass@k(Generate k
 times and choose the best answer). The results of AscendSpeed on NPU environment varies between 8 and 10 points according to the number of shots we use.
-
-#### Evaluation results and parameter configuration of HumanEval 
-HumanEval dataset is a handcrafted set of 164 programming problems designed to challenge code generation models. The problems include a function signature, docstring, body, and several unit tests, all handwritten to ensure they're not included in the training set of code generation models. 
-We ues Chinese llama alpaca 13b for testing, and get 11.58 points compared to 11.8 points shown on [OpenCompass](https://opencompass.org.cn/dataset-detail/GSM8K) with the same model.
-Since the answer of HumanEval dataset contains long codes, it is necessary to configure `TASK="human_eval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024`.
-
-<img src="sources/images/humaneval_result.png" height="200px" width="800px"></div>
-
-#### Evaluation results and parameter configuration of AGIEval
-AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving. Since the length of answers to different type of questions varies, we have to configure `TASK="agieval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024` to fit the longest answer. The following shows the results of AscendSpeed.
-
-#### Evaluation results and parameter configuration of Big-Bench-Hard
-Big-bench-hard dataset is a subset of big bench, which is a diverse evaluation suite that focuses on a suite of 23 challenging BIG-Bench tasks. These are the task for which prior language model evaluations did not outperform the average human-rater. This dataset covers multiple areas including text understanding, reasoning, logical reasoning, mathematical reasoning, and common sense reasoning.
-Except word_sorting, all datasets are multiple-choice questions. So we can set `TASK="bbh"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=32`. (`--max-new-tokens` can be set between 32-64). Compared to 33.5 points of LLaMa7b on [OpenCompass](https://opencompass.org.cn/dataset-detail/GSM8K), we got 33.4 points on the same model.
-
-<img src="sources/images/bbh.png" height="300px" width="450px"></div>
-
-#### Evaluation results and parameter configuration of CEval
-As [C-Eval](https://cevalbenchmark.com/) shows, C-Eval is a comprehensive Chinese evaluation suite for foundation models. It consists of 13948 multi-choice questions spanning 52 diverse disciplines and four difficulty levels, as shown below. You may explore our dataset examples at Explore, or check our paper for more details. The dataset contains validation and test data, however, only validation data has label for auto-evaluation. If 
-you want to evaluate on test data, you should email your results to [C-Eval](https://cevalbenchmark.com/). Here shows our results on validation data with LLaMa7b model.
-
-<img src="sources/images/ceval_result.png" height="750px" width="550px"></div>
-
