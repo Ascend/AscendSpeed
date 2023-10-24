@@ -3,7 +3,8 @@ from ascendspeed import get_args
 from ascendspeed.model import LlamaModel
 from ascendspeed.initialize import initialize_megatron
 from ascendspeed.arguments import core_transformer_config_from_args
-from tasks.inference.infer_base import task1, task2, task3, add_text_generate_args
+from tasks.inference.infer_base import task_greedy_search, task_do_sample, task_beam_search, add_text_generate_args
+from tasks.inference.infer_base import task_beam_search_with_sampling, task_return_output_log_probs, task_chat
 
 
 def model_provider(pre_process=True, post_process=True):
@@ -37,6 +38,9 @@ if __name__ == "__main__":
     dialog_template = "### Instruction:\n{instruction}\n\n### Response:"
     template = system_template + dialog_template
 
-    task1(args, model, system_template=system_template, dialog_template=dialog_template)
-    task2(args, model, system_template=system_template, dialog_template=dialog_template)
-    task3(args, model, system_template=system_template, dialog_template=dialog_template)
+    task_greedy_search(args, model, system_template=system_template, dialog_template=dialog_template)
+    task_do_sample(args, model, system_template=system_template, dialog_template=dialog_template)
+    task_beam_search(args, model, system_template=system_template, dialog_template=dialog_template)
+    task_beam_search_with_sampling(args, model, system_template=system_template, dialog_template=dialog_template)
+    task_return_output_log_probs(args, model, system_template=system_template, dialog_template=dialog_template)
+    task_chat(args, model, system_template=system_template, dialog_template=dialog_template)

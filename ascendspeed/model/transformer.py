@@ -308,7 +308,7 @@ class ParallelAttention(MegatronModule):
                 dtype=query_layer.dtype,
                 device=get_accelerator().current_device_name())
         else:
-            matmul_result = alibi[:output_size[0]*output_size[1], :, :output_size[3]]
+            matmul_result = alibi[:, :output_size[3]]
 
         # Rotary embeddings
         if self.position_embedding_type == PositionEmbeddingType.rotary:
@@ -657,8 +657,7 @@ class ParallelTransformerLayer(MegatronModule):
         tp_index = parallel_state.get_tensor_model_parallel_rank()
         alibi = alibi.reshape((tp_world_size, -1, *alibi.shape[1:]))[tp_index]
 
-        alibi = alibi.repeat(batch_size, 1, 1)
-        return alibi
+        return alibi[0]
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
