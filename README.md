@@ -9,10 +9,10 @@ AscendSpeed provides end-to-end test scripts for large language models on [Ascen
 Currently, the pre-training of the following models has been supported: 
 
 * <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[[README: 7B/13B]](examples/baichuan/README.md)
-* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[README: 7B1/176B]](examples/bloom/README.md)
-* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-7B
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-7B/13B/[[README: 65B]](examples/llama/README.md)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-7B
+* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[README: 7B/176B]](examples/bloom/README.md)
+* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[README: 7B]](examples/intern/README.md)
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[README: 7B/13B/65B]](examples/llama/README.md)
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[README: 7B]](examples/llama2/README.md)
 
 LLaMA-33B, LLaMA2-13B/70B, Aquila-7B are coming soon ...
 
@@ -104,7 +104,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> <a href="examples/bloom/pretrain_bloom_176b.sh">Train</a> </td>
     </tr>
     <tr>
-      <td>InternLM</td>
+      <td><a href="examples/intern/README.md">InternLM</td>
       <td>7B</td>
       <td>1x8</td>
       <td>FP16</td>
@@ -114,7 +114,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">Train</a> </td>
     </tr>
     <tr>
-      <td rowspan="4">LLaMA</td>
+      <td rowspan="4"><a href="examples/llama/README.md">LLaMA</td>
       <td>7B</td>
       <td>1x8</td>
       <td>FP16</td>
@@ -144,7 +144,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">Train</a> </td>
     </tr>
     <tr>
-      <td>LLaMA2</td>
+      <td><a href="examples/llama2/README.md">LLaMA2</td>
       <td>7B</td>
       <td>1x8</td>
       <td>FP16 </td>

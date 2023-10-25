@@ -777,6 +777,19 @@ class LlamaParallelTransformer(MegatronModule):
         check_divisible(args.num_layers, parallel_state.get_pipeline_model_parallel_world_size(), error_info)
         self.num_layers = args.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
 
+        if self.checkpoint_policy == "block":
+            self.recomputation_layer_num = [self.checkpoint_block_layer] * \
+                parallel_state.get_pipeline_model_parallel_world_size()
+        elif self.checkpoint_policy == "custom":
+            if len(args.recomputation_layer_num) == \
+                parallel_state.get_pipeline_model_parallel_world_size():
+                self.recomputation_layer_num = args.recomputation_layer_num
+            else:
+                raise ValueError(f"`recomputation_layer_num` length must equal to PP stage number.")
+        else:
+            self.recomputation_layer_num = [self.num_layers] * \
+                parallel_state.get_pipeline_model_parallel_world_size()
+
         # Transformer layers.
         def build_layer(layer_number):
             return LlamaParallelTransformerLayer(
@@ -832,7 +845,6 @@ class LlamaParallelTransformer(MegatronModule):
 
     def _checkpointed_forward(self, hidden_states, attention_mask):
         """Forward method with activation checkpointing."""
-
         def custom(start, end):
             def custom_forward(*inputs):
                 x_ = inputs[0]
@@ -846,32 +858,11 @@ class LlamaParallelTransformer(MegatronModule):
 
         # Make sure memory is freed.
         tensor_parallel.reset_checkpointed_activations_memory_buffer()
-        l = 0
-        while l < self.num_layers:
-            hidden_states = tensor_parallel.checkpoint(
-                custom(l, l + self.checkpoint_num_layers),
-                self.distribute_saved_activations,
-                hidden_states, attention_mask)
-            l += self.checkpoint_num_layers
-
-        return hidden_states
-
-    def _checkpointed_forward_block(self, hidden_states, attention_mask):
-        """Forward method with activation checkpointing."""
-        def custom(start, end):
-            def custom_forward(*inputs):
-                x_ = inputs[0]
-                attention_mask = inputs[1]
-                for index in range(start, end):
-                    layer = self._get_layer(index)
-                    x_ = layer(x_, attention_mask=attention_mask)
-                return x_
-
-            return custom_forward
 
         # Make sure memory is freed.
         for idx in range(self.num_layers):
-            if idx < self.checkpoint_block_layer:
+            if idx < self.recomputation_layer_num[
+                parallel_state.get_pipeline_model_parallel_rank()]:
                 hidden_states = tensor_parallel.checkpoint(
                     custom(idx, idx + 1),
                     self.distribute_saved_activations,
@@ -919,10 +910,8 @@ class LlamaParallelTransformer(MegatronModule):
                 # See set_input_tensor()
                 hidden_states = self.input_tensor
 
-        if self.checkpoint_activations and self.checkpoint_policy == 'full':
+        if self.checkpoint_activations:
             hidden_states = self._checkpointed_forward(hidden_states, attention_mask)
-        elif self.checkpoint_activations and self.checkpoint_policy == 'block':
-            hidden_states = self._checkpointed_forward_block(hidden_states, attention_mask)
         else:
             if get_key_value:
                 presents = []

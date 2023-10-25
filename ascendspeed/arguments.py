@@ -557,6 +557,11 @@ def _add_training_args(parser):
     group.add_argument('--checkpoint-activations', action='store_true',
                        help='Checkpoint activation to allow for training '
                        'with larger models, sequences, and batch sizes.')
+    group.add_argument('--recomputation-layer-num', nargs='+',
+                       type=int, help='Represents the number of layers to be recomputed at each stage of the pp. '
+                       'The default is None. If pp=4, each stage has 8 layers, '
+                       'if this parameter is equal to 4 4 4 4, '
+                       'it means that each stage only needs to recompute 4 layers.')
     group.add_argument('--distribute-checkpointed-activations',
                        action='store_true',
                        help='If set, distribute checkpointed activations '
@@ -1110,7 +1115,7 @@ def _add_activation_checkpoint_args(parser):
                        help='does a synchronize at the beginning and end of each checkpointed layer.')
     group.add_argument('--profile-backward', action='store_true',
                        help='Enables backward pass profiling for checkpointed layers.')
-    group.add_argument('--checkpoint_policy', type=str, default='full', choices=['full', 'block'],
+    group.add_argument('--checkpoint_policy', type=str, default='full', choices=['full', 'block', 'custom'],
                        help="activation checkpoint policy")
     group.add_argument('--checkpoint_block_layer', type=int, default=25,
                        help="activation checkpoint block layer number")
