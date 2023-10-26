@@ -29,7 +29,8 @@ from ascendspeed.error_utils import (
     check_divisible,
     check_equal,
     ensure_var_is_not_none,
-    ensure_var_is_none
+    ensure_var_is_none,
+    ensure_valid
 ) 
 
 
@@ -146,17 +147,17 @@ def parse_args(extra_args_provider=None, defaults={},
 
     # Batch size.
     ensure_var_is_not_none(args.micro_batch_size)
-    assert args.micro_batch_size > 0
+    ensure_valid(args.micro_batch_size > 0)
     if args.global_batch_size is None:
         args.global_batch_size = args.micro_batch_size * args.data_parallel_size
         if args.rank == 0:
             print('setting global batch size to {}'.format(
                 args.global_batch_size), flush=True)
-    assert args.global_batch_size > 0
+    ensure_valid(args.global_batch_size > 0)
     if args.num_layers_per_virtual_pipeline_stage is not None:
-        assert args.pipeline_model_parallel_size > 2, \
-            'pipeline-model-parallel size should be greater than 2 with ' \
-            'interleaved schedule'
+        error_message = 'pipeline-model-parallel size should be greater than 2 with ' \
+                        'interleaved schedule'
+        ensure_valid(args.pipeline_model_parallel_size > 2, error_message)
         check_divisible(args.num_layers, args.num_layers_per_virtual_pipeline_stage, error_info='number of layers'\
                         ' is not divisible by number of layers per virtual pipeline stage')
         args.virtual_pipeline_model_parallel_size = \
@@ -168,10 +169,10 @@ def parse_args(extra_args_provider=None, defaults={},
     # Parameters dtype.
     args.params_dtype = torch.float
     if args.fp16:
-        assert not args.bf16
+        ensure_valid(not args.bf16)
         args.params_dtype = torch.half
     if args.bf16:
-        assert not args.fp16
+        ensure_valid(not args.fp16)
         args.params_dtype = torch.bfloat16
         # bfloat16 requires gradient accumulation and all-reduce to
         # be done in fp32.
@@ -189,13 +190,13 @@ def parse_args(extra_args_provider=None, defaults={},
     # and we should make sure use-contiguous-buffers-in-local-ddp is not off.
     if args.accumulate_allreduce_grads_in_fp32:
         check_equal(args.DDP_impl, 'local')
-        assert args.use_contiguous_buffers_in_local_ddp
+        ensure_valid(args.use_contiguous_buffers_in_local_ddp)
 
     # If we use the distributed optimizer, we need to have local DDP
     # and we should make sure use-contiguous-buffers-in-local-ddp is on.
     if args.use_distributed_optimizer:
         check_equal(args.DDP_impl, 'local')
-        assert args.use_contiguous_buffers_in_local_ddp
+        ensure_valid(args.use_contiguous_buffers_in_local_ddp)
 
     # For torch DDP, we do not use contiguous buffer
     if args.DDP_impl == 'torch':
@@ -261,31 +262,32 @@ def parse_args(extra_args_provider=None, defaults={},
      args.position_embedding_type == PositionEmbeddingType.alibi):
         ensure_var_is_not_none(args.max_position_embeddings)
         if not args.seq_length:
-            assert args.max_position_embeddings >= args.seq_length
+            ensure_valid(args.max_position_embeddings >= args.seq_length)
         if args.decoder_seq_length is not None:
-            assert args.max_position_embeddings >= args.decoder_seq_length
+            ensure_valid(args.max_position_embeddings >= args.decoder_seq_length)
     else:
         ensure_var_is_none(args.max_position_embeddings)
 
     if args.seq_length is not None:
-        assert args.max_position_embeddings >= args.seq_length
+        ensure_valid(args.max_position_embeddings >= args.seq_length)
     if args.decoder_seq_length is not None:
-        assert args.max_position_embeddings >= args.decoder_seq_length
+        ensure_valid(args.max_position_embeddings >= args.decoder_seq_length)
     if args.lr is not None:
-        assert args.min_lr <= args.lr
+        ensure_valid(args.min_lr <= args.lr)
     if args.save is not None:
         ensure_var_is_not_none(args.save_interval)
     # Mixed precision checks.
     if args.fp16_lm_cross_entropy:
-        assert args.fp16, 'lm cross entropy in fp16 only support in fp16 mode.'
+        error_message = 'lm cross entropy in fp16 only support in fp16 mode.'
+        ensure_valid(args.fp16, error_message)
     if args.fp32_residual_connection:
-        assert args.fp16 or args.bf16, \
-            'residual connection in fp32 only supported when using fp16 or bf16.'
+        error_message = 'residual connection in fp32 only supported when using fp16 or bf16.'
+        ensure_valid(args.fp16 or args.bf16, error_message)
     # Activation checkpointing.
     if args.distribute_checkpointed_activations:
-        assert args.checkpoint_activations, \
-            'for distribute-checkpointed-activations to work you '\
-            'need to enable checkpoint-activations'
+        error_message = 'for distribute-checkpointed-activations to work you '\
+                        'need to enable checkpoint-activations'
+        ensure_valid(args.checkpoint_activations, error_message)
     torch_major = int(torch.__version__.split('.')[0])
     torch_minor = int(torch.__version__.split('.')[1])
     # Persistent fused layer norm.

@@ -30,7 +30,7 @@ from ascendspeed import (
 )
 from ascendspeed.core import parallel_state
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
-from ascendspeed.error_utils import check_divisible, check_equal
+from ascendspeed.error_utils import check_divisible, check_equal, ensure_valid
 
 
 DSET_TYPE_BERT = 'standard_bert'
@@ -56,7 +56,7 @@ def get_datasets_weights_and_num_samples(data_prefix,
     weight_sum = 0.0
     for weight in weights:
         weight_sum += weight
-    assert weight_sum > 0.0
+    ensure_valid(weight_sum > 0.0)
     weights = [weight / weight_sum for weight in weights]
 
     # Add 0.5% (the 1.005 factor) so in case the bleding dataset does
@@ -78,7 +78,7 @@ def get_a_and_b_segments(sample, np_rng):
     # Number of sentences in the sample.
     n_sentences = len(sample)
     # Make sure we always have two sentences.
-    assert n_sentences > 1, 'make sure each sample has at least two sentences.'
+    ensure_valid(n_sentences > 1, error_message='make sure each sample has at least two sentences.')
 
     # First part:
     # `a_end` is how many sentences go into the `A`.
@@ -107,7 +107,7 @@ def get_a_and_b_segments(sample, np_rng):
 def truncate_segments(tokens_a, tokens_b, len_a, len_b, max_num_tokens, np_rng):
     """Truncates a pair of sequences to a maximum sequence length."""
     #print(len_a, len_b, max_num_tokens)
-    assert len_a > 0
+    ensure_valid(len_a > 0)
     if len_a + len_b <= max_num_tokens:
         return False
     while len_a + len_b > max_num_tokens:
@@ -303,7 +303,7 @@ def create_masked_lm_predictions(tokens,
             index=index_set,
             label=[tokens[index] for index in index_set]))
 
-    assert len(masked_lms) <= num_to_predict
+    ensure_valid(len(masked_lms) <= num_to_predict)
     np_rng.shuffle(ngram_indexes)
 
     select_indexes = set()
@@ -344,7 +344,7 @@ def create_masked_lm_predictions(tokens,
                 continue
             for index in index_set:
                 select_indexes.add(index)
-        assert len(select_indexes) <= num_to_predict
+        ensure_valid(len(select_indexes) <= num_to_predict)
 
         select_indexes = sorted(select_indexes)
         permute_indexes = list(select_indexes)
@@ -372,7 +372,7 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions,
     # Some checks.
     num_tokens = len(tokens)
     padding_length = max_seq_length - num_tokens
-    assert padding_length >= 0
+    ensure_valid(padding_length >= 0)
     check_equal(len(tokentypes), num_tokens)
     check_equal(len(masked_positions, len(masked_labels)))
 
@@ -389,7 +389,7 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions,
     labels = [-1] * max_seq_length
     loss_mask = [0] * max_seq_length
     for i in range(len(masked_positions)):
-        assert masked_positions[i] < num_tokens
+        ensure_valid(masked_positions[i] < num_tokens)
         labels[masked_positions[i]] = masked_labels[i]
         loss_mask[masked_positions[i]] = 1
     labels_np = np.array(labels, dtype=np.int64)
@@ -427,9 +427,9 @@ def get_split_by_range_(range_string, size):
     # some checks that range is given in the correct form
     splits = [float(i) for i in range_string.split(":")]
     check_equal(len(splits), 2, "splits should be passed as start:end")
-    assert splits[0] <= 1 and splits[1] <= 1
+    ensure_valid(splits[0] <= 1 and splits[1] <= 1)
     splits_sum = sum(splits)
-    assert splits_sum > 0.0
+    ensure_valid(splits_sum > 0.0)
     splits_index = [round(s * float(size)) for s in splits]
     check_equal(len(splits_index), 2)
     return splits_index
@@ -449,7 +449,7 @@ def get_train_valid_test_split_(splits_string, size):
         splits.append(0.)
     splits = splits[:3]
     splits_sum = sum(splits)
-    assert splits_sum > 0.0
+    ensure_valid(splits_sum > 0.0)
     splits = [split / splits_sum for split in splits]
     splits_index = [0]
     for index, split in enumerate(splits):
@@ -547,10 +547,9 @@ def get_samples_mapping(indexed_dataset,
         counts = get_accelerator().LongTensor([1])
         torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
         torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
-        assert counts[0].item() == (
-            torch.distributed.get_world_size() //
-            torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
-
+        item = (torch.distributed.get_world_size() // 
+                torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
+        check_equal(counts[0].item(), item)
     # Load indexed dataset.
     print_rank_0(' > loading indexed mapping from {}'.format(
         indexmap_filename))

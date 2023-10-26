@@ -136,3 +136,21 @@ def ensure_var_is_none(variable, error_message=None):
         return
     else:
         raise IsNotNoneError(error_message)
+
+
+class IsNotValidError(Exception):
+    def __init__(self, error_message):
+        super().__init__()
+        self._error_message = error_message
+
+    def __repr__(self):
+        if self._error_message:
+            return self._error_message
+        else:
+            return "Expression is not valid"
+
+
+def ensure_valid(expression, error_message=None):
+    if not expression:
+        raise IsNotValidError(error_message)
+

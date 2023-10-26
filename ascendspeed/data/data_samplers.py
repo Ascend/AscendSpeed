@@ -20,7 +20,7 @@ import torch
 import random
 from ascendspeed import get_args
 from ascendspeed.core import parallel_state
-from ascendspeed.error_utils import check_divisible
+from ascendspeed.error_utils import check_divisible, ensure_valid
 
 
 def build_pretraining_data_loader(dataset, consumed_samples):
@@ -79,16 +79,14 @@ class MegatronPretrainingSampler:
         self.drop_last = drop_last
 
         # Sanity checks.
-        assert self.total_samples > 0, \
-            'no sample to consume: {}'.format(self.total_samples)
-        assert self.consumed_samples < self.total_samples, \
-            'no samples left to consume: {}, {}'.format(self.consumed_samples,
-                                                        self.total_samples)
-        assert self.micro_batch_size > 0
-        assert data_parallel_size > 0
-        assert self.data_parallel_rank < data_parallel_size, \
-            'data_parallel_rank should be smaller than data size: {}, ' \
-            '{}'.format(self.data_parallel_rank, data_parallel_size)
+        ensure_valid(self.total_samples > 0, error_message='no sample' \
+                                             ' to consume: {}'.format(self.total_samples))
+        ensure_valid(self.consumed_samples < self.total_samples, error_message='no samples' \
+                            ' left to consume: {}, {}'.format(self.consumed_samples, self.total_samples))
+        ensure_valid(self.micro_batch_size > 0)
+        ensure_valid(data_parallel_size > 0)
+        ensure_valid(self.data_parallel_rank < data_parallel_size, error_message='data_parallel_rank' \
+                     ' should be smaller than data size: {}, {}'.format(self.data_parallel_rank, data_parallel_size))
 
     def __len__(self):
         return self.total_samples
@@ -130,13 +128,12 @@ class MegatronPretrainingRandomSampler:
             self.total_samples % self.micro_batch_times_data_parallel_size
 
         # Sanity checks.
-        assert self.total_samples > 0, \
-            'no sample to consume: {}'.format(self.total_samples)
-        assert self.micro_batch_size > 0
-        assert data_parallel_size > 0
-        assert self.data_parallel_rank < data_parallel_size, \
-            'data_parallel_rank should be smaller than data size: {}, ' \
-            '{}'.format(self.data_parallel_rank, data_parallel_size)
+        ensure_valid(self.total_samples > 0, error_message='no sample' \
+                                             ' to consume: {}'.format(self.total_samples))
+        ensure_valid(self.micro_batch_size > 0)
+        ensure_valid(data_parallel_size > 0)
+        ensure_valid(self.data_parallel_rank < data_parallel_size, error_message='data_parallel_rank' \
+                     ' should be smaller than data size: {}, {}'.format(self.data_parallel_rank, data_parallel_size))
 
     def __len__(self):
         return self.total_samples
@@ -187,16 +184,14 @@ class DynamicMicroBatchPretrainingSampler:
         ]
 
         # Sanity checks.
-        assert self.total_samples > 0, \
-            'no sample to consume: {}'.format(self.total_samples)
-        assert self.consumed_samples < self.total_samples, \
-            'no samples left to consume: {}, {}'.format(self.consumed_samples,
-                                                        self.total_samples)
-        assert self.micro_batch_size > 0
-        assert data_parallel_size > 0
-        assert self.data_parallel_rank < data_parallel_size, \
-            'data_parallel_rank should be smaller than data size: {}, ' \
-            '{}'.format(self.data_parallel_rank, data_parallel_size)
+        ensure_valid(self.total_samples > 0, error_message='no sample' \
+                                             ' to consume: {}'.format(self.total_samples))
+        ensure_valid(self.consumed_samples < self.total_samples, error_message='no samples' \
+                            ' left to consume: {}, {}'.format(self.consumed_samples, self.total_samples))
+        ensure_valid(self.micro_batch_size > 0)
+        ensure_valid(data_parallel_size > 0)
+        ensure_valid(self.data_parallel_rank < data_parallel_size, error_message='data_parallel_rank' \
+                     ' should be smaller than data size: {}, {}'.format(self.data_parallel_rank, data_parallel_size))
 
     def __len__(self):
         return self.total_samples

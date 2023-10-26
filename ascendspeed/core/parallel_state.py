@@ -5,7 +5,14 @@
 from typing import Optional
 import torch
 
+from ascendspeed.error_utils import (
+    ensure_valid, 
+    ensure_var_is_none,
+    ensure_var_is_not_none, 
+    check_equal
+)
 from .utils import GlobalMemoryBuffer
+
 
 # Intra-layer model parallel group that the current rank belongs to.
 _TENSOR_MODEL_PARALLEL_GROUP = None
@@ -119,14 +126,14 @@ def initialize_model_parallel(
     with a total of 16 GPUs, rank 0 to 7 belong to the first box and
     ranks 8 to 15 belong to the second box.
     """
-    assert not use_fp8, "FP8 not supported by AscendSpeed"
+    ensure_valid(not use_fp8, error_message="FP8 not supported by AscendSpeed")
     if torch.distributed.get_rank() == 0:
         print('> initializing tensor model parallel with size {}'.format(
             tensor_model_parallel_size))
         print('> initializing pipeline model parallel with size {}'.format(
             pipeline_model_parallel_size))
     # Get world size and rank. Ensure some consistencies.
-    assert torch.distributed.is_initialized()
+    ensure_valid(torch.distributed.is_initialized())
     world_size: int = torch.distributed.get_world_size()
 
     if world_size % (tensor_model_parallel_size * pipeline_model_parallel_size) != 0:
@@ -163,7 +170,7 @@ def initialize_model_parallel(
     global _DATA_PARALLEL_GROUP
     global _DATA_PARALLEL_GROUP_GLOO
     global _DATA_PARALLEL_GLOBAL_RANKS
-    assert _DATA_PARALLEL_GROUP is None, 'data parallel group is already initialized'
+    ensure_var_is_none(_DATA_PARALLEL_GROUP, error_message='data parallel group is already initialized')
     all_data_parallel_group_ranks = []
     for i in range(pipeline_model_parallel_size):
         start_rank = i * num_pipeline_model_parallel_groups
@@ -180,7 +187,7 @@ def initialize_model_parallel(
 
     # Build the model-parallel groups.
     global _MODEL_PARALLEL_GROUP
-    assert _MODEL_PARALLEL_GROUP is None, 'model parallel group is already initialized'
+    ensure_var_is_none(_MODEL_PARALLEL_GROUP, error_message='model parallel group is already initialized')
     for i in range(data_parallel_size):
         ranks = [
             data_parallel_group_ranks[i]
@@ -192,9 +199,8 @@ def initialize_model_parallel(
 
     # Build the tensor model-parallel groups.
     global _TENSOR_MODEL_PARALLEL_GROUP
-    assert (
-        _TENSOR_MODEL_PARALLEL_GROUP is None
-    ), 'tensor model parallel group is already initialized'
+    ensure_var_is_none(_TENSOR_MODEL_PARALLEL_GROUP, error_message='tensor model parallel' \
+                                                     ' group is already initialized')
     for i in range(num_tensor_model_parallel_groups):
         ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
         group = torch.distributed.new_group(ranks)
@@ -207,15 +213,15 @@ def initialize_model_parallel(
     global _PIPELINE_GLOBAL_RANKS
     global _PIPELINE_PREV_GROUP
     global _PIPELINE_NEXT_GROUP
-    assert (
-        _PIPELINE_MODEL_PARALLEL_GROUP is None
-    ), 'pipeline model parallel group is already initialized'
+    ensure_var_is_none(_PIPELINE_MODEL_PARALLEL_GROUP, error_message='pipeline model parallel' \
+                                                       ' group is already initialized')
     global _EMBEDDING_GROUP
     global _EMBEDDING_GLOBAL_RANKS
-    assert _EMBEDDING_GROUP is None, 'embedding group is already initialized'
+    ensure_var_is_none(_EMBEDDING_GROUP, error_message='embedding group is already initialized')
     global _POSITION_EMBEDDING_GROUP
     global _POSITION_EMBEDDING_GLOBAL_RANKS
-    assert _POSITION_EMBEDDING_GROUP is None, 'position embedding group is already initialized'
+    ensure_var_is_none(_POSITION_EMBEDDING_GROUP, error_message='position embedding' \
+                                                  ' group is already initialized')
     for i in range(num_pipeline_model_parallel_groups):
         ranks = range(i, world_size, num_pipeline_model_parallel_groups)
         group = torch.distributed.new_group(ranks)
@@ -284,46 +290,47 @@ def model_parallel_is_initialized():
 
 def get_model_parallel_group():
     """Get the model parallel group the caller rank belongs to."""
-    assert _MODEL_PARALLEL_GROUP is not None, 'model parallel group is not initialized'
+    ensure_var_is_not_none(_MODEL_PARALLEL_GROUP, error_message='model parallel group is not initialized')
     return _MODEL_PARALLEL_GROUP
 
 
 def get_tensor_model_parallel_group():
     """Get the tensor model parallel group the caller rank belongs to."""
-    assert _TENSOR_MODEL_PARALLEL_GROUP is not None, \
-        'intra_layer_model parallel group is not initialized'
+    ensure_var_is_not_none(_TENSOR_MODEL_PARALLEL_GROUP, error_message='intra_layer_model' \
+                           ' parallel group is not initialized')
     return _TENSOR_MODEL_PARALLEL_GROUP
 
 
 def get_pipeline_model_parallel_group():
     """Get the pipeline model parallel group the caller rank belongs to."""
-    assert (
-        _PIPELINE_MODEL_PARALLEL_GROUP is not None
-    ), 'pipeline_model parallel group is not initialized'
+    ensure_var_is_not_none(_PIPELINE_MODEL_PARALLEL_GROUP, error_message='pipeline_model' \
+                                                           ' parallel group is not initialized')
     return _PIPELINE_MODEL_PARALLEL_GROUP
 
 
 def get_data_parallel_group():
     """Get the data parallel group the caller rank belongs to."""
-    assert _DATA_PARALLEL_GROUP is not None, 'data parallel group is not initialized'
+    ensure_var_is_not_none(_DATA_PARALLEL_GROUP, error_message='data parallel group is not initialized')
     return _DATA_PARALLEL_GROUP
 
 
 def get_data_parallel_group_gloo():
     """Get the data parallel group-gloo the caller rank belongs to."""
-    assert _DATA_PARALLEL_GROUP_GLOO is not None, 'data parallel group-gloo is not initialized'
+    ensure_var_is_not_none(_DATA_PARALLEL_GROUP_GLOO, error_message='data parallel' \
+                                                      ' group-gloo is not initialized')
     return _DATA_PARALLEL_GROUP_GLOO
 
 
 def get_embedding_group():
     """Get the embedding group the caller rank belongs to."""
-    assert _EMBEDDING_GROUP is not None, 'embedding group is not initialized'
+    ensure_var_is_not_none(_EMBEDDING_GROUP, error_message='embedding group is not initialized')
     return _EMBEDDING_GROUP
 
 
 def get_position_embedding_group():
     """Get the position embedding group the caller rank belongs to."""
-    assert _POSITION_EMBEDDING_GROUP is not None, 'position embedding group is not initialized'
+    ensure_var_is_not_none(_POSITION_EMBEDDING_GROUP, error_message='position embedding' \
+                                                      ' group is not initialized')
     return _POSITION_EMBEDDING_GROUP
 
 
@@ -348,8 +355,8 @@ def get_tensor_model_parallel_world_size():
 
 
 def get_model_parallel_world_size():
-    assert get_pipeline_model_parallel_world_size() == 1, \
-        "legacy get_model_parallel_world_size is only supported if PP is disabled"
+    check_equal(get_pipeline_model_parallel_world_size(), 1, error_info="legacy get_model_parallel_world_size" \
+                                                             " is only supported if PP is disabled")
     return get_tensor_model_parallel_world_size()
 
 
@@ -388,8 +395,8 @@ def get_tensor_model_parallel_rank():
 
 
 def get_model_parallel_rank():
-    assert get_pipeline_model_parallel_world_size() == 1, \
-        "legacy get_model_parallel_rank is only supported if PP is disabled"
+    check_equal(get_pipeline_model_parallel_world_size(), 1, error_info="legacy get_model_parallel_rank" \
+                                                             " is only supported if PP is disabled")
     return get_tensor_model_parallel_rank()
 
 
@@ -530,28 +537,28 @@ def get_tensor_model_parallel_src_rank():
 def get_data_parallel_src_rank():
     """Calculate the global rank corresponding to the first local rank
     in the data parallel group."""
-    assert _DATA_PARALLEL_GLOBAL_RANKS is not None, "Data parallel group is not initialized"
+    ensure_var_is_not_none(_DATA_PARALLEL_GLOBAL_RANKS, error_message="Data parallel group is not initialized")
     return _DATA_PARALLEL_GLOBAL_RANKS[0]
 
 
 def get_pipeline_model_parallel_first_rank():
     """Return the global rank of the first process in the pipeline for the
     current tensor parallel group"""
-    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
+    ensure_var_is_not_none(_PIPELINE_GLOBAL_RANKS, error_message="Pipeline parallel group is not initialized")
     return _PIPELINE_GLOBAL_RANKS[0]
 
 
 def get_pipeline_model_parallel_last_rank():
     """Return the global rank of the last process in the pipeline for the
     current tensor parallel group"""
-    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
+    ensure_var_is_not_none(_PIPELINE_GLOBAL_RANKS, error_message="Pipeline parallel group is not initialized")
     last_rank_local = get_pipeline_model_parallel_world_size() - 1
     return _PIPELINE_GLOBAL_RANKS[last_rank_local]
 
 
 def get_pipeline_model_parallel_next_rank():
     """Return the global rank that follows the caller in the pipeline"""
-    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
+    ensure_var_is_not_none(_PIPELINE_GLOBAL_RANKS, error_message="Pipeline parallel group is not initialized")
     rank_in_pipeline = get_pipeline_model_parallel_rank()
     world_size = get_pipeline_model_parallel_world_size()
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline + 1) % world_size]
@@ -559,19 +566,19 @@ def get_pipeline_model_parallel_next_rank():
 
 def get_pipeline_model_parallel_prev_rank():
     """Return the global rank that preceeds the caller in the pipeline"""
-    assert _PIPELINE_GLOBAL_RANKS is not None, "Pipeline parallel group is not initialized"
+    ensure_var_is_not_none(_PIPELINE_GLOBAL_RANKS, error_message="Pipeline parallel group is not initialized")
     rank_in_pipeline = get_pipeline_model_parallel_rank()
     world_size = get_pipeline_model_parallel_world_size()
     return _PIPELINE_GLOBAL_RANKS[(rank_in_pipeline - 1) % world_size]
 
 
 def get_pipeline_model_parallel_prev_rank_group():
-    assert _PIPELINE_PREV_GROUP is not None
+    ensure_var_is_not_none(_PIPELINE_PREV_GROUP)
     return _PIPELINE_PREV_GROUP
 
 
 def get_pipeline_model_parallel_next_rank_group():
-    assert _PIPELINE_NEXT_GROUP is not None
+    ensure_var_is_not_none(_PIPELINE_NEXT_GROUP)
     return _PIPELINE_NEXT_GROUP
 
 
@@ -588,13 +595,13 @@ def get_data_parallel_rank():
 def _set_global_memory_buffer():
     """Initialize global buffer"""
     global _GLOBAL_MEMORY_BUFFER
-    assert _GLOBAL_MEMORY_BUFFER is None, 'global memory buffer is already initialized'
+    ensure_var_is_none(_GLOBAL_MEMORY_BUFFER, error_message='global memory buffer is already initialized')
     _GLOBAL_MEMORY_BUFFER = GlobalMemoryBuffer()
 
 
 def get_global_memory_buffer():
     """Return the global GlobalMemoryBuffer object"""
-    assert _GLOBAL_MEMORY_BUFFER is not None, 'global memory buffer is not initialized'
+    ensure_var_is_not_none(_GLOBAL_MEMORY_BUFFER, error_message='global memory buffer is not initialized')
     return _GLOBAL_MEMORY_BUFFER
 
 
