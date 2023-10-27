@@ -14,6 +14,7 @@ from ascendspeed.data.dataset_utils import get_datasets_weights_and_num_samples,
     get_train_valid_test_split_
 from ascendspeed.data.mtf_dataset import MTFDataset, get_packed_indexed_dataset
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
+from ascendspeed.error_utils import ensure_valid, check_equal
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ def build_dataset_group(
     GIVEN_NAME PATH1    # for a single dataset to be used fully
     '''
 
-    assert train_valid_test in ["train","valid","test"]
+    ensure_valid(train_valid_test in ["train","valid","test"])
 
     # Single dataset.
     if len(paths) == 1:
@@ -178,7 +179,7 @@ def _build_single_datasets(
 ):
     """Build a single dataset"""
 
-    assert train_valid_test in ["train","valid","test"]
+    ensure_valid(train_valid_test in ["train","valid","test"])
     index = ["train","valid","test"].index(train_valid_test)
 
     # Target indexed dataset.
@@ -377,9 +378,9 @@ def _build_index_mappings(
     counts = get_accelerator().LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
-    assert counts[0].item() == (
-        torch.distributed.get_world_size() //
-        torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
+    item = (torch.distributed.get_world_size() //
+            torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
+    check_equal(counts[0].item(), item)
 
     # Load mappings.
     start_time = time.time()

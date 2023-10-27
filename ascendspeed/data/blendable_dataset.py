@@ -21,7 +21,7 @@ import numpy as np
 import torch
 
 from ascendspeed import print_rank_0
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 
 
 class BlendableDataset(torch.utils.data.Dataset):
@@ -40,12 +40,12 @@ class BlendableDataset(torch.utils.data.Dataset):
         # Normalize weights.
         weights = np.array(weights, dtype=np.float64)
         sum_weights = np.sum(weights)
-        assert sum_weights > 0.0
+        ensure_valid(sum_weights > 0.0)
         weights /= sum_weights
 
         # Build indecies.
         start_time = time.time()
-        assert num_datasets < 255
+        ensure_valid(num_datasets < 255)
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
 
