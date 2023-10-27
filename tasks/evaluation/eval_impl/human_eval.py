@@ -25,7 +25,7 @@ from tasks.evaluation.eval_api.dataset_eval import DatasetEval
 from tasks.evaluation.eval_api.llm_chat import LlmChat
 from tasks.evaluation.eval_impl.template import CODE_TEST_LOG_DIR
 from ascendspeed.error_utils import check_divisible_by_zero
-from ascendspeed.utils WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
+from ascendspeed.utils import WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
 logger = logging.getLogger(__name__)
 
 
@@ -109,10 +109,11 @@ class HumanEval(DatasetEval):
                 answer = chat_result[0]
             try:
                 if rank == 0:
+                    python_execute = sys.executable
                     answer = task['prompt'] + ' ' + answer
                     logger.info('answer: ', answer)
                     test_file = extract_answer_code(answer, task)
-                    result = subprocess.run(["python", test_file], capture_output=True, timeout=10)
+                    result = subprocess.run([python_execute, test_file], capture_output=True, timeout=10)
                     if result.returncode != 0:  # 如果返回值不为0，表示知晓出错
                         error_msg = result.stderr.decode("utf-8")
                         logger.info(error_msg)
