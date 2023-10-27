@@ -56,7 +56,13 @@ from ascendspeed.model.lora_utils import is_enable_lora, handle_model_with_lora
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_fifo
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_aiao
 from ascendspeed.core.pipeline_parallel.schedules import get_forward_backward_func, get_forward_func
-from ascendspeed.error_utils import check_equal, check_type, ensure_var_is_not_none, ensure_var_is_none
+from ascendspeed.error_utils import (
+    check_equal, 
+    check_type, 
+    ensure_var_is_not_none, 
+    ensure_var_is_none,
+    ensure_valid
+)
 from ascendspeed.core.utils import get_model_config
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
@@ -102,10 +108,12 @@ def _initialize_optimized_pipeline():
     error_message = 'A proper manual-mbs has to be provided'
     check_type(args.manual_mbs, list, error_message)
     
-    assert len(args.manual_mbs) == args.global_batch_size // parallel_state.get_data_parallel_world_size() \
-           // args.micro_batch_size, 'Check number of micro batches.'
-    assert sum(args.manual_mbs) * parallel_state.get_data_parallel_world_size() == args.global_batch_size, \
-        'Check either miro batch sizes or global batch sizes.'
+    check_micro_batch = args.global_batch_size // parallel_state.get_data_parallel_world_size() \
+                        // args.micro_batch_size
+    check_equal(len(args.manual_mbs), check_micro_batch, error_info='Check number of micro batches.')
+    check_global_batch = sum(args.manual_mbs) * parallel_state.get_data_parallel_world_size()
+    check_equal(check_global_batch, args.global_batch_size, error_info='Check either miro batch sizes' \
+                                                                       ' or global batch sizes.')
 
 
 def pretrain(train_valid_test_dataset_provider,
@@ -352,8 +360,8 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     # Build model.
     if parallel_state.get_pipeline_model_parallel_world_size() > 1 and \
             args.virtual_pipeline_model_parallel_size is not None:
-        assert model_type != ModelType.encoder_and_decoder, \
-            "Interleaved schedule not supported for model with both encoder and decoder"
+        ensure_valid(model_type != ModelType.encoder_and_decoder, error_message="Interleaved schedule" \
+                                                    " not supported for model with both encoder and decoder")
         model = []
         for i in range(args.virtual_pipeline_model_parallel_size):
             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
@@ -523,8 +531,8 @@ def load_model_weights_only(model_provider_func):
             config=ds_config
         )
 
-        assert not isinstance(model, deepspeed.PipelineEngine), \
-            'Weight loading only mode is not supported in pipeline parallelism yet.'
+        ensure_valid(not isinstance(model, deepspeed.PipelineEngine), error_message='Weight loading only' \
+                                                        ' mode is not supported in pipeline parallelism yet.')
 
         model = [model]
 
@@ -1148,7 +1156,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     print_datetime('before the start of training step')
     report_memory_flag = True
     if args.random_ltd:
-        assert model[0].random_ltd_enabled()
+        ensure_valid(model[0].random_ltd_enabled())
         args.random_ltd_layer_num = model[0].random_ltd_scheduler.get_random_ltd_layer_num()
 
     while iteration < args.train_iters and (args.train_tokens is None or \
@@ -1300,7 +1308,7 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
             forward_backward_func = get_forward_func()
             if args.deepspeed and args.ds_pipeline_enabled:
                 # DeepSpeed uses eval_batch() and already aggregates losses.
-                assert isinstance(model, list) and len(model) == 1
+                ensure_valid(isinstance(model, list) and len(model) == 1)
                 loss = model[0].eval_batch(data_iterator)
                 loss_dicts = [{'lm loss': loss}] * get_num_microbatches()
             else:
@@ -1473,14 +1481,14 @@ def build_train_valid_test_data_iterators(
     args.do_train = flags[0].item()
     num_valid_ds = flags[1].item()
     num_test_ds = flags[2].item()
-    assert num_test_ds >= 0
-    assert num_valid_ds >= 0
+    ensure_valid(num_test_ds >= 0)
+    ensure_valid(num_valid_ds >= 0)
     args.do_valid = num_valid_ds > 0
     args.do_test = num_test_ds > 0
 
     # Build iterators.
     dl_type = args.dataloader_type
-    assert dl_type in ['single', 'cyclic']
+    ensure_valid(dl_type in ['single', 'cyclic'])
 
     if train_dataloaders is not None:
         train_data_iterators = iter(train_dataloaders) if dl_type == 'single' \

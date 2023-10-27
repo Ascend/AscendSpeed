@@ -1,3 +1,6 @@
+from ascendspeed.error_utils import check_equal
+
+
 class InferenceParams:
     """Inference parameters that are passed to the main model in order
     to efficienly calculate and store the context during inference."""
@@ -16,9 +19,8 @@ class InferenceParams:
 
         for layer_number in self.key_value_memory_dict.keys():
             inference_key_memory, inference_value_memory = self.key_value_memory_dict[layer_number]
-            assert (
-                len(batch_idx) == inference_key_memory.shape[1]
-            )  # make sure batch size is the same
+            check_equal(len(batch_idx), inference_key_memory.shape[1])
+            # make sure batch size is the same
             new_inference_key_memory = inference_key_memory[:, batch_idx]
             new_inference_value_memory = inference_value_memory[:, batch_idx]
             self.key_value_memory_dict[layer_number] = (

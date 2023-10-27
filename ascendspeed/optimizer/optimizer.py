@@ -31,7 +31,7 @@ from ascendspeed.utils import unwrap_model
 from ascendspeed.model import Float16Module, DistributedDataParallel as LocalDDP
 from deepspeed.accelerator import get_accelerator
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 from .clip_grads import clip_grad_norm_fp32, count_zeros_fp32
 
 
@@ -80,7 +80,7 @@ class MegatronOptimizer(ABC):
 
         """Input optimizer is the base optimizer for example Adam."""
         self.optimizer = optimizer
-        assert self.optimizer, 'no optimizer is provided.'
+        ensure_valid(self.optimizer, error_message='no optimizer is provided.')
         # Set gradient clipping and logging params.
         self.clip_grad = clip_grad
         self.log_num_zeros_in_grad = log_num_zeros_in_grad
@@ -92,8 +92,8 @@ class MegatronOptimizer(ABC):
         self.models = models
 
         if self.use_contiguous_buffers_in_local_ddp:
-            assert self.params_have_main_grad, \
-                "use of contiguous buffer requires that params have main grad"
+            ensure_valid(self.params_have_main_grad, error_message="use of contiguous" \
+                                                     " buffer requires that params have main grad")
 
         self.unwrap_model_classes = (torchDDP, LocalDDP, Float16Module)
         if is_enable_lora():
@@ -352,7 +352,7 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
 
         # None grad scaler is only supported for bf16.
         if self.grad_scaler is None:
-            assert not self.fp16, 'fp16 expects a grad scaler.'
+            ensure_valid(not self.fp16, error_message='fp16 expects a grad scaler.')
 
         # Tensor used to determine if a nan/if has happend.
         # Any non-zero value indicates inf/nan.
@@ -501,7 +501,7 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
         self.grad_scaler = grad_scaler
         # None grad scaler is only supported for bf16.
         if self.grad_scaler is None:
-            assert self.bf16, 'fp16 expects a grad scaler.'
+            ensure_valid(self.bf16, error_message='fp16 expects a grad scaler.')
 
         # Tensor used to determine if a nan/if has happend.
         # Any non-zero value indicates inf/nan.

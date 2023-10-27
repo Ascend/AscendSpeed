@@ -38,7 +38,7 @@ from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
 from ascendspeed.arguments import core_transformer_config_from_args
-from ascendspeed.error_utils import check_equal, ensure_var_is_not_none
+from ascendspeed.error_utils import check_equal, ensure_var_is_not_none, ensure_valid
 
 from torch import nn
 import torch.nn.functional as F
@@ -292,7 +292,7 @@ def forward_step(data_iterator, model):
 
     mos_loss = 0
     if args.mos or args.kd:
-        assert model.training
+        ensure_valid(model.training)
         if args.teacher_forward and args.teacher_model is not None:
             mos_loss = calculate_mos_loss(args, stu_output,
                                           args.teacher_model[0], tokens, position_ids, attention_mask)

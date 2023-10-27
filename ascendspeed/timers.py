@@ -8,7 +8,7 @@ import time
 
 import torch
 
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 
 
 
@@ -80,7 +80,7 @@ class Timer(TimerBase):
 
     def start(self, barrier=False):
         """Start the timer."""
-        assert not self._started, 'timer has already been started'
+        ensure_valid(not self._started, error_message='timer has already been started')
         if barrier:
             torch.distributed.barrier(group=self._barrier_group)
         torch.cuda.synchronize()
@@ -90,7 +90,7 @@ class Timer(TimerBase):
 
     def stop(self, barrier=False):
         """Stop the timer."""
-        assert self._started, 'timer is not started'
+        ensure_valid(self._started, error_message='timer is not started')
         if barrier:
             torch.distributed.barrier(group=self._barrier_group)
         torch.cuda.synchronize()
@@ -148,9 +148,8 @@ class Timers:
         # set it to the max log level which is 2.
         if log_level is None:
             log_level = self._max_log_level
-        assert log_level <= self._max_log_level, \
-            'log level {} is larger than max supported log level {}'.format(
-                log_level, self._max_log_level)
+        ensure_valid(log_level <= self._max_log_level, error_message='log level {} is larger' \
+                     ' than max supported log level {}'.format(log_level, self._max_log_level))
         # Now if the input log level is larger than the one set for
         # the timers class, just ignore it and return a dummy timer.
         if log_level > self._log_level:
@@ -260,7 +259,7 @@ class Timers:
 
     def _get_flatten_time_string(self, names, normalizer=1.0, reset=True):
         """Log a group of timers."""
-        assert normalizer > 0.0
+        ensure_valid(normalizer > 0.0)
         string = 'time (ms)'
         for name in names:
             elapsed_time = self._timers[name].elapsed(
@@ -272,7 +271,7 @@ class Timers:
         """Log a group of timers."""
 
         # Print.
-        assert normalizer > 0.0
+        ensure_valid(normalizer > 0.0)
         if self._log_option == 'flatten':
             output_string = self._get_flatten_time_string(names, normalizer=normalizer, reset=reset)
         elif self._log_option in ['max', 'minmax']:
@@ -304,7 +303,7 @@ class Timers:
         # currently when using add_scalars,
         # torch.utils.add_scalars makes each timer its own run, which
         # polutes the runs list, so we just add each as a scalar
-        assert normalizer > 0.0
+        ensure_valid(normalizer > 0.0)
         name_to_min_max_time = self._get_global_min_max_time(
             names, reset, barrier, normalizer)
         if writer is not None:

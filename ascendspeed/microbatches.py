@@ -17,8 +17,11 @@
 
 from abc import ABC
 from abc import abstractmethod
-
-from ascendspeed.error_utils import check_equal, check_divisible
+from ascendspeed.error_utils import (
+    check_equal, 
+    check_divisible,
+    ensure_valid
+)
 
 
 def build_num_microbatches_calculator(args):
@@ -84,7 +87,7 @@ class ConstantNumMicroBatches(NumMicroBatchesCalculator):
         check_divisible(global_batch_size, micro_batch_times_data_parallel, error_info)
         self.num_micro_batches = global_batch_size // \
                                  micro_batch_times_data_parallel
-        assert self.num_micro_batches >= 1
+        ensure_valid(self.num_micro_batches >= 1)
         self.current_global_batch_size = global_batch_size
 
     def update(self, consumed_samples, consistency_check):
@@ -115,16 +118,16 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
         self.data_parallel_size = data_parallel_size
         self.micro_batch_times_data_parallel_size = self.micro_batch_size * \
                                                     self.data_parallel_size
-        assert self.micro_batch_times_data_parallel_size > 0
+        ensure_valid(self.micro_batch_times_data_parallel_size > 0)
         
-        assert start_batch_size > 0
+        ensure_valid(start_batch_size > 0)
         self.start_batch_size = start_batch_size
 
-        assert global_batch_size > 0
+        ensure_valid(global_batch_size > 0)
         self.global_batch_size = global_batch_size
         diff_batch_size = self.global_batch_size - self.start_batch_size
-        assert diff_batch_size >= 0
-        assert batch_size_increment > 0
+        ensure_valid(diff_batch_size >= 0)
+        ensure_valid(batch_size_increment > 0)
         self.batch_size_increment = batch_size_increment
         error_info = 'global batch size interval ({}) to be divisible by global batch ' \
                      'size increment ({})'.format(diff_batch_size, batch_size_increment)
@@ -132,7 +135,7 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
 
         num_increments = diff_batch_size // self.batch_size_increment
         self.ramup_samples = ramup_samples
-        assert self.ramup_samples >= 0
+        ensure_valid(self.ramup_samples >= 0)
         self.rampup_samples_per_increment = self.ramup_samples / num_increments
 
         # Initialize number of microbatches.
@@ -147,7 +150,7 @@ class RampupBatchsizeNumMicroBatches(NumMicroBatchesCalculator):
             steps = int(consumed_samples / self.rampup_samples_per_increment)
             self.current_global_batch_size = self.start_batch_size + \
                 steps * self.batch_size_increment
-            assert self.current_global_batch_size <= self.global_batch_size
+            ensure_valid(self.current_global_batch_size <= self.global_batch_size)
 
         if consistency_check:
             error_info = 'current global batch size ({}) is not divisible by micro-batch-size ({}) times' \

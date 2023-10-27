@@ -7,9 +7,11 @@ import torch
 
 from ascendspeed import print_rank_0
 from ascendspeed.core import tensor_parallel, parallel_state
-from ascendspeed.error_utils import check_divisible
-from ascendspeed.error_utils import check_equal
-
+from ascendspeed.error_utils import (
+    check_divisible,
+    check_equal,
+    ensure_valid
+)
 from .optimizer import MixedPrecisionOptimizer, _zero_grad_group_helper
 
 
@@ -206,7 +208,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         param_group_map = {}
         for group_index, group in enumerate(param_groups):
             for param in group["params"]:
-                assert param.requires_grad
+                ensure_valid(param.requires_grad)
                 param_group_map[param] = group_index
 
         # Optimizer group ranges.
@@ -271,7 +273,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
 
             for model_param in group_range["params"]:
 
-                assert model_param.requires_grad
+                ensure_valid(model_param.requires_grad)
 
                 model_index, dtype = param_gbuf_map[model_param]
                 gbuf_range = model_gbuf_ranges[model_index][dtype]
@@ -350,7 +352,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
 
         # Verify that contiguous buffers are being used.
         # - Note: this should already be checked in arguments.py.
-        assert use_contiguous_buffers_in_local_ddp
+        ensure_valid(use_contiguous_buffers_in_local_ddp)
 
         # Model grad buffer ranges.
         self.model_gbuf_ranges = []

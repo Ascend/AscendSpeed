@@ -34,7 +34,7 @@ from ascendspeed.core import parallel_state
 from ascendspeed.global_vars import set_global_variables
 from ascendspeed.core.parallel_state import (set_tensor_model_parallel_rank,
                                              set_tensor_model_parallel_world_size)
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 
 
 def initialize_megatron(extra_args_provider=None, args_defaults=None,
@@ -52,7 +52,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
     if not allow_no_cuda:
         # Make sure cuda is available.
-        assert get_accelerator().is_available(), 'AscendSpeed requires accelerator.'
+        ensure_valid(get_accelerator().is_available(), error_message='AscendSpeed requires accelerator.')
 
     # Parse args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.

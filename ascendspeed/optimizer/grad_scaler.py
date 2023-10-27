@@ -21,12 +21,14 @@ from abc import abstractmethod
 import torch
 from deepspeed.accelerator import get_accelerator
 
+from ascendspeed.error_utils import ensure_valid
+
 
 class MegatronGradScaler(ABC):
 
     def __init__(self, initial_scale):
         """Initialize scale value with the input initial scale."""
-        assert initial_scale > 0.0
+        ensure_valid(initial_scale > 0.0)
         self._scale = get_accelerator().FloatTensor([initial_scale])
 
     @property
@@ -74,22 +76,20 @@ class DynamicGradScaler(MegatronGradScaler):
         super(DynamicGradScaler, self).__init__(initial_scale)
 
         # Lower bound on the scale.
-        assert min_scale > 0.0
-        assert min_scale <= initial_scale
+        ensure_valid(initial_scale >= min_scale > 0.0)
         self.min_scale = get_accelerator().FloatTensor([min_scale])
         # Growth and backoff factors for the scale.
-        assert growth_factor > 1.0
+        ensure_valid(growth_factor > 1.0)
         self.growth_factor = get_accelerator().FloatTensor([growth_factor])
-        assert backoff_factor < 1.0
-        assert backoff_factor > 0.0
+        ensure_valid(1.0 > backoff_factor > 0.0)
         self.backoff_factor = get_accelerator().FloatTensor([backoff_factor])
         # Interval over which if we don't see any inf/nan,
         # we will scale the grad scale by the growth factor.
-        assert growth_interval > 0
+        ensure_valid(growth_interval > 0)
         self.growth_interval = growth_interval
         # Number of inf/nans we should see before scaling down
         # the grad scale by the backoff factor.
-        assert hysteresis > 0
+        ensure_valid(hysteresis > 0)
         self.hysteresis = hysteresis
 
         # Trackers.

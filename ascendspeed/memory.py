@@ -17,7 +17,7 @@
 import torch
 from deepspeed.accelerator import get_accelerator
 
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 
 # A dictionary of all the memory buffers allocated.
 _MEM_BUFFS = dict()
@@ -25,8 +25,7 @@ _MEM_BUFFS = dict()
 
 def allocate_mem_buff(name, numel, dtype, track_usage):
     """Allocate a memory buffer."""
-    assert name not in _MEM_BUFFS, \
-        'memory buffer {} already allocated.'.format(name)
+    ensure_valid(name not in _MEM_BUFFS, error_message='memory buffer {} already allocated.'.format(name))
     _MEM_BUFFS[name] = MemoryBuffer(name, numel, dtype, track_usage)
     return _MEM_BUFFS[name]
 
@@ -97,9 +96,8 @@ class MemoryBuffer:
         # Number of elements of the input tensor.
         tensor_numel = torch.numel(tensor)
         new_start = self._start + tensor_numel
-        assert new_start <= self.numel, \
-            'Not enough memory left in the buffer ({} > {})'.format(
-                tensor_numel, self.numel - self._start)
+        ensure_valid(new_start <= self.numel, error_message='Not enough memory left in the buffer ({} > {})'.format(
+                                              tensor_numel, self.numel - self._start))
         # New tensor is a view into the memory.
         new_tensor = self.data[self._start:new_start]
         self._start = new_start
@@ -120,7 +118,7 @@ class MemoryBuffer:
     def print_average_usage(self):
         """Print memory usage average over time. We would like this value
         to be as high as possible."""
-        assert self.track_usage, 'You need to enable track usage.'
+        ensure_valid(self.track_usage, error_message='You need to enable track usage.')
         if torch.distributed.get_rank() == 0:
             print(' > usage of {} memory buffer: {:.2f} %'.format(
                 self.name, self.in_use_value * 100.0 / self.total_value),
@@ -143,5 +141,5 @@ class RingMemBuffer:
         self._index += 1
         self._index = self._index % self.num_buffers
         buff = self.buffers[self._index]
-        assert not buff.is_in_use(), 'buffer is already in use.'
+        ensure_valid(not buff.is_in_use(), error_message='buffer is already in use.')
         return buff
