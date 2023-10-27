@@ -863,3 +863,6 @@ DATA_PATH="dataset/boolq/test"
 TASK="boolq"
 # configure generation parameters 
 ```
+\
+\
+<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring network security.</font>
