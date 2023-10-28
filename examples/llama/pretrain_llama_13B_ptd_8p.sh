@@ -53,4 +53,5 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --checkpoint-policy custom \
        --recomputation-layer-num 3 2 1 0 0 0 0 0 \
        --triangle-attn \
+       --use-fused-rotary-pos-emb \
        --fp16 | tee logs/train_13B.log

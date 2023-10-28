@@ -1117,7 +1117,7 @@ def _add_activation_checkpoint_args(parser):
                        help='does a synchronize at the beginning and end of each checkpointed layer.')
     group.add_argument('--profile-backward', action='store_true',
                        help='Enables backward pass profiling for checkpointed layers.')
-    group.add_argument('--checkpoint_policy', type=str, default='full', choices=['full', 'block', 'custom'],
+    group.add_argument('--checkpoint-policy', type=str, default='full', choices=['full', 'block', 'custom'],
                        help="activation checkpoint policy")
     group.add_argument('--checkpoint_block_layer', type=int, default=25,
                        help="activation checkpoint block layer number")
