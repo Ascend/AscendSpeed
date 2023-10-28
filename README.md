@@ -70,8 +70,8 @@ The plan for more tasks, like RLHF, is under way ...
       <td>7B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 1914 tokens/p/s </td>
-      <td> 2068 tokens/p/s </td>
+      <td> 1905 tokens/p/s </td>
+      <td> 2036 tokens/p/s </td>
       <td> <a href="./sources/images/baichuan/7B_loss_compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">Train</a> </td>
     </tr>
