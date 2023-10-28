@@ -22,7 +22,7 @@ from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 from deepspeed.accelerator import get_accelerator
 from .module import MegatronModule
 from ascendspeed.core import parallel_state
-from ascendspeed.error_utils import ensure_var_is_not_none
+from ascendspeed.error_utils import ensure_var_is_not_none, ensure_valid
 
 
 class MemoryBuffer:
@@ -46,8 +46,7 @@ class MemoryBuffer:
         """Return a tensor with the input `shape` as a view into the
         1-D data starting at `start_index`."""
         end_index = start_index + shape.numel()
-        assert end_index <= self.numel, \
-            'requested tensor is out of the buffer range.'
+        ensure_valid(end_index <= self.numel, error_message='requested tensor is out of the buffer range.')
         buffer_tensor = self.data[start_index:end_index]
         buffer_tensor = buffer_tensor.view(shape)
         return buffer_tensor
@@ -115,7 +114,7 @@ class DistributedDataParallel(DistributedDataParallelBase):
         # If we are using fp32-accumulate-allreduce explicitly
         # this means we need main grads in a continous buffer.
         if self.accumulate_allreduce_grads_in_fp32:
-            assert self.use_contiguous_buffers
+            ensure_valid(self.use_contiguous_buffers)
 
         # ===================================
         # Rest of this part applies only to

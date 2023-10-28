@@ -20,7 +20,7 @@ from abc import abstractmethod
 from transformers import AutoTokenizer, GPT2Tokenizer
 from transformers import BertTokenizer as FullBertTokenizer
 
-from ascendspeed.error_utils import ensure_var_is_not_none
+from ascendspeed.error_utils import ensure_var_is_not_none, ensure_valid
 
 
 def build_tokenizer(args):
@@ -30,7 +30,7 @@ def build_tokenizer(args):
               flush=True)
 
     # Select and instantiate the tokenizer.
-    assert args.vocab_file is not None or args.tokenizer_type == 'PretrainedFromHF'
+    ensure_valid(args.vocab_file is not None or args.tokenizer_type == 'PretrainedFromHF')
     if args.tokenizer_type == 'BertWordPieceLowerCase':
         tokenizer = _BertWordPieceTokenizer(vocab_file=args.vocab_file,
                                             lower_case=True,

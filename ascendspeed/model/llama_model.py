@@ -41,7 +41,7 @@ from ascendspeed.core.tensor_parallel.mappings import scatter_to_sequence_parall
 from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
 from ascendspeed.model.language_model import Pooler
 from ascendspeed.model.triangle_attention import TriangleAttention
-from ascendspeed.error_utils import check_equal, check_divisible
+from ascendspeed.error_utils import check_equal, check_divisible, ensure_valid
 
 
 class RotaryEmbedding(torch.nn.Module):
@@ -156,7 +156,7 @@ class LlamaLMHead(MegatronModule):
 class LlamaLMHeadPipe(LlamaLMHead):
 
     def forward(self, inputs, **kwargs):
-        assert torch.is_tensor(inputs) or isinstance(inputs, tuple)
+        ensure_valid(torch.is_tensor(inputs) or isinstance(inputs, tuple))
         if isinstance(inputs, tuple):
             hidden_states = inputs[0]
         else:
@@ -218,7 +218,7 @@ class LlamaEmbedding(MegatronModule):
 class LlamaEmbeddingPipe(LlamaEmbedding):
 
     def forward(self, inputs, **kwargs):
-        assert torch.is_tensor(inputs) or isinstance(inputs, tuple)
+        ensure_valid(torch.is_tensor(inputs) or isinstance(inputs, tuple))
         if isinstance(inputs, tuple):
             input_ids = inputs[0]
         else:
@@ -729,7 +729,7 @@ class LlamaParallelTransformerLayerPipe(LlamaParallelTransformerLayer):
     """
 
     def forward(self, inputs, **kwargs):
-        assert torch.is_tensor(inputs) or isinstance(inputs, tuple)
+        ensure_valid(torch.is_tensor(inputs) or isinstance(inputs, tuple))
         if torch.is_tensor(inputs) or len(inputs) == 1:
             # No attention mask forwarded, search for args.attn_mask
             if not hasattr(self, '_args'):
@@ -888,13 +888,11 @@ class LlamaParallelTransformer(MegatronModule):
 
         # Checks.
         if layer_past is not None:
-            assert get_key_value, \
-                'for not None values in layer_past, ' \
-                'expected get_key_value to be set'
+            ensure_valid(get_key_value, error_message='for not None values in layer_past, ' \
+                                        'expected get_key_value to be set')
         if get_key_value:
-            assert not self.checkpoint_activations, \
-                'get_key_value does not work with ' \
-                'activation checkpointing'
+            ensure_valid(not self.checkpoint_activations, error_message='get_key_value does not work with ' \
+                                                          'activation checkpointing')
 
         # Reza's note: DeepSpeed inference does not support transposes
         if not self.ds_inference:

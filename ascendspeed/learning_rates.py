@@ -18,7 +18,7 @@
 import math
 
 from ascendspeed import print_rank_0, get_args
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 
 
 
@@ -35,14 +35,14 @@ class AnnealingLR(object):
 
         self.max_lr = float(max_lr)
         self.min_lr = min_lr
-        assert self.min_lr >= 0.0
-        assert self.max_lr >= self.min_lr
+        ensure_valid(self.min_lr >= 0.0)
+        ensure_valid(self.max_lr >= self.min_lr)
 
         self.warmup_steps = warmup_steps
         self.num_steps = 0
         self.decay_steps = decay_steps
-        assert self.decay_steps > 0
-        assert self.warmup_steps < self.decay_steps
+        ensure_valid(self.decay_steps > 0)
+        ensure_valid(self.warmup_steps < self.decay_steps)
 
         self.decay_tokens = args.lr_decay_tokens
         self.num_tokens = 0
@@ -53,8 +53,8 @@ class AnnealingLR(object):
         self.override_lr_scheduler = override_lr_scheduler
         self.use_checkpoint_lr_scheduler = use_checkpoint_lr_scheduler
         if self.override_lr_scheduler:
-            assert not self.use_checkpoint_lr_scheduler, 'both override and '\
-                'use-checkpoint are set.'
+            ensure_valid(not self.use_checkpoint_lr_scheduler, error_message='both override and '\
+                                                               'use-checkpoint are set.')
 
         # Set the learning rate
         self.step(0)
@@ -100,8 +100,7 @@ class AnnealingLR(object):
             num_tokens_ = self.num_tokens - self.warmup_tokens
             decay_tokens_ = self.decay_tokens - self.warmup_tokens
             decay_ratio = float(num_tokens_) / float(decay_tokens_)
-        assert decay_ratio >= 0.0
-        assert decay_ratio <= 1.0
+        ensure_valid(1.0 >= decay_ratio >= 0.0)
         delta_lr = self.max_lr - self.min_lr
 
         if self.decay_style == 'linear':

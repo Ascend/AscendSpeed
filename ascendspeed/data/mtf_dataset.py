@@ -24,6 +24,8 @@ import torch
 
 from ascendspeed import print_rank_0
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
+from ascendspeed.error_utils import ensure_valid
+
 
 class MTFDataset(torch.utils.data.Dataset):
 
@@ -42,14 +44,15 @@ class MTFDataset(torch.utils.data.Dataset):
         self.packed_indexed_dataset = get_packed_indexed_dataset(data_prefix, data_impl=data_impl, skip_warmup=skip_warmup)
 
         # Checks
-        assert np.min(documents) >= 0
-        assert len(self.packed_indexed_dataset) > 0
+        ensure_valid(np.min(documents) >= 0)
+        ensure_valid(len(self.packed_indexed_dataset) > 0)
 
         self.length = list(self.packed_indexed_dataset.values())[0].sizes.shape[0]
 
-        assert np.max(documents) < self.length
+        ensure_valid(np.max(documents) < self.length)
         for dataset in self.packed_indexed_dataset.values():
-            assert dataset.sizes.shape[0] == self.length
+            if dataset.sizes.shape[0] != self.length:
+                raise Exception("Dimension is not correct !")
 
     def __len__(self):
         return self.length
@@ -58,7 +61,7 @@ class MTFDataset(torch.utils.data.Dataset):
         packed_data = dict()
         for key, dataset in self.packed_indexed_dataset.items():
             packed_data[key] = dataset.get(idx)
-            assert len(packed_data[key]) > 0
+            ensure_valid(len(packed_data[key]) > 0)
         return packed_data
 
 

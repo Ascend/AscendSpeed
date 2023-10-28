@@ -28,7 +28,7 @@ from ascendspeed.data.blendable_dataset import BlendableDataset
 from ascendspeed.data.dataset_utils import get_datasets_weights_and_num_samples
 from ascendspeed.data.dataset_utils import get_train_valid_test_split_, get_split_by_range_
 from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_dataset
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 
 
 def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
@@ -91,7 +91,7 @@ def build_dataset_group(dataset_group_name, paths, weights, splits, data_impl,
     GIVEN_NAME PATH1    # for a single dataset to be used fully
     '''
 
-    assert train_valid_test in ["train","valid","test"]
+    ensure_valid(train_valid_test in ["train","valid","test"])
 
     # Single dataset.
     if len(paths) == 1:
@@ -135,7 +135,7 @@ def _build_single_datasets(data_prefix, range_string, data_impl, train_valid_tes
                             seq_length, seed, skip_warmup, dataset_group_name, train_valid_test):
     """Build a single dataset"""
 
-    assert train_valid_test in ["train","valid","test"]
+    ensure_valid(train_valid_test in ["train","valid","test"])
     index = ["train","valid","test"].index(train_valid_test)
 
     # Indexed dataset.
@@ -241,8 +241,8 @@ class GPTDataset(torch.utils.data.Dataset):
         self.indexed_dataset = indexed_dataset
 
         # Checks
-        assert np.min(documents) >= 0
-        assert np.max(documents) < indexed_dataset.sizes.shape[0]
+        ensure_valid(np.min(documents) >= 0)
+        ensure_valid(np.max(documents) < indexed_dataset.sizes.shape[0])
 
         # Build index mappings.
         self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
@@ -349,11 +349,11 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
                     (num_epochs - 1) * tokens_per_epoch - 1) // seq_length
                 last_epoch_num_samples = num_samples - \
                                          num_samples_from_epochs_minus_one
-                assert last_epoch_num_samples >= 0, \
-                    'last epoch number of samples should be non-negative.'
+                ensure_valid(last_epoch_num_samples >= 0, error_message='last epoch number' \
+                                                          ' of samples should be non-negative.')
                 num_samples_per_epoch = (tokens_per_epoch - 1) // seq_length
-                assert last_epoch_num_samples < (num_samples_per_epoch + 1), \
-                    'last epoch number of samples exceeded max value.'
+                ensure_valid(last_epoch_num_samples < (num_samples_per_epoch + 1), error_message='last epoch' \
+                                                          ' number of samples exceeded max value.')
                 # If we have less than 80% of the samples for the last epoch,
                 # seperate out the epoch and treat it differently.
                 # Note: the 80% number is just based on common sense and can
@@ -412,9 +412,9 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
     counts = get_accelerator().LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
     torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
-    assert counts[0].item() == (
-        torch.distributed.get_world_size() //
-        torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
+    item = (torch.distributed.get_world_size() //
+            torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group()))
+    check_equal(counts[0].item(), item)
 
     # Load mappings.
     start_time = time.time()

@@ -27,9 +27,12 @@ from ascendspeed.model.utils import get_linear_layer
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal
 from ascendspeed.core.tensor_parallel.mappings import gather_from_sequence_parallel_region
 from ascendspeed.core.tensor_parallel.mappings import scatter_to_sequence_parallel_region
-from ascendspeed.error_utils import check_equal
-from ascendspeed.error_utils import ensure_var_is_none
-from ascendspeed.error_utils import ensure_var_is_not_none
+from ascendspeed.error_utils import (
+    check_equal,
+    ensure_var_is_none,
+    ensure_var_is_not_none,
+    ensure_valid
+)
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
@@ -577,13 +580,11 @@ class TransformerLanguageModel(MegatronModule):
         if self.post_process:
             # pooler
             if self.add_pooler:
-                assert 'pooler' in state_dict, \
-                    'could not find data for pooler in the checkpoint'
+                ensure_valid('pooler' in state_dict, error_message='could not find data for pooler in the checkpoint')
                 self.pooler.load_state_dict(state_dict[self._pooler_key],
                                             strict=strict)
         # decoder
         if self.add_decoder:
-            assert 'decoder' in state_dict, \
-                'could not find data for pooler in the checkpoint'
+            ensure_valid('decoder' in state_dict, error_message='could not find data for pooler in the checkpoint')
             self.decoder.load_state_dict(state_dict[self._decoder_key],
                                          strict=strict)

@@ -17,7 +17,7 @@
 import re
 import argparse
 
-from ascendspeed.error_utils import check_equal
+from ascendspeed.error_utils import check_equal, ensure_valid
 
 
 class ParseDataPaths(argparse.Action):
@@ -40,7 +40,7 @@ class ParseDataPaths(argparse.Action):
             for d in datasets:
                 check_equal(len(d.split()), 3, error_info=err_message)
                 start, end = d.split()[1].split(":")
-                assert float(start) < float(end), err_message
+                ensure_valid(float(start) < float(end), error_message=err_message)
 
         names = [v.split(":")[0] for v in values]
 
@@ -63,15 +63,15 @@ class ParseDataPathsPath(argparse.Action):
     def __call__(self, parser, args, values, option_string=None):
         expected_option_strings = ["--train-weighted-split-paths-path", 
             "--valid-weighted-split-paths-path", "--test-weighted-split-paths-path"]
-        assert option_string in expected_option_strings, \
-            f"Expected {option_string} to be in {expected_option_strings}"
+        ensure_valid(option_string in expected_option_strings, error_message=f"Expected {option_string}" \
+                                                               " to be in {expected_option_strings}")
 
         with open(values, "r") as fi:
             lines = fi.readlines()
             error_info = f"Got multiple lines {len(lines)} instead of 1 expected"
             check_equal(len(lines), 1, error_info)
-            assert lines[0][-2:] == "\"\n" and \
-                lines[0][0] == "\"", f"Invalid input format, got {lines}"
+            expression = lines[0][-2:] == "\"\n" and lines[0][0] == "\""
+            ensure_valid(expression, error_message=f"Invalid input format, got {lines}")
             values = lines[0][1:-2].split("\" \"")
             weighted_split_paths_dest = re.sub(r"_path$", "", self.dest)
             weighted_split_paths_option = re.sub(r"-path$", "", self.option_strings[0])

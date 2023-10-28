@@ -141,12 +141,10 @@ class IndexedDataset(torch.utils.data.Dataset):
     def read_index(self, path):
         with open(index_file_path(path), 'rb') as f:
             magic = f.read(8)
-            assert magic == self._HDR_MAGIC, (
-                'Index file doesn\'t match expected format. '
-                'Make sure that --dataset-impl is configured properly.'
-            )
+            check_equal(magic, self._HDR_MAGIC, error_info='Index file doesn\'t match expected format. ' \
+                                                'Make sure that --dataset-impl is configured properly.')
             version = f.read(8)
-            assert struct.unpack('<Q', version) == (1,)
+            check_equal(struct.unpack('<Q', version), (1,))
             code, self.element_size = struct.unpack('<QQ', f.read(16))
             self.dtype = dtypes.get(code)
             self._len, self.s = struct.unpack('<QQ', f.read(16))
@@ -423,12 +421,10 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
         def __init__(self, path, skip_warmup=False):
             with open(path, 'rb') as stream:
                 magic_test = stream.read(9)
-                assert self._HDR_MAGIC == magic_test, (
-                    'Index file doesn\'t match expected format. '
-                    'Make sure that --dataset-impl is configured properly.'
-                )
+                check_equal(self._HDR_MAGIC, magic_test, error_info='Index file doesn\'t match expected format. ' \
+                                                         'Make sure that --dataset-impl is configured properly.')
                 version = struct.unpack('<Q', stream.read(8))
-                assert (1,) == version
+                check_equal((1,), version)
 
                 dtype_code, = struct.unpack('<B', stream.read(1))
                 self._dtype = dtypes[dtype_code]

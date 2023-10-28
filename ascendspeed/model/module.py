@@ -31,6 +31,7 @@ import ascendspeed
 from ascendspeed import get_args
 from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
+from ascendspeed.error_utils import ensure_valid
 
 
 _FLOAT_TYPES = (torch.FloatTensor, get_accelerator().FloatTensor)
@@ -91,7 +92,7 @@ class MegatronModule(torch.nn.Module):
         #    the two word_embeddings layers to ensure that every applied weight
         #    update is the same on both stages.
         if parallel_state.is_pipeline_last_stage() and not self.pre_process:
-            assert not parallel_state.is_pipeline_first_stage()
+            ensure_valid(not parallel_state.is_pipeline_first_stage())
             self._word_embeddings_for_head_key = 'word_embeddings_for_head'
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
