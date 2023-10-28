@@ -21,16 +21,15 @@ Here's a hardware summary of pre-training InternLM-7B:
 Here's a software summary of pre-training InternLM-7B:
 
 
-|         Software          |                 Version                 |link  |
-| :-----------------------: | :-------------------------------------: | :---:|
-|          Python           |                  3.7.16                 |-|
-|          driver           |               23.0.RC3.B050             |[link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261159045?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743)|
-|         firmware          |              7.0.t8.0.b214              |[link](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software/261159045?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C252764743)|
-|           CANN            |Ascend-cann-toolkit-7.0.T8-linux    |[link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261204647?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)|
-| binary arithmetic package |   Ascend-cann-kernels-910b_7.0.T8_linux |[link](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261204647?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)|
-|           torch           |                 1.11.0                  |[link](https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/Daily/v1.11.0/20230915.2/pytorch_v1.11.0_py37.tar.gz)|
-|         torch_npu         |           1.11.0.post1-20230922         |[link](https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/ascendspeed/torch_npu-1.11.0.post1_20230922-cp37-cp37m-linux_x86_64.whl)|
-
+|         Software          |   Version   |
+| :-----------------------: |:-----------:|
+|          Python           |   3.7.16    |
+|          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
+|         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
+|           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
+| binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
+|           torch           |                                                    1.11.0                                                    |
+|         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 ### Script
 
