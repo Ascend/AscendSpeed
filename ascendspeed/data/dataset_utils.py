@@ -33,13 +33,6 @@ from ascendspeed.data.indexed_dataset import make_dataset as make_indexed_datase
 from ascendspeed.error_utils import check_divisible, check_equal, ensure_valid
 
 
-DSET_TYPE_BERT = 'standard_bert'
-DSET_TYPE_ICT = 'ict'
-DSET_TYPE_T5  = 't5'
-
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5]
-
-
 def get_datasets_weights_and_num_samples(data_prefix,
                                          train_valid_test_num_samples):
 
@@ -47,11 +40,11 @@ def get_datasets_weights_and_num_samples(data_prefix,
     #   weight-1, data-prefix-1, weight-2, data-prefix-2, ..
     check_divisible(len(data_prefix), 2)
     num_datasets = len(data_prefix) // 2
-    weights = [0]*num_datasets
-    prefixes = [0]*num_datasets
+    weights = [0] * num_datasets
+    prefixes = [0] * num_datasets
     for i in range(num_datasets):
-        weights[i] = float(data_prefix[2*i])
-        prefixes[i] = (data_prefix[2*i+1]).strip()
+        weights[i] = float(data_prefix[2 * i])
+        prefixes[i] = (data_prefix[2 * i + 1]).strip()
     # Normalize weights
     weight_sum = 0.0
     for weight in weights:
@@ -176,8 +169,10 @@ def create_masked_lm_predictions(tokens,
                                  do_permutation=False,
                                  geometric_dist=False,
                                  masking_style="bert"):
-    """Creates the predictions for the masked LM objective.
-    Note: Tokens here are vocab ids and not text tokens."""
+    """
+    Creates the predictions for the masked LM objective.
+    Note: Tokens here are vocab ids and not text tokens.
+    """
 
     cand_indexes = []
     # Note(mingdachen): We create a list for recording if the piece is

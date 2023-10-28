@@ -56,8 +56,10 @@ def get_checkpoint_version():
 
 
 def check_checkpoint_args(checkpoint_args):
-    """Ensure fixed arguments for a model are the same for the input
-    arguments and the one retrieved from checkpoint."""
+    """
+    Ensure fixed arguments for a model are the same for the input
+    arguments and the one retrieved from checkpoint.
+    """
     args = get_args()
 
     def _compare(arg_name, old_arg_name=None):
@@ -120,8 +122,10 @@ def get_checkpoint_name(checkpoints_path, iteration,
 
 
 def get_checkpoint_tracker_filename(checkpoints_path):
-    """Tracker file rescords the latest chckpoint during
-    training to restart from."""
+    """
+    Tracker file rescords the latest chckpoint during
+    training to restart from.
+    """
     return os.path.join(checkpoints_path, 'latest_checkpointed_iteration.txt')
 
 

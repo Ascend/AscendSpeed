@@ -51,7 +51,7 @@ from .utils import print_rank_0
 from .utils import print_rank_last
 from .utils import is_last_rank
 from .utils import is_rank_0
-from .initialize  import adaptor_deepspeed_initialize
+from .initialize import adaptor_deepspeed_initialize
 
 
 # Fixed an bug where deepspeed PipelineEngine is incompatible with Sequence Parallel.

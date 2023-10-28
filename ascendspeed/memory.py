@@ -36,7 +36,8 @@ def get_mem_buff(name):
 
 
 class MemoryBuffer:
-    """Contiguous memory buffer.
+    """
+    Contiguous memory buffer.
     Allocate a contiguous memory of type `dtype` and size `numel`. It is
     used to reduce memory fragmentation.
 
@@ -52,7 +53,7 @@ class MemoryBuffer:
             element_size = torch.tensor([], dtype=dtype).element_size()
             print('> building the {} memory buffer with {} num elements '
                   'and {} dtype ({:.1f} MB)...'.format(
-                      name, numel, dtype, numel*element_size/1024/1024),
+                      name, numel, dtype, numel * element_size / 1024 / 1024),
                   flush=True)
         self.name = name
         self.numel = numel
@@ -88,8 +89,10 @@ class MemoryBuffer:
 
 
     def add(self, tensor):
-        """Allocate a chunk of memory from the buffer to tensor and copy
-        the values."""
+        """
+        Allocate a chunk of memory from the buffer to tensor and copy
+        the values.
+        """
         error_info = 'Input tensor type {} different from buffer type {}'.format(
                      tensor.dtype, self.dtype)
         check_equal(tensor.dtype, self.dtype, error_info)
@@ -116,8 +119,10 @@ class MemoryBuffer:
 
 
     def print_average_usage(self):
-        """Print memory usage average over time. We would like this value
-        to be as high as possible."""
+        """
+        Print memory usage average over time. We would like this value
+        to be as high as possible.
+        """
         ensure_valid(self.track_usage, error_message='You need to enable track usage.')
         if torch.distributed.get_rank() == 0:
             print(' > usage of {} memory buffer: {:.2f} %'.format(
@@ -132,7 +137,7 @@ class RingMemBuffer:
     def __init__(self, name, num_buffers, numel, dtype, track_usage):
         self.num_buffers = num_buffers
         self.buffers = [
-            allocate_mem_buff(name+' {}'.format(i), numel, dtype, track_usage)
+            allocate_mem_buff(name + ' {}'.format(i), numel, dtype, track_usage)
             for i in range(num_buffers)]
         self._index = -1
 

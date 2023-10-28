@@ -302,7 +302,7 @@ class ParallelAttention(MegatronModule):
         # preallocting result tensor: [b * np, sq, sk]
         if alibi is None:
             matmul_result = torch.empty(
-                output_size[0]*output_size[1],
+                output_size[0] * output_size[1],
                 output_size[2],
                 output_size[3],
                 dtype=query_layer.dtype,
@@ -774,7 +774,7 @@ class ParallelTransformer(MegatronModule):
         for i in range(self.num_layers):
             layer_num = i + 1 + offset
             if layer_num % args.expert_interval == 0:
-                n_e = num_experts[(layer_num-1) // args.expert_interval]
+                n_e = num_experts[(layer_num - 1) // args.expert_interval]
             else:
                 n_e = 1
             self.layers.append(build_layer(layer_num, n_e))

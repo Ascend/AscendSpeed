@@ -43,8 +43,10 @@ class MemoryBuffer:
 
 
     def get(self, shape, start_index):
-        """Return a tensor with the input `shape` as a view into the
-        1-D data starting at `start_index`."""
+        """
+        Return a tensor with the input `shape` as a view into the
+        1-D data starting at `start_index`.
+        """
         end_index = start_index + shape.numel()
         ensure_valid(end_index <= self.numel, error_message='requested tensor is out of the buffer range.')
         buffer_tensor = self.data[start_index:end_index]

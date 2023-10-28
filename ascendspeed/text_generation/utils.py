@@ -63,9 +63,7 @@ def pad_batch(batch, args):
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     """
-    This function has been mostly taken from huggingface conversational ai code at
-        https://medium.com/huggingface/how-to-build-a-state-of-the-art-conversational-ai-with-transfer
-        -learning-2d818ac26313
+    This function has been mostly taken from huggingface conversational ai code 
     """
 
     if top_k > 0:
