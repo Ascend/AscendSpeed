@@ -6,7 +6,7 @@
     - [Performance](#performance)
       - [Machine performance](#machine-performance)
       - [Accuracy of the loss](#accuracy-of-the-loss)
-- [LLaMA-65B](#llama-65b)
+- [LLaMA-33B/65B](#llama-65b)
   - [Pre-Training](#pre-training)
     - [Datasets](#datasets)
     - [Script](#script-1)
@@ -213,7 +213,7 @@ LLama-13b with huggingface weights NPU vs GPU loss.
 
 
 
-# LLaMA-65B
+# LLaMA-33B/65B
 
 This directory contains some of the scripts that were used to produce the results in the AscendSpeed. These scripts is to show the example how to run llama-65B in terminal.
 
@@ -223,7 +223,7 @@ LLaMA model is from: [LLaMA: OPen and Efficient Foundation Language Models](http
 
 ## Pre-Training
 
-LLaMA's model performace is better than GPT3 with less parameters. The 65B LLaMA model is comparable to Google's Chinchilla-70B and Palm-540B.
+LLaMA's model performace is better than GPT3 with less parameters. The 33B/65B LLaMA model is comparable to Google's Chinchilla-70B and Palm-540B.
 
 Here's a hardware summary of training llama:
 
@@ -284,7 +284,20 @@ cd ..
 # install other packages
 pip install -r requirements.txt
 ```
-3.Download llama-65b checkpoint
+3.Download checkpoint
+
+llama-33B checkpoint
+```shell
+mkdir tokenizer
+cd ./tokenizer
+
+# make sure you have git-lfs installed (https://git-lfs.com)
+git lfs install
+git clone https://huggingface.co/decapoda-research/llama-33b-hf
+cd ..
+```
+
+llama-65B checkpoint
 ```shell
 mkdir tokenizer
 cd ./tokenizer
@@ -294,7 +307,22 @@ git lfs install
 git clone https://huggingface.co/decapoda-research/llama-65b-hf
 cd ..
 ```
-4.In order to adapt to llama-65b model, the following script is used to convert the model pre-training weights
+4.In order to adapt to llama-33B/65B model, the following script is used to convert the model pre-training weights
+
+llama-33B
+```shell
+mkdir model_weights
+
+SCRIPT_PATH=./tools/ckpt_convert/llama/convert_weights_from_huggingface.py
+python $SCRIPT_PATH \
+      --input-model-dir ./tokenizer \
+      --output-model-dir ./model_weights \
+      --tensor-model-parallel-size 8 \
+      --pipeline-model-parallel-size 4 \
+      --type 33B
+```
+
+llama-65B
 ```shell
 mkdir model_weights
 
@@ -313,18 +341,22 @@ python $SCRIPT_PATH \
 wget http://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.jason
 
 # download tokenizer configs nad (selective) weights from
+# http://huggingface.co/decapoda-research/llama-33b-hf
 # http://huggingface.co/decapoda-research/llama-65b-hf
 # revise "LLaMATokenizer" as "LLaMTokenizer" in tokenizer_config.json
 mkdir dataset
 python tools/preprocess_data.py --input alpaca_data.json\
                                 --output-prefix dataset/alpaca\
                                 --tokenizer-type PretrainedFromHF\
-                                --tokenizer-name-or-path llama-65b-hf
+                                --tokenizer-name-or-path llama-33b-hf
+                               #--tokenizer-name-or-path llama-65b-hf
                                 --tokenizer-not-use-fast
                                 --handler-name GeneralInstructionHandler
 ```
 
-6.Config llama-65B pre-training script : AscendSpeed/examples/llama/pretrain_llama_65B_ptd_32p.sh
+6.Config llama-33B/65B pre-training script :
+AscendSpeed/examples/llama/pretrain_llama_33B_zero_32p.sh
+AscendSpeed/examples/llama/pretrain_llama_65B_ptd_32p.sh
 
 ```bash
 # modify the script according to your own conda and ascend-toolkit path
@@ -337,12 +369,18 @@ TOKENIZER_PATH=./dataset/llama_tokenizer # line 16
 DATA_PATH=./dataset/llama_text_document # line 17
 ```
 
-7.Launch llama-65B pre-training script : AscendSpeed/examples/llama/pretrain_llama_65B_ptd_32p.sh
+7.Launch  pre-training script:
 
+Launch llama-33B pre-training script : AscendSpeed/examples/llama/pretrain_llama_33B_zero_32p.sh
+```bash
+bash examples/llama/pretrain_llama_33B_zero_32p.sh
+```
+
+Launch llama-65B pre-training script : AscendSpeed/examples/llama/pretrain_llama_65B_ptd_32p.sh
 ```bash
 bash examples/llama/pretrain_llama_65B_ptd_32p.sh
 ```
-Config llama-65B pre-training script for multinode (Launch llama-65B pre-training script on each machine):
+Config llama-33B/65B pre-training script for multinode (Launch llama-65B pre-training script on each machine):
 
 ```shell
 MASTER_ADDR=localhost
@@ -364,25 +402,41 @@ time (ms)
 
 The performance of the NPUs in **Ascend** and Reference:
 
-|  Device   |   Model   |  throughput rate (tokens/s/p) |
-|:---------:|:---------:|  :--------------------------: |
-| Reference | llama-65B |             260               |
-|   NPUs    | llama-65B |             234               |
+|  Device   |   Model   | throughput rate (tokens/s/p) |
+|:---------:|:---------:|:----------------------------:|
+| Reference | llama-33B |             520              |
+|   NPUs    | llama-33B |             621              |
+| Reference | llama-65B |             260              |
+|   NPUs    | llama-65B |             234              |
 
 
 #### Accuracy of the loss
 
-NPU vs GPU loss.
+NPU vs GPU loss and relative error:
+
+LLaMa-33B
+
+The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
+
+![NPU-LOSS](../../sources/images/llama/llama33B_loss.png)
+
+The relative error between NPU and GPU Loss is less than 0.03 throughout, as expected.
+
+![NPU-Relative-Error](../../sources/images/llama/llama33B_relative_error.png)
+
+
+
+LLaMa-65B
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
 
 ![NPU-LOSS](../../sources/images/llama/loss_chart.png)
 
-NPU vs GPU loss relative error.
-
 The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
 
 ![NPU-Relative-Error](../../sources/images/llama/compare_chart.png)
+
+
 
 ## Citation
 
