@@ -18,6 +18,7 @@
 import argparse
 import json
 import os
+import stat
 
 import logging
 import torch
@@ -49,7 +50,9 @@ def get_args():
     parser.add_argument("--bias", action="store_true", default=False)
     parser.add_argument("--deepspeed", action="store_true", default=False)
 
-    parser.add_argument("--pse", type=bool, default=False)
+    parser.add_argument("--pse", action="store_true", default=False)
+    parser.add_argument("--use_wpack_rotray", action="store_true", default=False)
+    parser.add_argument("--load_weight_map", action="store_true", default=False)
     return parser.parse_args()
 
 
@@ -66,13 +69,22 @@ file = os.listdir(args.input_model_dir)
 model_files = [f for f in file if f[-4:] == ".bin"]
 input_models = {f: torch.load(os.path.join(args.input_model_dir, f), map_location="cpu") for f in model_files}
 
-with open(os.path.join(args.input_model_dir, "pytorch_model.bin.index.json")) as f:
-    model_index = json.load(f)
-    weight_map = model_index["weight_map"]
+index_fn = os.path.join(args.input_model_dir, "pytorch_model.bin.index.json")
+if os.path.exists(index_fn):
+    with os.fdopen(os.open(index_fn, os.O_RDONLY, stat.S_IRUSR), 'r') as f:
+        model_index = json.load(f)
+        weight_map = model_index["weight_map"]
+if args.load_weight_map:
+    weight_map = dict()
+    for k in input_models[model_files[0]].keys():
+        weight_map[k] = model_files[0]
 
 
 def get_weight_from_name(layer_name):
-    return input_models[weight_map[layer_name]][layer_name]
+    if layer_name in weight_map.keys():
+        return input_models[weight_map[layer_name]][layer_name]
+    else:
+        raise KeyError(f"{layer_name} is not in weight_map")
 
 
 def generate_ascendspeed_weights_again(config):
@@ -118,6 +130,9 @@ def generate_ascendspeed_weights_again(config):
                     qw = row_split(ws[0], tp_size, tp_rank)
                     kw = row_split(ws[1], tp_size, tp_rank)
                     vw = row_split(ws[2], tp_size, tp_rank)
+                    if args.use_wpack_rotray:
+                        rank_model[f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"] = get_weight_from_name(
+                            f"model.layers.{ori_i}.self_attn.rotary_emb.inv_freq")
                 else:
                     rank_model[f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"] = get_weight_from_name(
                         f"model.layers.{ori_i}.self_attn.rotary_emb.inv_freq")
