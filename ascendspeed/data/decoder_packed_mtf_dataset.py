@@ -110,7 +110,7 @@ def build_dataset_group(
     GIVEN_NAME PATH1    # for a single dataset to be used fully
     '''
 
-    ensure_valid(train_valid_test in ["train","valid","test"])
+    ensure_valid(train_valid_test in ["train", "valid", "test"])
 
     # Single dataset.
     if len(paths) == 1:
@@ -134,8 +134,8 @@ def build_dataset_group(
         data_prefix = []
         # data_prefix is of the shape:
         # ["WEIGHT1", "PATH1", "WEIGHT2", "PATH2", "WEIGHT3", "PATH3"]
-        for w,p in zip(weights, paths):
-            data_prefix += [w,p]
+        for w, p in zip(weights, paths):
+            data_prefix += [w, p]
 
         output = get_datasets_weights_and_num_samples(data_prefix,
                                                     train_valid_test_num_samples)
@@ -179,8 +179,8 @@ def _build_single_datasets(
 ):
     """Build a single dataset"""
 
-    ensure_valid(train_valid_test in ["train","valid","test"])
-    index = ["train","valid","test"].index(train_valid_test)
+    ensure_valid(train_valid_test in ["train", "valid", "test"])
+    index = ["train", "valid", "test"].index(train_valid_test)
 
     # Target indexed dataset.
     packed_indexed_dataset = get_packed_indexed_dataset(

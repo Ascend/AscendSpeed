@@ -10,8 +10,10 @@ from ascendspeed.error_utils import check_divisible, ensure_var_is_none
 
 
 def divide(numerator, denominator):
-    """Ensure that numerator is divisible by the denominator and return
-    the division value."""
+    """
+    Ensure that numerator is divisible by the denominator and return
+    the division value.
+    """
     check_divisible(numerator, denominator)
     return numerator // denominator
 
@@ -53,9 +55,11 @@ def get_model_config(model):
 
 
 class GlobalMemoryBuffer:
-    """Global buffer to avoid dynamic memory allocations.
+    """
+    Global buffer to avoid dynamic memory allocations.
     Caller should ensure that buffers of the same name
-    are not used concurrently."""
+    are not used concurrently.
+    """
 
     def __init__(self):
         self.buffer = {}
@@ -74,7 +78,8 @@ class GlobalMemoryBuffer:
 
 
 def _kernel_make_viewless_tensor(inp, requires_grad):
-    '''Make a viewless tensor.
+    '''
+    Make a viewless tensor.
 
     View tensors have the undesirable side-affect of retaining a reference
     to the originally-viewed tensor, even after manually setting the '.data'
@@ -150,7 +155,8 @@ def assert_viewless_tensor(tensor, extra_msg=None):
 
 
 def safely_set_viewless_tensor_data(tensor, new_data_tensor):
-    '''Safely set tensor's '.data' field.
+    '''
+    Safely set tensor's '.data' field.
 
     Check first that the tensor is viewless (i.e., '._base' not set). If not,
     raise an exception.

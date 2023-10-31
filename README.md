@@ -876,3 +876,6 @@ TASK="boolq"
 \
 \
 <font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring network security.</font>
+
+## Public IP Address Decription
+There is some basic information of AscendSpeed in the file of 'package_info.py'. As you can see, there is our repository link: https://gitee.com/ascend/AscendSpeed.

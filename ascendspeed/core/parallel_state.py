@@ -464,8 +464,10 @@ def is_rank_in_position_embedding_group():
 
 
 def is_pipeline_stage_before_split(rank=None):
-    """Return True if pipeline stage executes encoder block for a model
-    with both encoder and decoder."""
+    """
+    Return True if pipeline stage executes encoder block for a model
+    with both encoder and decoder.
+    """
     if get_pipeline_model_parallel_world_size() == 1:
         return True
     if rank is None:
@@ -479,8 +481,10 @@ def is_pipeline_stage_before_split(rank=None):
 
 
 def is_pipeline_stage_after_split(rank=None):
-    """Return True if pipeline stage executes decoder block for a model
-    with both encoder and decoder."""
+    """
+    Return True if pipeline stage executes decoder block for a model
+    with both encoder and decoder.
+    """
     if get_pipeline_model_parallel_world_size() == 1:
         return True
     if rank is None:
@@ -494,9 +498,11 @@ def is_pipeline_stage_after_split(rank=None):
 
 
 def is_pipeline_stage_at_split():
-    """Return true if pipeline stage executes decoder block and next
+    """
+    Return true if pipeline stage executes decoder block and next
     stage executes encoder block for a model with both encoder and
-    decoder."""
+    decoder.
+    """
     rank = get_pipeline_model_parallel_rank()
     return is_pipeline_stage_before_split(rank) and is_pipeline_stage_after_split(rank + 1)
 
@@ -527,30 +533,38 @@ def set_virtual_pipeline_model_parallel_world_size(world_size):
 
 
 def get_tensor_model_parallel_src_rank():
-    """Calculate the global rank corresponding to the first local rank
-    in the tensor model parallel group."""
+    """
+    Calculate the global rank corresponding to the first local rank
+    in the tensor model parallel group.
+    """
     global_rank = torch.distributed.get_rank()
     local_world_size = get_tensor_model_parallel_world_size()
     return (global_rank // local_world_size) * local_world_size
 
 
 def get_data_parallel_src_rank():
-    """Calculate the global rank corresponding to the first local rank
-    in the data parallel group."""
+    """
+    Calculate the global rank corresponding to the first local rank
+    in the data parallel group.
+    """
     ensure_var_is_not_none(_DATA_PARALLEL_GLOBAL_RANKS, error_message="Data parallel group is not initialized")
     return _DATA_PARALLEL_GLOBAL_RANKS[0]
 
 
 def get_pipeline_model_parallel_first_rank():
-    """Return the global rank of the first process in the pipeline for the
-    current tensor parallel group"""
+    """
+    Return the global rank of the first process in the pipeline for the
+    current tensor parallel group
+    """
     ensure_var_is_not_none(_PIPELINE_GLOBAL_RANKS, error_message="Pipeline parallel group is not initialized")
     return _PIPELINE_GLOBAL_RANKS[0]
 
 
 def get_pipeline_model_parallel_last_rank():
-    """Return the global rank of the last process in the pipeline for the
-    current tensor parallel group"""
+    """
+    Return the global rank of the last process in the pipeline for the
+    current tensor parallel group
+    """
     ensure_var_is_not_none(_PIPELINE_GLOBAL_RANKS, error_message="Pipeline parallel group is not initialized")
     last_rank_local = get_pipeline_model_parallel_world_size() - 1
     return _PIPELINE_GLOBAL_RANKS[last_rank_local]

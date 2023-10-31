@@ -267,7 +267,7 @@ class LlamaParallelMLP(MegatronModule):
         )
         # Project to intermediate.
         if self.layer_fusion:
-            self.proj = self.col_parallel_linear(output_size=args.ffn_hidden_size*2)
+            self.proj = self.col_parallel_linear(output_size=args.ffn_hidden_size * 2)
         else:
             self.gate_proj = self.col_parallel_linear(output_size=args.ffn_hidden_size)
             self.up_proj = self.col_parallel_linear(output_size=args.ffn_hidden_size)

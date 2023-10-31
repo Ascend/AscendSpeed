@@ -58,14 +58,18 @@ def get_tokenizer():
 
 
 def get_tensorboard_writer():
-    """Return tensorboard writer. It can be None so no need
-    to check if it is initialized."""
+    """
+    Return tensorboard writer. It can be None so no need
+    to check if it is initialized.
+    """
     return _GLOBAL_TENSORBOARD_WRITER
 
 
 def get_adlr_autoresume():
-    """ADLR autoresume object. It can be None so no need
-    to check if it is initialized."""
+    """
+    ADLR autoresume object. It can be None so no need
+    to check if it is initialized.
+    """
     return _GLOBAL_ADLR_AUTORESUME
 
 

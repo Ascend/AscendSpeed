@@ -229,10 +229,10 @@ class Timers:
             min_time, max_time = name_to_min_max_time[name]
             if max_only:
                 output_string += '\n    {}: {:.2f}'.format(
-                    (name+' ').ljust(48, '.'), max_time)
+                    (name + ' ').ljust(48, '.'), max_time)
             else:
                 output_string += '\n    {}: ({:.2f}, {:.2f})'.format(
-                    (name+' ').ljust(48, '.'), min_time, max_time)
+                    (name + ' ').ljust(48, '.'), min_time, max_time)
         return output_string
 
 
@@ -279,11 +279,11 @@ class Timers:
             if self._log_option == 'max':
                 max_only = True
             output_string = self._get_global_min_max_time_string(
-                names, reset, barrier, normalizer/1000.0, max_only)
+                names, reset, barrier, normalizer / 1000.0, max_only)
         elif self._log_option == 'all':
             output_string = self._get_all_ranks_time_string(names,
                                                             reset, barrier,
-                                                            normalizer/1000.0)
+                                                            normalizer / 1000.0)
         else:
             raise Exception('unknown timing log option {}'.format(
                 self._log_option))

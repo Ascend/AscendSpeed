@@ -42,7 +42,8 @@ def set_npu_overflow_flag():
 
 
 def get_forward_backward_func():
-    """Retrieves the appropriate forward_backward function given the
+    """
+    Retrieves the appropriate forward_backward function given the
     configuration of parallel_state.
 
     Returns a function that will perform all of the forward and
@@ -152,7 +153,8 @@ def get_forward_func():
 
 
 def deallocate_output_tensor(out, deallocate_pipeline_outputs=False):
-    '''Pseudo-deallocate (i.e., set to scalar) the output tensor's '.data' field.
+    '''
+    Pseudo-deallocate (i.e., set to scalar) the output tensor's '.data' field.
 
     This method should be called right after the output tensor has been
     sent to the next pipeline stage. At this point, the output tensor is
@@ -166,7 +168,8 @@ def deallocate_output_tensor(out, deallocate_pipeline_outputs=False):
 
 
 def custom_backward(output, grad_output):
-    '''Directly call C++ autograd engine.
+    '''
+    Directly call C++ autograd engine.
 
     To make the 'deallocate_output_tensor' (above) optimization work, the C++
     autograd engine must be called directly, bypassing Pytorch's
@@ -207,12 +210,14 @@ def forward_step(
         collect_non_loss_data=False,
         checkpoint_activations_microbatch=None,
 ):
-    """Forward step for passed-in model.
+    """
+    Forward step for passed-in model.
 
     If first stage, input tensor is obtained from data_iterator, otherwise
     passed-in input_tensor is used.
 
-    Returns output tensor."""
+    Returns output tensor.
+    """
     args = get_args()
     if config.timers is not None and args.foldx_mode is None:
         config.timers('forward-compute', log_level=2).start()
@@ -268,13 +273,15 @@ def forward_step(
 
 
 def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config, model=None):
-    """Backward step through passed-in output tensor.
+    """
+    Backward step through passed-in output tensor.
 
     If last stage, output_tensor_grad is None, otherwise gradient of loss
     with respect to stage's output tensor.
 
     Returns gradient of loss with respect to input tensor (None if first
-    stage)."""
+    stage).
+    """
 
     # NOTE: This code currently can handle at most one skip connection. It
     # needs to be modified slightly to support arbitrary numbers of skip
@@ -348,7 +355,8 @@ def forward_backward_no_pipelining(
         forward_only: bool = False,
         collect_non_loss_data: bool = False,
 ):
-    """Run forward and backward passes with no pipeline parallelism
+    """
+    Run forward and backward passes with no pipeline parallelism
     (no inter-stage communication).
 
     Returns dictionary with losses.
@@ -422,10 +430,12 @@ def forward_backward_pipelining_with_interleaving(
         forward_only: bool = False,
         collect_non_loss_data: bool = False,
 ):
-    """Run interleaved 1F1B schedule (model split into model chunks), with
+    """
+    Run interleaved 1F1B schedule (model split into model chunks), with
     communication between pipeline stages as needed.
 
-    Returns dictionary with losses if the last stage, empty dict otherwise."""
+    Returns dictionary with losses if the last stage, empty dict otherwise.
+    """
     check_type(model, list, error_message="interleaved pipeline parallelism expected model chunking")
     for chunk in model:
         check_type(chunk, torch.nn.Module, error_message="invalid model chunking")
@@ -567,9 +577,11 @@ def forward_backward_pipelining_with_interleaving(
             return False
 
     def forward_step_helper(microbatch_id, checkpoint_activations_microbatch):
-        """Helper method to run forward step with model split into chunks
+        """
+        Helper method to run forward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
-        forward_step())."""
+        forward_step()).
+        """
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=True)
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
@@ -613,9 +625,11 @@ def forward_backward_pipelining_with_interleaving(
         return output_tensor
 
     def backward_step_helper(microbatch_id):
-        """Helper method to run backward step with model split into chunks
+        """
+        Helper method to run backward step with model split into chunks
         (run set_virtual_pipeline_model_parallel_rank() before calling
-        backward_step())."""
+        backward_step()).
+        """
         model_chunk_id = get_model_chunk_id(microbatch_id, forward=False)
         parallel_state.set_virtual_pipeline_model_parallel_rank(model_chunk_id)
 
@@ -1238,10 +1252,12 @@ def forward_backward_pipelining_without_interleaving(
         forward_only: bool = False,
         collect_non_loss_data: bool = False,
 ):
-    """Run non-interleaved 1F1B schedule, with communication between pipeline
+    """
+    Run non-interleaved 1F1B schedule, with communication between pipeline
     stages.
 
-    Returns dictionary with losses if the last stage, empty dict otherwise."""
+    Returns dictionary with losses if the last stage, empty dict otherwise.
+    """
 
     if isinstance(model, list):
         check_equal(len(model), 1,

@@ -507,7 +507,7 @@ class TransformerLanguageModel(MegatronModule):
         # the same logic
         for key in list(encoder_state_dict.keys()):
             if 'expert' in key and 'moe.gate.wg.weight' not in key:
-                moe_state_dict[self._encoder_key+key] = encoder_state_dict.pop(key)
+                moe_state_dict[self._encoder_key + key] = encoder_state_dict.pop(key)
         state_dict_[self._encoder_key] = encoder_state_dict
         if self.post_process:
             if self.add_pooler:

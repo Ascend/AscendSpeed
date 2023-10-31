@@ -377,7 +377,7 @@ def _add_network_size_args(parser):
 
     group.add_argument('--num-layers', type=int, default=None,
                        help='Number of transformer layers.')
-    group.add_argument('--num-experts', type=int, nargs='+', default=[1,],
+    group.add_argument('--num-experts', type=int, nargs='+' , default=[1,],
                            help='number of experts list, MoE related.')
     group.add_argument('--mlp-type', type=str, default='standard',
                            help='Only applicable when num-experts > 1, accepts [standard, residual]')
@@ -833,10 +833,10 @@ def _add_distributed_args(parser):
                        'skips DDP initialization and returns function to '
                        'complete it instead.Also turns on '
                        '--use-cpu-initialization flag. This is for '
-                       'external DDP manager.' )
+                       'external DDP manager.')
     group.add_argument('--use-cpu-initialization', action='store_true',
                        default=None, help='If set, affine parallel weights '
-                       'initialization uses CPU' )
+                       'initialization uses CPU')
     group.add_argument('--triangle-attn', action='store_true',
                        help="use triangle attention instead self attention")
     group.add_argument('--use-distributed-optimizer', action='store_true',
@@ -969,7 +969,7 @@ def _add_data_args(parser):
                     'test will be run on each of those groups independently',
                     action=ParseDataPaths)
 
-    group.add_argument('--train-weighted-split-paths-path', type=str, action=ParseDataPathsPath ,default=None)
+    group.add_argument('--train-weighted-split-paths-path', type=str, action=ParseDataPathsPath, default=None)
     group.add_argument('--valid-weighted-split-paths-path', type=str, action=ParseDataPathsPath, default=None)
     group.add_argument('--test-weighted-split-paths-path', type=str, action=ParseDataPathsPath, default=None)
 

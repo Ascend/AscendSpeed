@@ -91,23 +91,23 @@ def build_dataset_group(dataset_group_name, paths, weights, splits, data_impl,
     GIVEN_NAME PATH1    # for a single dataset to be used fully
     '''
 
-    ensure_valid(train_valid_test in ["train","valid","test"])
+    ensure_valid(train_valid_test in ["train", "valid", "test"])
 
     # Single dataset.
     if len(paths) == 1:
-        dataset =  _build_single_datasets(paths[0],
-                                          splits[0],
-                                          data_impl,
-                                          train_valid_test_num_samples,
-                                          seq_length, seed, skip_warmup,
-                                          dataset_group_name, train_valid_test)
+        dataset = _build_single_datasets(paths[0],
+                                         splits[0],
+                                         data_impl,
+                                         train_valid_test_num_samples,
+                                         seq_length, seed, skip_warmup,
+                                         dataset_group_name, train_valid_test)
         return dataset
     # Blending dataset.
     else:
 
         data_prefix = []
-        for w,p in zip(weights, paths):
-            data_prefix += [w,p]
+        for w, p in zip(weights, paths):
+            data_prefix += [w, p]
 
         output = get_datasets_weights_and_num_samples(data_prefix,
                                                     train_valid_test_num_samples)
@@ -135,8 +135,8 @@ def _build_single_datasets(data_prefix, range_string, data_impl, train_valid_tes
                             seq_length, seed, skip_warmup, dataset_group_name, train_valid_test):
     """Build a single dataset"""
 
-    ensure_valid(train_valid_test in ["train","valid","test"])
-    index = ["train","valid","test"].index(train_valid_test)
+    ensure_valid(train_valid_test in ["train", "valid", "test"])
+    index = ["train", "valid", "test"].index(train_valid_test)
 
     # Indexed dataset.
     indexed_dataset = get_indexed_dataset_(data_prefix,
@@ -467,7 +467,7 @@ def _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch):
         np_rng.shuffle(doc_idx)
         return doc_idx
 
-    doc_idx_first = _build_doc_idx(documents, num_epochs-1, np_rng, False)
+    doc_idx_first = _build_doc_idx(documents, num_epochs - 1, np_rng, False)
     doc_idx_last = _build_doc_idx(documents, 1, np_rng, False)
     return np.concatenate((doc_idx_first, doc_idx_last))
 

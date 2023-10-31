@@ -56,7 +56,7 @@ class ParseDataPaths(argparse.Action):
         setattr(args, self.dest, paths)
         setattr(args, self.dest.replace("paths", "weights"), weights)
         setattr(args, self.dest.replace("paths", "splits"), splits)
-        setattr(args, self.dest.replace("paths","names"), names)
+        setattr(args, self.dest.replace("paths", "names"), names)
 
 
 class ParseDataPathsPath(argparse.Action):
