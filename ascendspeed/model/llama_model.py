@@ -42,6 +42,10 @@ from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
 from ascendspeed.model.language_model import Pooler
 from ascendspeed.model.triangle_attention import TriangleAttention
 from ascendspeed.error_utils import check_equal, check_divisible, ensure_valid
+try:
+    from einops import rearrange
+except ImportError:
+    rearrange = None
 
 
 class RotaryEmbedding(torch.nn.Module):
@@ -301,6 +305,46 @@ class LlamaParallelMLP(MegatronModule):
         return output
 
 
+class FlashSelfAttention(torch.nn.Module):
+    """Implement the scaled dot product attention with softmax.
+    Arguments
+    ---------
+        softmax_scale: The temperature to use for the softmax attention.
+                      (default: 1/sqrt(d_keys) where d_keys is computed at
+                      runtime)
+        attention_dropout: The dropout rate to apply to the attention
+                           (default: 0.0)
+    """
+
+    def __init__(self, causal=False, softmax_scale=1., attention_dropout=0.):
+        super().__init__()
+        self.causal = causal
+        self.softmax_scale = softmax_scale
+        self.dropout_p = attention_dropout
+
+    def forward(self, q, k, v, n, attention_mask):
+        if self.causal:
+            output = torch_npu.npu_fusion_attention(
+                q, k, v, n, "SBH",
+                pse=None,
+                padding_mask=None,
+                atten_mask=attention_mask,
+                scale=self.softmax_scale,
+                pre_tockens=k.shape[0],  # seq_len
+                next_tockens=0,  # 0
+                keep_prob=1 - self.dropout_p,
+            )[0]
+            return output
+        raise Exception("the attention type {} is not support!".format(self.attention_type))
+
+
+def repeat_interleave(inputs, repeats, dim):
+    shape = inputs.shape
+    new_shape = shape[:dim + 1] + (repeats, ) + shape[dim + 1:]
+    out_shape = shape[:dim] + (shape[dim] * repeats, ) + shape[dim + 1:]
+    return inputs.unsqueeze(dim + 1).expand(new_shape).reshape(out_shape)
+
+
 class LlamaParallelAttention(MegatronModule):
     """Parallel self-attention layer abstract class.
 
@@ -342,13 +386,30 @@ class LlamaParallelAttention(MegatronModule):
         self.hidden_size_per_attention_head = utils.divide(projection_size, args.num_attention_heads)
         self.num_attention_heads_per_partition = utils.divide(args.num_attention_heads, world_size)
 
+        self.group_query_attention = args.group_query_attention
+        self.num_query_groups = args.num_query_groups
+
+        if self.group_query_attention:
+            if args.num_query_groups % world_size != 0:
+                raise NotImplementedError(
+                    'Currently the num_query_groups should be '
+                    'a multiple of the tensor parallel size')
+            self.num_query_groups_per_partition = utils.divide(
+                args.num_query_groups, world_size)
+            kv_projection_size = args.kv_channels * args.num_query_groups
+        else:
+            kv_projection_size = args.kv_channels * args.num_attention_heads
+            self.num_query_groups_per_partition = self.num_attention_heads_per_partition
+
+        self.num_repeat = (self.num_attention_heads_per_partition //
+                           self.num_query_groups_per_partition)
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
             # 适配internlm
             bias = getattr(config, "column_parallel_linear_bias", False)
             self.query_key_value = tensor_parallel.ColumnParallelLinear(
                 args.hidden_size,
-                3 * projection_size,
+                projection_size + 2 * kv_projection_size,
                 config=config,
                 bias=bias,
                 gather_output=False,
@@ -377,6 +438,14 @@ class LlamaParallelAttention(MegatronModule):
         if self.use_triangle_attn:
             self.triangle_attn = TriangleAttention(block_size=1024,
                                                    masked_softmax_func=self.scale_mask_softmax)
+
+        self.use_flash_attention = args.use_flash_attn
+        if self.use_flash_attention:
+            self.core_attention_flash = FlashSelfAttention(
+                causal=True,
+                softmax_scale=(1.0 / self.norm_factor),
+                attention_dropout=0)
+
         # 适配internlm模型
         bias = getattr(config, "row_parallel_linear_bias", False)
         skip_bias_add = getattr(config, "row_parallel_linear_skip_bias_add", True)
@@ -403,19 +472,38 @@ class LlamaParallelAttention(MegatronModule):
         # =====================
 
         if self.attention_type == AttnType.self_attn:
-            # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
+            # Attention heads [sq, b, h] --> [sq, b, (np + 2ng) * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-            new_tensor_shape = mixed_x_layer.size()[:-1] + \
-                               (self.num_attention_heads_per_partition,
-                                3 * self.hidden_size_per_attention_head)
+            # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
+            new_tensor_shape = mixed_x_layer.size()[:-1] + (
+                self.num_query_groups_per_partition,
+                (
+                        (self.num_repeat + 2)
+                        * self.hidden_size_per_attention_head
+                ),
+            )
             mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
 
-            # [sq, b, 3 * h] --> 3 [sq, b, h]
+            # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
             (query_layer,
              key_layer,
-             value_layer) = tensor_parallel.utils.split_tensor_along_last_dim(mixed_x_layer, 3)
+             value_layer) = torch.split(
+                mixed_x_layer,
+                [
+                    (
+                        self.num_repeat
+                        * self.hidden_size_per_attention_head
+                    ),
+                    self.hidden_size_per_attention_head,
+                    self.hidden_size_per_attention_head
+                ],
+                dim=3)
 
+            # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
+            query_layer = query_layer.view(query_layer.size(0),
+                                           query_layer.size(1), -1,
+                                           self.hidden_size_per_attention_head)
         # ==================================
         # Rotary Position Embedding
         # ==================================
@@ -439,8 +527,25 @@ class LlamaParallelAttention(MegatronModule):
         if get_key_value:
             present = (key_layer, value_layer)
 
+            # expand the key_layer and value_layer [b, ng, sk, hn] -> [b, np, sk, hn]
+        if self.num_repeat > 1 and not self.use_flash_attention:
+            key_layer = repeat_interleave(
+                key_layer, self.num_repeat, dim=1)
+            value_layer = repeat_interleave(
+                value_layer, self.num_repeat, dim=1)
+
+        if self.use_flash_attention and layer_past is None:
+            query_layer, key_layer, value_layer = [
+                rearrange(x, 'b n s d -> s b (n d)').contiguous()
+                for x in (query_layer, key_layer, value_layer)]
+            context_layer = self.core_attention_flash(
+                query_layer, key_layer, value_layer,
+                self.num_attention_heads_per_partition,
+                attention_mask)
+            output, _ = self.dense(context_layer)
+            return output
         # use triangle attention
-        if self.use_triangle_attn and layer_past is None:
+        elif self.use_triangle_attn and layer_past is None:
             context_layer = self.triangle_attn(query_layer, key_layer, value_layer, attention_mask)
             output, _ = self.dense(context_layer)
             return output
