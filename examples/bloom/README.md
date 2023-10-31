@@ -93,7 +93,7 @@ We provide scripts that support converting pretrained weights into weights that 
 ```shell
 #!/bin/bash
 
-SCRIPT_PATH=./tasks/ckpt_convert/bloom/convert_weights_from_huggingface.py
+SCRIPT_PATH=./tools/ckpt_convert/bloom/convert_weights_from_huggingface.py
 python $SCRIPT_PATH \
     --input-model-dir "your huggingface checkpoint path" \
     --output-model-dir "your ascendspeed checkpoint path" \
@@ -165,11 +165,11 @@ NPU vs GPU loss.
 
 The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected. 
 
-![7b_lm_loss.png](images%2F7b_lm_loss.png)
+![7b_lm_loss.png](..%2F..%2Fsources%2Fimages%2Fbloom%2F7b_lm_loss.png)
 
 NPU vs GPU loss relative error.
 
-![relative_error.png](images%2Frelative_error.png)
+![relative_error.png](..%2F..%2Fsources%2Fimages%2Fbloom%2Frelative_error.png)
 
 ## Inference
 
@@ -280,7 +280,7 @@ We provide scripts that support converting pretrained weights into weights that 
 ```shell
 #!/bin/bash
 
-SCRIPT_PATH=./tasks/ckpt_convert/bloom/convert_weights_from_huggingface.py
+SCRIPT_PATH=./tools/ckpt_convert/bloom/convert_weights_from_huggingface.py
 python $SCRIPT_PATH \
     --input-model-dir "your huggingface checkpoint path" \
     --output-model-dir "your ascendspeed checkpoint path" \

@@ -313,19 +313,16 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
         doc_idx = self.shuffle_index[idx]
         item = self.mtf_dataset[doc_idx]
         return {
-            "input_ids": self._pad_token(item["input_ids"][:-1], self.pad_token, np.int64),
-            "attention_mask": self._pad_token(item["attention_mask"][:-1], 0, np.int64),
-            "labels": self._pad_token(item["labels"][1:], -100, np.int64),
+            "input_ids": self._cut_token(item["input_ids"][:-1], np.int64),
+            "attention_mask": self._cut_token(item["attention_mask"][:-1], np.int64),
+            "labels": self._cut_token(item["labels"][1:], np.int64),
         }
     
-    def _pad_token(self, token, pad_value, dtype):
-        padded_token = np.full((self.seq_length,), pad_value, dtype=dtype)
+    def _cut_token(self, token, dtype):
         token_length = len(token)
-        if token_length <= self.seq_length:
-            padded_token[:token_length] = token
-        else:
-            padded_token = token[:self.seq_length]
-        return padded_token.astype(dtype)
+        if token_length >= self.seq_length:
+            token = token[:self.seq_length]
+        return token.astype(dtype)
 
 
 def _build_index_mappings(

@@ -12,7 +12,8 @@ NNODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
-DATA_PATH=/home/dataset/enwiki-gpt/gpt_text_sentence
+DATA_PATH=/home/dataset/alpaca_cn/alpaca
+TOKENIZER_PATH=/home/dataset/llama_tokenizer
 CHECKPOINT_PATH=./ckpt_llama
 LORA_CHECKPOINT_PATH=./ckpt_llama_lora
 
@@ -23,6 +24,8 @@ basepath=$(cd `dirname $0`; pwd)
 python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
       ${basepath}/run_llama_ptd.py \
        --DDP-impl local \
+       --is-instruction-dataset \
+       --variable-seq-lengths \
        --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
@@ -37,8 +40,9 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --lr-decay-iters 320000 \
        --save $CHECKPOINT_PATH \
        --data-path $DATA_PATH \
-       --vocab-file /home/dataset/gpt2-vocab.json \
-       --merge-file /home/dataset/gpt2-merges.txt \
+       --tokenizer-type PretrainedFromHF  \
+       --tokenizer-not-use-fast \
+       --tokenizer-name-or-path ${TOKENIZER_PATH} \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
@@ -61,6 +65,8 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $
 python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
       ${basepath}/run_llama_ptd.py \
        --DDP-impl local \
+       --is-instruction-dataset \
+       --variable-seq-lengths \
        --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
@@ -75,8 +81,9 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --lr-decay-iters 320000 \
        --save $LORA_CHECKPOINT_PATH \
        --data-path $DATA_PATH \
-       --vocab-file /home/dataset/gpt2-vocab.json \
-       --merge-file /home/dataset/gpt2-merges.txt \
+       --tokenizer-not-use-fast \
+       --tokenizer-type PretrainedFromHF  \
+       --tokenizer-name-or-path ${TOKENIZER_PATH} \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
@@ -100,6 +107,8 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $
 python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
       ${basepath}/run_llama_ptd.py \
        --DDP-impl local \
+       --is-instruction-dataset \
+       --variable-seq-lengths \
        --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
@@ -116,8 +125,9 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --load $CHECKPOINT_PATH \
        --lora-load $LORA_CHECKPOINT_PATH \
        --data-path $DATA_PATH \
-       --vocab-file /home/dataset/gpt2-vocab.json \
-       --merge-file /home/dataset/gpt2-merges.txt \
+       --tokenizer-not-use-fast \
+       --tokenizer-type PretrainedFromHF  \
+       --tokenizer-name-or-path ${TOKENIZER_PATH} \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \

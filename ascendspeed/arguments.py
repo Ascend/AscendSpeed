@@ -258,6 +258,9 @@ def parse_args(extra_args_provider=None, defaults={},
         ensure_var_is_not_none(args.encoder_seq_length)
         args.seq_length = args.encoder_seq_length
 
+    if args.variable_seq_lengths:
+        ensure_valid(args.is_instruction_dataset, 'Dynamic padding based on instruction dataset.')
+
     if (args.position_embedding_type == PositionEmbeddingType.absolute or
      args.position_embedding_type == PositionEmbeddingType.alibi):
         ensure_var_is_not_none(args.max_position_embeddings)
@@ -351,6 +354,7 @@ def core_transformer_config_from_args(args):
             kw_args[f.name] = getattr(args, f.name)
     kw_args['persist_layer_norm'] = not args.no_persist_layer_norm
     kw_args['layernorm_zero_centered_gamma'] = args.apply_layernorm_1p
+    kw_args['variable_seq_lengths'] = args.variable_seq_lengths
     kw_args['deallocate_pipeline_outputs'] = False
     kw_args['pipeline_dtype'] = args.params_dtype
     kw_args['batch_p2p_comm'] = not args.overlap_p2p_comm
@@ -883,6 +887,8 @@ def _add_data_args(parser):
                             'They are used for span masking in the T5 model')
     group.add_argument('--seq-length', type=int, default=None,
                        help='Maximum sequence length to process.')
+    group.add_argument('--variable-seq-lengths', action='store_true',
+                       help='Use variable seq lengths or not.')
     group.add_argument('--encoder-seq-length', type=int, default=None,
                        help='Maximum encoder sequence length to process.'
                        'This should be exclusive of --seq-length')
