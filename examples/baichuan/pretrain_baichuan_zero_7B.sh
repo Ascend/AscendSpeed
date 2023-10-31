@@ -100,7 +100,7 @@ deepspeed  pretrain_baichuan.py \
   --eval-interval 1000 \
   --eval-iters 1 \
   --checkpoint-activations \
-  --checkpoint_policy block \
+  --checkpoint-policy block \
   --checkpoint_block_layer 30 \
   --triangle-attn \
   $ds_args \

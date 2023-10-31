@@ -109,7 +109,7 @@ deepspeed pretrain_llama.py \
          --tokenizer-name-or-path $TOKENIZER_PATH \
          --tokenizer-not-use-fast \
          --checkpoint-activations \
-         --checkpoint_policy block \
+         --checkpoint-policy block \
          --checkpoint_block_layer 8 \
          --data-impl mmap \
          --split 949,50,1 \

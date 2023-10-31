@@ -89,5 +89,6 @@ deepspeed  pretrain_intern.py \
        --eval-interval 1000 \
        --eval-iters 10 \
        --triangle-attn \
+       --use-fused-rotary-pos-emb \
        $ds_args \
        --fp16 | tee logs/train.log
