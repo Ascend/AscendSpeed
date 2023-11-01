@@ -193,7 +193,7 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 wget http://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json
 
 # download tokenizer configs and (selective) weights from 
-# https://huggingface.co/decapoda-research/llama-7b-hf/tree/main
+# https://huggingface.co/yahma/llama-7b-hf/tree/main
 # revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
 # save the downloaded tokenizer into $TOKENIZER_PATH
 mkdir dataset
@@ -294,4 +294,4 @@ You may also consider original work in your reference:
 ```
 \
 \
-<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring network security.</font>
+<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring website security.</font>
