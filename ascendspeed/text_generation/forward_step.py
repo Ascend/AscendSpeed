@@ -156,9 +156,6 @@ def _with_pipelining_forward_step(model, inputs, inference_params, micro_batch_s
             (batch_size, sequence_length, args.padded_vocab_size),
             dtype=torch.float32, device=torch.cuda.current_device())
 
-    # Preallocate recv buffer.
-    recv_buffer = _allocate_recv_buffer(micro_batch_size, sequence_length)
-
     for micro_batch_index in range(num_micro_batches):
         # Slice among the batch dimenion.
         start = micro_batch_index * micro_batch_size
@@ -166,10 +163,6 @@ def _with_pipelining_forward_step(model, inputs, inference_params, micro_batch_s
         this_micro_batch_size = end - start
         tokens2use = tokens[start:end, ...]
         position_ids2use = position_ids[start:end, ...]
-
-        # Run a simple forward pass.
-        if this_micro_batch_size != micro_batch_size:
-            recv_buffer = None
 
         output = _forward_step_helper(model,
                                       tokens2use,

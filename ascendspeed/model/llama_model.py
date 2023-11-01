@@ -537,7 +537,7 @@ class LlamaParallelAttention(MegatronModule):
         value_layer = value_layer.permute(1, 2, 0, 3).contiguous()
 
         # preallocting result tensor: [b * np, sq, sk]
-        matmul_result = pse[:output_size[0] * output_size[1], :, :output_size[3]]
+        matmul_result = pse[:, :output_size[3]]
         # Raw attention scores. [b * np, sq, sk]
         q_trans = query_layer.transpose(0, 1).contiguous()
         k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
@@ -672,8 +672,7 @@ class LlamaParallelTransformerLayer(MegatronModule):
         tp_index = parallel_state.get_tensor_model_parallel_rank()
         alibi = alibi.reshape((tp_world_size, -1, *alibi.shape[1:]))[tp_index]
 
-        alibi = alibi.repeat(batch_size, 1, 1)
-        return alibi
+        return alibi[0]
 
     def forward(self, hidden_states, attention_mask=None,
                 layer_past=None, get_key_value=False):

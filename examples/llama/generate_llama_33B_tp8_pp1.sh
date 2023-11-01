@@ -20,11 +20,11 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 8  \
        --pipeline-model-parallel-size 1  \
-       --num-layers 40  \
-       --hidden-size 5120  \
-       --ffn-hidden-size 13696 \
+       --num-layers 60  \
+       --hidden-size 6656  \
+       --ffn-hidden-size 17920 \
        --load "${CHECKPOINT}"  \
-       --num-attention-heads 40  \
+       --num-attention-heads 52  \
        --max-position-embeddings 2048 \
        --tokenizer-type PretrainedFromHF  \
        --tokenizer-name-or-path "$VOCAB_FILE" \
@@ -34,4 +34,3 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --seq-length 1024 \
        --max-new-tokens 256 \
        --seed 42
-       --position-embedding-type alibi \
