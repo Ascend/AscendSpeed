@@ -364,7 +364,7 @@ The relative error between NPU and Reference Loss is less than 0.02 throughout, 
 ![NPU-Relative-Error](../../sources/images/baichuan/baichuan13B-loss-relative-error.png)
 \
 \
-<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring network security.</font>
+<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring website security.</font>
 
 
 

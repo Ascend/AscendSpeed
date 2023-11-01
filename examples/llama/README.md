@@ -79,18 +79,18 @@ pip install -r requirements.txt
     if zero_sd_list is None or len(zero_sd_list) == 0:
         return False
 ```
-3. Download the LLaMA-7B/13B tokenizer model and file from [here](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main) 
+3. Download the LLaMA-7B/13B tokenizer model and file from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main) 
 
 
 ```shell
   #!/bin/bash
   mkdir -p dataset/llama
   cd ./dataset/llama
-  wget https://huggingface.co/decapoda-research/llama-7b-hf/tree/main/config.json
-  wget https://huggingface.co/decapoda-research/llama-7b-hf/tree/main/generation_config.json
-  wget https://huggingface.co/decapoda-research/llama-7b-hf/tree/main/special_tokens_map.json
-  wget https://huggingface.co/decapoda-research/llama-7b-hf/tree/main/tokenizer.model
-  wget https://huggingface.co/decapoda-research/llama-7b-hf/tree/main/tokenizer_config.json
+  wget https://huggingface.co/yahma/llama-7b-hf/tree/main/config.json
+  wget https://huggingface.co/yahma/llama-7b-hf/tree/main/generation_config.json
+  wget https://huggingface.co/yahma/llama-7b-hf/tree/main/special_tokens_map.json
+  wget https://huggingface.co/yahma/llama-7b-hf/tree/main/tokenizer.model
+  wget https://huggingface.co/yahma/llama-7b-hf/tree/main/tokenizer_config.json
   cd ..
 ```
 
@@ -120,21 +120,21 @@ python ./tools/preprocess_data.py \
 
 5. Weights convert
 
-Download the LLaMA-7B checkpoint from [here](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main) 
+Download the LLaMA-7B checkpoint from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main) 
 ```shell
   mkdir model_from_hf
   cd ./model_from_hf
   # you must install git-lfs
-  git clone https://huggingface.co/decapoda-research/llama-7b-hf
+  git clone https://huggingface.co/yahma/llama-7b-hf
   cd ..
 ```
 
-Download the LLaMA-13B checkpoint from [here](https://huggingface.co/decapoda-research/llama-13b-hf/tree/main) 
+Download the LLaMA-13B checkpoint from [here](https://huggingface.co/yahma/llama-13b-hf/tree/main) 
 ```shell
   mkdir model_from_hf
   cd ./model_from_hf
   # you must install git-lfs
-  git clone https://huggingface.co/decapoda-research/llama-13b-hf
+  git clone https://huggingface.co/yahma/llama-13b-hf
   cd ..
 ```
 
@@ -293,7 +293,7 @@ cd ./tokenizer
 
 # make sure you have git-lfs installed (https://git-lfs.com)
 git lfs install
-git clone https://huggingface.co/decapoda-research/llama-33b-hf
+git clone https://huggingface.co/pinkmanlove/llama-33b-hf
 cd ..
 ```
 
@@ -304,7 +304,7 @@ cd ./tokenizer
 
 # make sure you have git-lfs installed (https://git-lfs.com)
 git lfs install
-git clone https://huggingface.co/decapoda-research/llama-65b-hf
+git clone https://huggingface.co/pinkmanlove/llama-65b-hf
 cd ..
 ```
 4.In order to adapt to llama-33B/65B model, the following script is used to convert the model pre-training weights
@@ -341,8 +341,8 @@ python $SCRIPT_PATH \
 wget http://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.jason
 
 # download tokenizer configs nad (selective) weights from
-# http://huggingface.co/decapoda-research/llama-33b-hf
-# http://huggingface.co/decapoda-research/llama-65b-hf
+# http://huggingface.co/pinkmanlove/llama-33b-hf
+# http://huggingface.co/pinkmanlove/llama-65b-hf
 # revise "LLaMATokenizer" as "LLaMTokenizer" in tokenizer_config.json
 mkdir dataset
 python tools/preprocess_data.py --input alpaca_data.json\
@@ -452,4 +452,4 @@ You may also consider original work in your reference:
 ```
 \
 \
-<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring network security.</font>
+<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring website security.</font>

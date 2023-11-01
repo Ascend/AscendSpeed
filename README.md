@@ -212,7 +212,7 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 
-3. Prepare dataset (download tokenizer configs from [here](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main)):
+3. Prepare dataset (download tokenizer configs from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main)):
 ```bash
 # for llama, download alpaca dataset, like
 wget https://raw.githubusercontent.com/tatsu-lab/stanford_alpaca/main/alpaca_data.json
@@ -227,7 +227,7 @@ python tools/preprocess_data.py --input alpaca_data.json \
                                 --handler-name GeneralInstructionHandler
 ```
 
-4. (Selective) Prepare pretrained weights (download weights from [here](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main)):
+4. (Selective) Prepare pretrained weights (download weights from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main)):
 ```bash
 python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir ../llama-7b-hf \
                                                                     --output-model-dir ckpt \
@@ -403,7 +403,7 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
 wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
 
 # download tokenizer configs and (selective) weights from 
-# https://huggingface.co/decapoda-research/llama-7b-hf/tree/main
+# https://huggingface.co/yahma/llama-7b-hf/tree/main
 # revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
 mkdir dataset
 python tools/preprocess_data.py --input train-00000-of-00001-a09b74b3ef9c3b56.parquet \
@@ -419,7 +419,7 @@ python tools/preprocess_data.py --input train-00000-of-00001-a09b74b3ef9c3b56.pa
 ##### wikipedia dataset 
 
 + download [wikipedia data](https://huggingface.co/datasets/wikipedia/tree/main) from huggingface to WORKSPACE/wikipedia
-+ download [llama tokenizer model and config](https://huggingface.co/decapoda-research/llama-7b-hf/tree/main) from huggingface to WORKSPACE/llama-7b-hf
++ download [llama tokenizer model and config](https://huggingface.co/yahma/llama-7b-hf/tree/main) from huggingface to WORKSPACE/llama-7b-hf
 + use preprocessing script to preprocess wikipedia data
 
 ```shell
@@ -481,7 +481,7 @@ python tools/preprocess_data.py --input WORKSPACE/train-00000-of-00001-a09b74b3e
 # wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
 
 # download tokenizer configs and (selective) weights from 
-# https://huggingface.co/decapoda-research/llama-7b-hf/tree/main
+# https://huggingface.co/yahma/llama-7b-hf/tree/main
 # revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
 
 cd WORKSPACE
@@ -764,7 +764,7 @@ responses = model.generate(
 ### Quick Start
 ```bash
 # Configure model path and vocab_file path
-# Vocab file can be downloaded from https://huggingface.co/decapoda-research/llama-7b-hf
+# Vocab file can be downloaded from https://huggingface.co/yahma/llama-7b-hf
 CHECKPOINT=../models/llama-7b-tp2-pp4/
 VOCAB_FILE=../models/llama7b-hf/
 # configure task and data path
@@ -876,7 +876,7 @@ TASK="boolq"
 ```
 \
 \
-<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring network security.</font>
+<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring website security.</font>
 
 ## Public IP Address Decription
 There is some basic information of AscendSpeed in the file of 'package_info.py'. As you can see, there is our repository link: https://gitee.com/ascend/AscendSpeed.
