@@ -31,11 +31,12 @@ from ascendspeed import print_rank_0
 from ascendspeed import get_timers
 from ascendspeed import get_tokenizer
 from ascendspeed.core import parallel_state, tensor_parallel
-from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
+from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets as build_pretrain_dataset
+from ascendspeed.data.decoder_packed_mtf_dataset import build_train_valid_test_datasets as build_instruction_dataset
 from ascendspeed.model import LlamaModel, LlamaModelPipe
 from ascendspeed.core.enums import ModelType
 from ascendspeed.training import pretrain
-from ascendspeed.utils import get_ltor_masks_and_position_ids
+from ascendspeed.utils import get_ltor_masks_and_position_ids, get_tune_attention_mask
 from ascendspeed.utils import average_losses_across_data_parallel_group
 from ascendspeed.arguments import core_transformer_config_from_args
 
@@ -47,8 +48,8 @@ from deepspeed.accelerator.real_accelerator import get_accelerator
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
 
-    print_rank_0('building llama model ...')
-    see_memory_usage(f"Before Building Model", force=True)
+    print_rank_0('Building llama model ...')
+    see_memory_usage(f"Before Building Model ...", force=True)
 
     args = get_args()
     config = core_transformer_config_from_args(get_args())
@@ -67,7 +68,8 @@ def model_provider(pre_process=True, post_process=True):
             # pipeline it as an activation during training. The mask is constant, and thus
             # we can reuse it.
             attention_mask = torch.tril(torch.ones(
-                (1, args.seq_length, args.seq_length), device=get_accelerator().current_device_name())).view(
+                (1, args.seq_length, args.seq_length),
+                device=get_accelerator().current_device_name())).view(
                 1, 1, args.seq_length, args.seq_length)
 
             # Convert attention mask to binary:
@@ -94,32 +96,22 @@ def model_provider(pre_process=True, post_process=True):
 
 def get_batch(data_iterator):
     """Generate a batch"""
-    args = get_args()
-    tokenizer = get_tokenizer()
-
-    # Items and their type.
-    keys = ['text']
-    data_type = torch.int64
 
     # Broadcast data.
-    if data_iterator is not None:
+    if hasattr(data_iterator, '__next__'):
         data = next(data_iterator)
     else:
-        data = None
-    data_b = tensor_parallel.broadcast_data(keys, data, data_type)
+        if isinstance(data_iterator, list):
+            return data_iterator.pop(0)
+        else:
+            data = None
 
-    # Unpack.
-    tokens_ = data_b.get('text').long()
-    labels = tokens_[:, 1:].contiguous()
-    tokens = tokens_[:, :-1].contiguous()
-
-    # Get the masks and postition ids.
-    attention_mask, loss_mask, _ = get_ltor_masks_and_position_ids(
-        tokens,
-        tokenizer.eod,
-        args.reset_position_ids,
-        args.reset_attention_mask,
-        args.eod_mask_loss)
+    (tokens, attention_mask), (labels, loss_mask) = get_batch_pipe(data)
+    args = get_args()
+    if args.foldx_mode is not None:
+        if hasattr(data_iterator, 'dummy_iterators'):
+            for iterator in data_iterator.dummy_iterators:
+                iterator.append((tokens, labels, loss_mask, attention_mask,))
 
     return tokens, labels, loss_mask, attention_mask
 
@@ -155,6 +147,25 @@ def get_batch_pipe(data):
     args = get_args()
     tokenizer = get_tokenizer()
 
+    if args.is_instruction_dataset:
+        # Items and their type.
+        keys = ['input_ids', 'attention_mask', 'labels']
+        data_type = torch.int64
+
+        # Broadcast data.
+        data_b = tensor_parallel.broadcast_data(keys, data, data_type)
+
+        # Unpack.
+        labels = data_b.get('labels').long()
+        tokens = data_b.get('input_ids').long()
+        attention_mask_1d = data_b.get('attention_mask').long()
+        # ignored label -100
+        loss_mask = torch.where(labels == -100, 0, 1)
+
+        attention_mask = get_tune_attention_mask(attention_mask_1d, args.reset_attention_mask)
+
+        return (tokens, attention_mask), (labels, loss_mask)
+
     # Items and their type.
     keys = ['text']
     data_type = torch.int64
@@ -176,8 +187,10 @@ def get_batch_pipe(data):
         args.eod_mask_loss)
     return (tokens, attention_mask), (labels, loss_mask)
 
+
 def loss_func(loss_mask, output_tensor):
     args = get_args()
+
     losses = output_tensor.float()
     loss_mask = loss_mask.view(-1).float()
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
@@ -190,11 +203,14 @@ def loss_func(loss_mask, output_tensor):
 def forward_step(data_iterator, model):
     """Forward step."""
     args = get_args()
+
     timers = get_timers()
     # Get the batch.
-    timers('batch-generator').start()
+    if args.foldx_mode is None:
+        timers('batch-generator').start()
     tokens, labels, loss_mask, attention_mask = get_batch(data_iterator)
-    timers('batch-generator').stop()
+    if args.foldx_mode is None:
+        timers('batch-generator').stop()
 
     output_tensor = model(tokens, attention_mask, labels=labels)
     # Output_tensor stores the standard loss, loos_func calculates the total loss.
@@ -207,7 +223,8 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
     print_rank_0('> building train, validation, and test datasets '
                  'for llama ...')
-    train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
+    build_dataset_func = build_instruction_dataset if args.is_instruction_dataset else build_pretrain_dataset
+    train_ds, valid_ds, test_ds = build_dataset_func(
         data_prefix=args.data_path,
         data_impl=args.data_impl,
         splits_string=args.split,

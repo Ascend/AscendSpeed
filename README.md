@@ -495,7 +495,8 @@ python tools/preprocess_data.py --input WORKSPACE/alpaca/train-00000-of-00001-a0
 ```
 
 After preprocessing, there will be three `bin` files and three `idx` files in the `WORKSPACE/alpaca_preprocessed` dictionary.
-Then, We can train a model with `--data-path WORKSPACE/alpaca_preprocessed/alpaca` and `--is-instruction-dataset` flags.
+Then, We can train a model with `--data-path WORKSPACE/alpaca_preprocessed/alpaca` and `--is-instruction-dataset` flags. 
+In addition, we have developed the dynamic padding function based on the instruction dataset, which can be implemented using the `--variable-seq-lengths` flag.
 
 Note that instruction dataset has a `--handler-name GeneralInstructionHandler` flag which will choose `GeneralInstructionHandler` class to create prompt in `ascendspeed/data/data_handler.py`.
 If you have an alpaca-style dataset which have `instruction`, `input` and `output` columns, just use `GeneralInstructionHandler`.
@@ -721,9 +722,9 @@ responses = model.generate(
       <td><a href="https://huggingface.co/datasets/openai_humaneval">HumanEval</a></td>
       <td>Test</td>
       <th>Llama7b</th>
-      <td>0.116</td>
-      <td>0.115</td>
-      <td><a href="https://opencompass.org.cn/dataset-detail/HumanEval">0.112</a></td>
+      <td>0.128</td>
+      <td>0.128</td>
+      <td><a href="https://opencompass.org.cn/dataset-detail/HumanEval">0.128</a></td>
     </tr>
     <tr>
       <td><a href="https://huggingface.co/datasets/boolq">BoolQ</a></td>
