@@ -313,7 +313,14 @@ def parse_args(extra_args_provider=None, defaults={},
     args.swiglu = False
     args.fp8_e4m3 = False
     args.fp8_hybrid = False
-    args.group_query_attention = False
+
+    if args.group_query_attention and args.position_embedding_type != PositionEmbeddingType.rotary:
+        raise NotImplementedError(
+                    'Currently the group query attention only '
+                    'support rotary position embedding.')
+
+    error_message = 'Triangle attn and flash attention should not be used at the same time.'
+    ensure_valid(not (args.triangle_attn and args.use_flash_attn), error_message)
     # AML
     if args.aml_data_download_path is not None:
         data_paths = []
@@ -438,6 +445,9 @@ def _add_network_size_args(parser):
     group.add_argument('--mlp-layer-fusion', action='store_true',
                        help='Fuse gate and upprojection in MLP for llama families, '
                        'e.g. llama or internlm')
+    group.add_argument('--use-flash-attn', action='store_true',
+                       default=False,
+                       help='Use flash attention')
     return parser
 
 
