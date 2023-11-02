@@ -29,7 +29,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
-       --num-layers 4 \
+       --num-layers 2 \
        --hidden-size 4096 \
        --num-attention-heads 32 \
        --micro-batch-size 2 \
@@ -56,7 +56,6 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --log-interval 1 \
        --save-interval 10000 \
        --eval-interval 1000 \
-       --eval-iters 5 \
        --fp16
 
 # save lora adapter
@@ -70,7 +69,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
-       --num-layers 4 \
+       --num-layers 2 \
        --hidden-size 4096 \
        --num-attention-heads 32 \
        --micro-batch-size 2 \
@@ -97,8 +96,8 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --log-interval 1 \
        --save-interval 10000 \
        --eval-interval 1000 \
-       --eval-iters 5 \
        --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
+       --lora-modules-to-save word_embeddings lm_head.lm_head \
        --fp16
 
 # load lora adapter
@@ -112,7 +111,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --no-contiguous-buffers-in-local-ddp \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
-       --num-layers 4 \
+       --num-layers 2 \
        --hidden-size 4096 \
        --num-attention-heads 32 \
        --micro-batch-size 2 \
@@ -141,6 +140,6 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --log-interval 1 \
        --save-interval 10000 \
        --eval-interval 1000 \
-       --eval-iters 5 \
        --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
+       --lora-modules-to-save word_embeddings lm_head.lm_head \
        --fp16
