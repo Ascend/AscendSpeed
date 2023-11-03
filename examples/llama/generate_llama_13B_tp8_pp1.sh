@@ -22,7 +22,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --pipeline-model-parallel-size 1  \
        --num-layers 40  \
        --hidden-size 5120  \
-       --ffn-hidden-size 13696 \
+       --ffn-hidden-size 13824 \
        --load "${CHECKPOINT}"  \
        --num-attention-heads 40  \
        --max-position-embeddings 2048 \
@@ -34,4 +34,3 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --seq-length 1024 \
        --max-new-tokens 256 \
        --seed 42
-       --position-embedding-type alibi \

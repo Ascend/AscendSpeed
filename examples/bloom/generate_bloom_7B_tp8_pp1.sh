@@ -34,8 +34,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --tokenizer-not-use-fast \
        --fp16 \
        --micro-batch-size 1 \
-       --seq-length 2048 \
-       --max-new-tokens 64 \
+       --seq-length 1024 \
+       --max-new-tokens 256 \
        --seed 42 \
        --load "${CHECKPOINT}"  \
        --embed-layernorm \

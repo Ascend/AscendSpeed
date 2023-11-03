@@ -235,7 +235,7 @@ class MegatronModuleForCausalLMABC(torch.nn.Module, abc.ABC):
         self.pad_token_id = None
         self.num_return_sequences = 1
         self.length_penalty = 1.0
-        self.tokenizer = None
+        self.tokenizer_new = None
         self.recompute = True
         self.detokenize = True
         self.include_input = False
@@ -334,7 +334,7 @@ class MegatronModuleForCausalLMABC(torch.nn.Module, abc.ABC):
         self.pad_token_id = kwargs.pop("pad_token_id", None)
         self.num_return_sequences = kwargs.pop("num_return_sequences", 1)
         self.length_penalty = kwargs.pop("length_penalty", 1.0)
-        self.tokenizer = kwargs.pop("tokenizer", None)
+        self.tokenizer_new = kwargs.pop("tokenizer", None)
         self.recompute = kwargs.pop("recompute", True)
         self.detokenize = kwargs.pop("detokenize", True)
         self.include_input = kwargs.pop("include_input", False)
@@ -362,7 +362,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         self.padded_vocab_size = args.padded_vocab_size
         self.pipeline_size_larger_than_one = args.pipeline_model_parallel_size > 1
 
-        self.tokenizer_ori = get_tokenizer().tokenizer
+        self.tokenizer = get_tokenizer().tokenizer
 
         # import module to avoid error of circular import
         self.greedy_search_or_sampling = greedy_search_or_sampling
@@ -570,9 +570,12 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         return self._check_output(output, self.stream)
 
     def _init_tokenizer(self, args):
-        if self.tokenizer is None:
+        if self.tokenizer_new is None:
             self.tokenizer = ascendspeed.global_vars.rebuild_tokenizer(
-                args, tokenizer=self.tokenizer_ori)
+                args, tokenizer=self.tokenizer)
+        else:
+            self.tokenizer = ascendspeed.global_vars.rebuild_tokenizer(
+                args, tokenizer=self.tokenizer_new)
 
         if self.pad_token_id is not None:
             self.tokenizer.pad_token_id = self.pad_token_id

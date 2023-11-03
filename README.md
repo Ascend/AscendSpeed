@@ -324,9 +324,9 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
   <tbody>
     <tr>
       <td> Baichaun </td>
-      <td> 7B </td>
+      <td> 13B </td>
       <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/generate_baichuan_13B_tp8_pp1.sh">inference</a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
@@ -357,28 +357,28 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td rowspan="4">LLaMA</td>
       <td>7B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">inference </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td>13B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_13B_tp8_pp1.sh">inference </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td>33B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_33B_tp8_pp1.sh">inference </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td > 65B </td>
       <td > -- </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_65B_tp8_pp1.sh">inference </a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
@@ -386,12 +386,13 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td>LLaMA2</td>
       <td>7B</td>
       <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">inference </a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
   </tbody>
 </table>
+
 
 
 
@@ -507,7 +508,15 @@ In addition, `BelleMultiTurnInstructionHandler` is used to handle [belle dataset
 ### <span id="jump12"> Finetune </span>
 #### Lora
 
-Now, we support Lora to fine-tune your models. You just need to add this argument in your script to open Lora:
+Now, we support Lora to fine-tune your models. 
+
+First, you need to install version 0.4.0 of the peft library, like this:
+```shell
+pip install peft==0.4.0
+```
+You can also choose to install from [the source package in the GitHub repository](https://github.com/huggingface/peft/archive/refs/tags/v0.4.0.tar.gz), so you can modify the setup.py file to avoid some dependency issues.
+
+Next, you just need to add this argument in your script to open Lora:
 
 ```shell
 # Llama example
@@ -550,8 +559,8 @@ AscendSpeed:
 ### <span id="jump13"> Inference </span>
 Currently, we support the following four strategies for inference:
 - PTD only
-- Deepspeed ZeRO only
-- Deepspeed ZeRO in PIPELINE with TP
+- DeepSpeed ZeRO only
+- DeepSpeed ZeRO in PIPELINE with TP
 - Model fine-tuned with lora
 
 #### Quick Start
@@ -559,39 +568,46 @@ Here are some example scripts in different mode mentioned above for you to launc
 
 ***Please Note that:***
 1. If you want to use the weight from huggingface, please run the weight conversion script first. 
-Take Llama-7B, for example:
-    ```bash
-    python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
-                                                                        --output-model-dir llama-7b-tp2-pp2 \
-                                                                        --tensor-model-parallel-size 2 \
-                                                                        --pipeline-model-parallel-size 2 \
-                                                                        --type 7B
-    ```
-    Here are some open source model weights available for download:
-    - [Llama-7B](https://huggingface.co/yahma/llama-7b-hf/tree/main)
-    - [Llama-13B](https://huggingface.co/yahma/llama-13b-hf/tree/main)
-
+    Take Llama-7B, for example:
+    
+      - PTD only
+    
+           ```bash
+           python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
+                                                                               --output-model-dir llama-7b-tp2-pp2 \
+                                                                               --tensor-model-parallel-size 2 \
+                                                                               --pipeline-model-parallel-size 2 \
+                                                                               --type 7B
+           ```
+    
+    - DeepSpeed ZeRO only
+        ```bash
+        python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
+                                                                            --output-model-dir llama-7b-deepspeed \
+                                                                            --type 7B \
+                                                                            --deepspeed
+        ```
+    
 2. You need to modify some variables in the shell script such as **model weight path** and **vocab path**.
 
     - **PTD only:** In this mode, the model is split by pipeline parallel and tensor parallel mode in megatron ways.
-    ```bash
-    sh examples/llama/generate_llama_7B_tp2_pp2.sh
-    ```
+        ```bash
+        sh examples/llama/generate_llama_7B_tp2_pp2.sh
+        ```
     - **Deepspeed ZeRO only:** In this mode, the model uses DeepSpeed ZeRO 1, 2 or 3 definition with tp=1, pp=1.
-    ```bash
-    sh examples/llama/generate_alpaca_13B_deepspeed.sh
-    ```
+        ```bash
+        sh examples/alpaca/generate_alpaca_13B_deepspeed.sh
+        ```
     - **Deepspeed ZeRO in Pipe with TP:** In this mode, the model uses pipe model definition in DeepSpeed ZeRO 1, 2 or 3 with tp>1, pp=1.
-    ```bash
-    sh examples/llama/generate_llama_7B_deepspeed_pipeline.sh
-    ```
+        ```bash
+        sh examples/llama/generate_llama_7B_deepspeed_pipeline.sh
+        ```
     - **If you want to use lora model**, for details, refer to:
-    ```bash
-    sh examples/llama/generate_alpaca_13B_lora_deepspeed.sh
-    ```
+        ```bash
+        sh examples/alpaca/generate_alpaca_13B_lora_deepspeed.sh
+        ```
+
 ***Some examples with [Chinese-LLaMA-Alpaca-13B weights](https://github.com/ymcui/Chinese-LLaMA-Alpaca) is see [here](#case1)***
-
-
 
 #### Usage Guide
 Follow these steps to write your own inference code:
@@ -638,53 +654,53 @@ pretrained_model_name_or_path(`str`, *optional*, defaults to None):
 ```
 ##### <span id="case1"> Generate text in HuggingFace-like ways </span>
 
-###### Greedy
-```python
-responses = model.generate(
-    "Write quick sort code in python",
-    max_new_tokens=512
-)
-```
-<img src="sources/images/greedy.png">
+- Greedy Search
+    ```python
+    responses = model.generate(
+        "Write quick sort code in python",
+        max_new_tokens=512
+    )
+    ```
+    <img src="sources/images/greedy.png">
 
-###### Do sample with Top-k and Top-p
-```python
-responses = model.generate(
-    "Write quick sort code in python",
-    do_sample=True,
-    temperature=1.0,
-    top_k=50,
-    top_p=0.95,
-    max_new_tokens=512
-)
-```
-<img src="sources/images/sampling.png">
+- Do sample with top-k and top-p
+    ```python
+    responses = model.generate(
+        "Write quick sort code in python",
+        do_sample=True,
+        temperature=1.0,
+        top_k=50,
+        top_p=0.95,
+        max_new_tokens=512
+    )
+    ```
+    <img src="sources/images/sampling.png">
 
-###### Beam search with Top-k and Top-p
-```python
-responses = model.generate(
-    "Write quick sort code in python",
-    num_beams=4,
-    top_k=50,
-    top_p=0.95,
-    max_new_tokens=512
-)
-```
-<img src="sources/images/beam_search.png">
+- Beam search with top-k and top-p
+    ```python
+    responses = model.generate(
+        "Write quick sort code in python",
+        num_beams=4,
+        top_k=50,
+        top_p=0.95,
+        max_new_tokens=512
+    )
+    ```
+    <img src="sources/images/beam_search.png">
 
-###### Beam search with Top-k and Top-p sampling
-```python
-responses = model.generate(
-    "Write quick sort code in python",
-    do_sample=True,
-    temperature=0.6,
-    num_beams=4,
-    top_k=50,
-    top_p=0.95,
-    max_new_tokens=512
-)
-```
-<img src="sources/images/beam_search_sampling.png">
+- Beam search with top-k and top-p sampling
+    ```python
+    responses = model.generate(
+        "Write quick sort code in python",
+        do_sample=True,
+        temperature=0.6,
+        num_beams=4,
+        top_k=50,
+        top_p=0.95,
+        max_new_tokens=512
+    )
+    ```
+    <img src="sources/images/beam_search_sampling.png">
 
 ## <span id="jump14"> Evaluation with Benchmarks </span>
 ### Quick Show
