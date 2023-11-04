@@ -199,8 +199,10 @@ class DistributedDataParallel(DistributedDataParallelBase):
         return param_hook
 
     def zero_grad_buffer(self):
-        """Set the grad buffer data to zero. Needs to be called at the
-        begining of each iteration."""
+        """
+        Set the grad buffer data to zero. Needs to be called at the
+        begining of each iteration.
+        """
         error_message = 'buffers are not initialized.'
         ensure_var_is_not_none(self._grad_buffers, error_message)
         for _, buffer_ in self._grad_buffers.items():

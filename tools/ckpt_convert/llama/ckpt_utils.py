@@ -62,7 +62,7 @@ def vocab_size_with_padding(orig_vocab_size, make_vocab_size_divisible_by, tp):
 
 
 def pad_embed(w, make_vocab_size_divisible_by, tp, added_token_num):
-    padded_size = vocab_size_with_padding(w.shape[0]+added_token_num, make_vocab_size_divisible_by, tp)
+    padded_size = vocab_size_with_padding(w.shape[0] + added_token_num, make_vocab_size_divisible_by, tp)
     if padded_size == w.shape[0]:
         return w.clone()
     return torch.cat([w, w[-(padded_size - w.shape[0]):, ...]], dim=0)

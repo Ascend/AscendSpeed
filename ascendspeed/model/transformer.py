@@ -110,7 +110,7 @@ class ParallelMLP(MegatronModule):
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
         if self.bias_gelu_fusion:
-             intermediate_parallel = \
+            intermediate_parallel = \
                      torch_npu.fast_gelu(intermediate_parallel + bias_parallel)
         else:
             intermediate_parallel = \
@@ -834,13 +834,15 @@ class ParallelTransformer(MegatronModule):
         return hidden_states, moe_losses
 
     def set_input_tensor(self, input_tensor):
-        """Set input tensor to be used instead of forward()'s input.
+        """
+        Set input tensor to be used instead of forward()'s input.
 
         When doing pipeline parallelism the input from the previous
         stage comes from communication, not from the input, so the
         model's forward_step_func won't have it. This function is thus
         used by internal code to bypass the input provided by the
-        forward_step_func"""
+        forward_step_func
+        """
         if isinstance(input_tensor, (list, tuple)):
             self.input_tensor = input_tensor[0]
         else:
@@ -872,7 +874,7 @@ class ParallelTransformer(MegatronModule):
                 hidden_states = self.input_tensor
 
             if encoder_output is not None:
-                 encoder_output = encoder_output.transpose(0, 1).contiguous()
+                encoder_output = encoder_output.transpose(0, 1).contiguous()
 
         moe_losses = []
         if self.checkpoint_activations:

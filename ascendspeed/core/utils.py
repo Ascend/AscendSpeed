@@ -110,6 +110,7 @@ class MakeViewlessTensor(torch.autograd.Function):
     @staticmethod
     def forward(ctx, inp, requires_grad):
         return _kernel_make_viewless_tensor(inp, requires_grad)
+    
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output, None

@@ -332,7 +332,6 @@ class _AutoTokenizer(AbstractTokenizer):
         super().__init__(name)
         hf_tokenizer_kwargs = {}
         if vocab_extra_ids > 0:
-            # TODO @thomasw21 we might need to concatenate to a pre-existing list?
             hf_tokenizer_kwargs["additional_special_tokens"] = [f"<extra_id_{_id}>" for _id in range(vocab_extra_ids)]
        
         hf_tokenizer_kwargs["model_max_length"] = model_max_length
@@ -350,7 +349,6 @@ class _AutoTokenizer(AbstractTokenizer):
 
     @property
     def vocab(self):
-        # TODO @thomasw21 make sure that special tokens don't collapse with vocab tokens.
         return {
             **{special_token: self.tokenizer.convert_tokens_to_ids(special_token) 
             for special_token in self.tokenizer.additional_special_tokens},
@@ -369,7 +367,6 @@ class _AutoTokenizer(AbstractTokenizer):
 
     @property
     def eod(self):
-        # TODO @thomasw21 might conflict with <eos>
         return self.eos
 
     @property
@@ -403,7 +400,6 @@ class _AutoTokenizer(AbstractTokenizer):
 
     @property
     def eos(self):
-        # TODO @thomasw21 might conflict with the notion of <eod>
         candidate = self.tokenizer.eos_token_id
         return self._check_token_candidate(candidate)
 

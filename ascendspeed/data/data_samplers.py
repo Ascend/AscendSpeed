@@ -81,6 +81,7 @@ def build_pretraining_data_loader(dataset, consumed_samples):
                                        collate_fn=collator,
                                        pin_memory=True)
 
+
 class MegatronPretrainingSampler:
 
     def __init__(self, total_samples, consumed_samples, micro_batch_size,
