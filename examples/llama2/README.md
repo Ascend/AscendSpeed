@@ -57,7 +57,7 @@ Here's a software summary of pre-training  LLaMA2-7B:
     pip install apex-0.1_ascend*-cp37-cp37m-linux_aarch64.whl
     
     # install megatron-core
-    pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
+    pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
     
     # install deepspeed and deepspeed_npu
     pip install deepspeed==0.9.2

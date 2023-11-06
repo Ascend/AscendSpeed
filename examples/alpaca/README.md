@@ -176,7 +176,7 @@ pip install torch-2.0.1-cp38-cp38-manylinux2014_aarch64.whl
 pip install torch_npu-2.0.1rc1.post_XXXXXX-cp38-cp38-linux_aarch64.whl
 
 # install megatron-core
-pip3 install -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
+pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
 
 # install deepspeed and deepspeed_npu
 pip install deepspeed==0.9.2
