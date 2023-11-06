@@ -24,16 +24,6 @@ try:
 except Exception as e:
     logging.warning("Warning: You did not install torch_npu or deepspeed_npu")
 
-from .package_info import (
-    __description__,
-    __contact_names__,
-    __url__,
-    __download_url__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __version__,
-)
 
 if 'amp_C' in sys.modules:
     del sys.modules['amp_C']

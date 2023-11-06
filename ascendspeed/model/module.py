@@ -44,8 +44,10 @@ def param_is_not_shared(param):
 
 
 class MegatronModule(torch.nn.Module):
-    """Megatron specific extensions of torch Module with support
-    for pipelining."""
+    """
+    Megatron specific extensions of torch Module with support
+    for pipelining.
+    """
 
     def __init__(self, config=None, share_embeddings_and_output_weights=True):
         super(MegatronModule, self).__init__()
@@ -54,8 +56,10 @@ class MegatronModule(torch.nn.Module):
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='',
                                        keep_vars=False):
-        """Use this function to override the state dict for
-        saving checkpoints."""
+        """
+        Use this function to override the state dict for
+        saving checkpoints.
+        """
         return self.state_dict(destination, prefix, keep_vars)
 
     def shared_embedding_or_output_weight(self):
@@ -136,8 +140,10 @@ class MegatronModule(torch.nn.Module):
 
 
 def conversion_helper(val, conversion):
-    """Apply conversion to val. Recursively apply conversion if `val`
-    #is a nested tuple/list structure."""
+    """
+    Apply conversion to val. Recursively apply conversion if `val`
+    #is a nested tuple/list structure.
+    """
     if not isinstance(val, (tuple, list)):
         return conversion(val)
     rtn = [conversion_helper(v, conversion) for v in val]

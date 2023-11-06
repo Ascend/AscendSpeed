@@ -142,16 +142,16 @@ def data_post_process(data, data_sampler_state_dict):
             args.data_efficiency_curriculum_learning_seqlen_type = 'seqlen_truncate'
             current_seqlen = data_sampler_state_dict['current_difficulties']['seqlen_truncate']
             if current_seqlen < args.seq_length:
-                data['text'] = data['text'][:, :(current_seqlen+1)].contiguous()
+                data['text'] = data['text'][:, :(current_seqlen + 1)].contiguous()
         elif 'seqlen_reshape' in data_sampler_state_dict['current_difficulties']:
             args.data_efficiency_curriculum_learning_seqlen_type = 'seqlen_reshape'
             current_seqlen = data_sampler_state_dict['current_difficulties']['seqlen_reshape']
             if current_seqlen < args.seq_length:
                 orig_num_token = torch.numel(data['text'])
-                reshape_len = (data['text'].size()[1] // (current_seqlen+1)) * (current_seqlen+1)
-                data['text'] = torch.cat((data['text'][:, :reshape_len].contiguous().view(-1, current_seqlen+1),
-                    data['text'][:, -(current_seqlen+1):]), 0).contiguous()
-                num_row = math.ceil(orig_num_token / (current_seqlen+1))
+                reshape_len = (data['text'].size()[1] // (current_seqlen + 1)) * (current_seqlen + 1)
+                data['text'] = torch.cat((data['text'][:, :reshape_len].contiguous().view(-1, current_seqlen + 1),
+                    data['text'][:, -(current_seqlen + 1):]), 0).contiguous()
+                num_row = math.ceil(orig_num_token / (current_seqlen + 1))
                 num_row = min(num_row, data['text'].size()[0])
                 if num_row > 1 and num_row % 2 != 0:
                     num_row -= 1

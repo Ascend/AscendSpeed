@@ -299,10 +299,11 @@ def get_ltor_masks_and_position_ids(data,
 def get_parameters_in_billions(model):
     gpus_per_model = torch.distributed.get_world_size(group=parallel_state.get_model_parallel_group())
 
-    approx_parameters_in_billions = sum([sum([p.ds_numel if hasattr(p,'ds_id') else p.nelement() for p in model_module.parameters()])
+    approx_parameters_in_billions = sum([sum([p.ds_numel if hasattr(p, 'ds_id') else p.nelement() for p in model_module.parameters()])
                                         for model_module in model])
 
-    return approx_parameters_in_billions*gpus_per_model / (1e9)
+    return approx_parameters_in_billions * gpus_per_model / (1e9)
+
 
 def throughput_calculator(model, args, iteration_time, total_iterations):
     gpus_per_model = torch.distributed.get_world_size(group=parallel_state.get_model_parallel_group())
@@ -328,6 +329,7 @@ def throughput_calculator(model, args, iteration_time, total_iterations):
     flops_per_iteration = (24 * checkpoint_activations_factor * batch_size * seq_len * num_layers * (hidden_size**2)) * (1. + (seq_len / (6. * hidden_size)) + (vocab_size / (16. * num_layers * hidden_size)))
     tflops = flops_per_iteration / (elapsed_time_per_iter * args.world_size * (10**12))
     return samples_per_second, tflops, approx_parameters_in_billions
+
 
 def checkpoint_throughput_calculator(model, latency_second):
     approx_parameters_in_billions = get_parameters_in_billions(model)

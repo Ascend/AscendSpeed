@@ -38,6 +38,7 @@ Here's a software summary of pre-training Baichuan-7B:
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 |           torch           |                                                    1.11.0                                                    |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
+|           apex            |       [package](https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/Daily/v1.11.0/20230915.2/pytorch_v1.11.0_py37.tar.gz)       |
 
 
 

@@ -388,7 +388,7 @@ def _add_network_size_args(parser):
 
     group.add_argument('--num-layers', type=int, default=None,
                        help='Number of transformer layers.')
-    group.add_argument('--num-experts', type=int, nargs='+' , default=[1,],
+    group.add_argument('--num-experts', type=int, nargs='+' , default=[1,], 
                            help='number of experts list, MoE related.')
     group.add_argument('--mlp-type', type=str, default='standard',
                            help='Only applicable when num-experts > 1, accepts [standard, residual]')
@@ -459,7 +459,7 @@ def _add_logging_args(parser):
     group.add_argument('--log-num-zeros-in-grad', action='store_true',
                        help='If set, calculate and log the number of zeros in gradient.')
     group.add_argument('--timing-log-level', type=int,
-                       default=0, choices=range(0,3),
+                       default=0, choices=range(0,3), 
                        help='Granularity level to measure and report timing. '
                        '   0: report only iteration time and make sure timing '
                        '      does not introduce extra overhead.'
@@ -1146,7 +1146,7 @@ def _add_distillation_args(parser):
     
     group.add_argument('--num-layers-teacher', type=int, default=None,
                        help='Number of the teacher transformer layers.')                  
-    group.add_argument('--num-experts-teacher', type=int, nargs='+', default=[1,],
+    group.add_argument('--num-experts-teacher', type=int, nargs='+', default=[1,], 
                         help='number of teacher experts list, MoE related.')
     group.add_argument('--hidden-size-teacher', type=int, default=None,
                        help='Tansformer teacher hidden size.')
