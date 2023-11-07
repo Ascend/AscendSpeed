@@ -1,6 +1,8 @@
 #!/bin/bash
 export LD_LIBRARY_PATH=/usr/local/lib:/home/anaconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1600
+# Enable memory reuse in INF_NAN mode can reduce memory usage and achieve lossless performance
+export MULTI_STREAM_MEMORY_REUSE=1
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # If this environment variable is set, all nodes will compile the dataset,
