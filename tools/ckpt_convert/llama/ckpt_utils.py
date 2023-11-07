@@ -68,20 +68,36 @@ def pad_embed(w, make_vocab_size_divisible_by, tp, added_token_num):
     return torch.cat([w, w[-(padded_size - w.shape[0]):, ...]], dim=0)
 
 
-def permute_qkv_weight(w, n_head, hidden_size, tp, split=False):
-    """ adapt for ascendspeed llama qkv layer """
+def permute_qkv_weight(w, model_config, split=False):
+    """
+    adapt for ascendspeed llama qkv layer
+    Notation:
+        n_head: Number of attention heads,
+        kv_heads: Number of key and value heads,
+        tp: Tensor model parallel size,
+        np: Number of attention heads in per tensor partition,
+        gp: Number of key and value heads in per tensor partition,
+    """
+    n_head, hidden_size, tp, kv_heads = model_config
+    if kv_heads is None:
+        kv_heads = n_head
+
     check_divisible(n_head, tp)
     check_divisible(hidden_size, n_head)
+    check_divisible(kv_heads, tp)
+    check_divisible(n_head, kv_heads)
     np = n_head // tp
+    gp = kv_heads // tp
+    repeats = np // gp
     hn = hidden_size // n_head
     w_s0, w_s1 = w.shape
-    check_equal(w_s0, np * hn * 3)
+    check_equal(w_s0, (repeats + 2) * gp * hn)
     if not split:
-        return w.reshape(3, np, hn, w.shape[1]).contiguous().permute(1, 0, 2, 3).reshape(w_s0,
-                                                                                         w_s1).contiguous().clone()
+        return w.reshape(repeats + 2, gp, hn, w.shape[1]).contiguous().permute(
+            1, 0, 2, 3).reshape(w_s0, w_s1).contiguous().clone()
     else:
-        return w.reshape(np, 3, hn, w.shape[1]).contiguous().permute(1, 0, 2, 3).reshape(w_s0,
-                                                                                         w_s1).contiguous().clone()
+        return w.reshape(gp, repeats + 2, hn, w.shape[1]).contiguous().permute(
+            1, 0, 2, 3).reshape(w_s0, w_s1).contiguous().clone()
 
 
 def permute_qkv_bias(bias, n_head, hidden_size, tp, split=False):

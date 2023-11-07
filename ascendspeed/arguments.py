@@ -262,7 +262,8 @@ def parse_args(extra_args_provider=None, defaults={},
         ensure_valid(args.is_instruction_dataset, 'Dynamic padding based on instruction dataset.')
 
     if (args.position_embedding_type == PositionEmbeddingType.absolute or
-     args.position_embedding_type == PositionEmbeddingType.alibi):
+            args.position_embedding_type == PositionEmbeddingType.alibi or
+            args.position_embedding_type == PositionEmbeddingType.rotary):
         ensure_var_is_not_none(args.max_position_embeddings)
         if not args.seq_length:
             ensure_valid(args.max_position_embeddings >= args.seq_length)
