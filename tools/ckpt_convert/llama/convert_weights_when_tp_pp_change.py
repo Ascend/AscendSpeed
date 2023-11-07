@@ -51,7 +51,20 @@ def get_args():
     parser.add_argument("--tgt-pipeline-model-parallel-size", type=int, default=1,
                         help="degree of pipeline model parallel")
     parser.add_argument("--added-token-num", type=int, default=0, help="the number of added tokens")
-    parser.add_argument("--type", type=str, choices=["7B", "13B", "30B", "65B"], default="7B")
+    parser.add_argument("--type", type=str, default="7B",
+                        help="There are four predefined types: [7B, 13B, 30B, 65B]")
+    parser.add_argument("--num_layers", type=int, default=1,
+                        help="num layers")
+    parser.add_argument("--num_heads", type=int, default=1,
+                        help="num heads")
+    parser.add_argument("--num_kv_heads", type=int, default=None,
+                        help="num kv heads")
+    parser.add_argument("--hidden_size", type=int, default=1,
+                        help="hidden size")
+    parser.add_argument("--bias", action="store_true", default=False)
+    parser.add_argument("--deepspeed", action="store_true", default=False)
+    parser.add_argument("--merge-mlp", action="store_true", default=False,
+                        help="Merge gate and up mlp")
 
     return parser.parse_args()
 
@@ -63,6 +76,7 @@ model_config = {
     "65B": [80, 8192, 64]
 }
 
+args = get_args()
 entire_model = {}
 
 
@@ -97,8 +111,8 @@ def merge_pp_tp_models(config):
     pp_size, tp_size = config.pp_size, config.tp_size
     input_model_dir = config.input_model_dir
     orig_vocab_size = config.orig_vocab_size
-    num_layer, num_heads, hid_size = config.num_heads, config.hid_size, config.hid_size
-
+    num_layer, num_heads, hid_size = config.num_layer, config.num_heads, config.hid_size
+    repeats = num_heads // args.num_kv_heads
     global entire_model
     check_divisible(num_heads, tp_size)
     check_divisible(num_layer, pp_size)
@@ -137,14 +151,15 @@ def merge_pp_tp_models(config):
             # qkv split
             qkv_key = "language_model.layers.{}.attention.query_key_value.weight"
             qkv_len = tp_models[0][qkv_key.format(pp_i)].shape[0]
-            check_divisible(qkv_len, 3)
-            s1, s2 = qkv_len // 3, qkv_len // 3 * 2
 
-            qs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], num_heads, hid_size, tp_size, split=True)[:s1,
+            check_divisible(qkv_len, repeats + 2)
+            s1, s2 = qkv_len // (repeats + 2) * repeats, qkv_len // (repeats + 2) * (repeats + 1)
+
+            qs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[:s1,
                   ...].clone() for tm in tp_models]
-            ks = [permute_qkv_weight(tm[qkv_key.format(pp_i)], num_heads, hid_size, tp_size, split=True)[s1:s2,
+            ks = [permute_qkv_weight(tm[qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[s1:s2,
                   ...].clone() for tm in tp_models]
-            vs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], num_heads, hid_size, tp_size, split=True)[s2:,
+            vs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[s2:,
                   ...].clone() for tm in tp_models]
 
             entire_model[qkv_key.format(g_i) + "_query"] = torch.cat(qs, dim=0)
@@ -155,6 +170,12 @@ def merge_pp_tp_models(config):
                                                      "language_model.layers.{}.attention.dense.weight",
                                                      pp_i, g_i, dim=1)
             merge_weight(merge_weight_config1)
+            if args.merge_mlp:
+                mlp_key = "language_model.layers.{}.mlp.".format(g_i)
+                mlp_len = tp_models[0][mlp_key + "proj.weight"].shape[0] // 2
+                for tm in tp_models:
+                    tm[mlp_key + "gate_proj.weight"] = tm[mlp_key + "proj.weight"][:mlp_len].clone()
+                    tm[mlp_key + "up_proj.weight"] = tm[mlp_key + "proj.weight"][mlp_len:].clone()
             merge_weight_config2 = MergeWeightConfig(entire_model, tp_models,
                                                      "language_model.layers.{}.mlp.gate_proj.weight",
                                                      pp_i, g_i, dim=0)
@@ -211,16 +232,26 @@ def generate_ascendspeed_weights(config):
                 qw = row_split(get_weight_from_name(qkv_key + "_query"), tp_size, tp_rank)
                 kw = row_split(get_weight_from_name(qkv_key + "_key"), tp_size, tp_rank)
                 vw = row_split(get_weight_from_name(qkv_key + "_value"), tp_size, tp_rank)
-                permute_w = permute_qkv_weight(torch.cat([qw, kw, vw], dim=0), num_heads, hid_size, tp_size)
+                permute_w = permute_qkv_weight(torch.cat([qw, kw, vw], dim=0), (num_heads, hid_size, tp_size, args.num_kv_heads))
                 rank_model[f"language_model.layers.{pp_i}.attention.query_key_value.weight"] = permute_w
 
                 rank_model[f"language_model.layers.{pp_i}.attention.dense.weight"] = column_split(
                     get_weight_from_name(f"language_model.layers.{g_i}.attention.dense.weight"), tp_size, tp_rank)
 
-                rank_model[f"language_model.layers.{pp_i}.mlp.gate_proj.weight"] = row_split(
+                gate_proj = row_split(
                     get_weight_from_name(f"language_model.layers.{g_i}.mlp.gate_proj.weight"), tp_size, tp_rank)
-                rank_model[f"language_model.layers.{pp_i}.mlp.up_proj.weight"] = row_split(
+                up_proj = row_split(
                     get_weight_from_name(f"language_model.layers.{g_i}.mlp.up_proj.weight"), tp_size, tp_rank)
+                if args.merge_mlp:
+                    rank_model[
+                        f"language_model.layers.{pp_i}.mlp.proj.weight"] = torch.cat(
+                        [gate_proj, up_proj], 0).contiguous().clone()
+                else:
+                    rank_model[
+                        f"language_model.layers.{pp_i}.mlp.gate_proj.weight"] = gate_proj
+                    rank_model[
+                        f"language_model.layers.{pp_i}.mlp.up_proj.weight"] = up_proj
+
                 rank_model[f"language_model.layers.{pp_i}.mlp.down_proj.weight"] = column_split(
                     get_weight_from_name(f"language_model.layers.{g_i}.mlp.down_proj.weight"), tp_size, tp_rank)
 
@@ -248,11 +279,13 @@ def print_result(arg):
 
 
 if __name__ == '__main__':
-    args = get_args()
     if args.type in model_config:
         n_layer, hidden_size, n_heads = model_config[args.type]
     else:
-        raise KeyError(f"{args.type} is not in {model_config}")
+        n_layer, hidden_size, n_heads = args.num_layers, args.hidden_size, args.num_heads
+
+    if args.num_kv_heads is None:
+        args.num_kv_heads = n_heads
 
     check_model_dir(args.input_model_dir, args.src_tensor_model_parallel_size, args.src_pipeline_model_parallel_size)
     make_ascendspeed_model_dirs(args.output_model_dir)
