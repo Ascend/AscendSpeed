@@ -334,7 +334,8 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
 
     def __init__(self, optimizer, clip_grad, log_num_zeros_in_grad,
                  params_have_main_grad, use_contiguous_buffers_in_local_ddp,
-                 fp16, bf16, params_dtype, grad_scaler, models):
+                 fp16, bf16, params_dtype, grad_scaler, models,
+                 use_global_grad_norm=True):
         """
         See top of class definition for argument descriptions.
 
@@ -353,7 +354,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         # Verify that contiguous buffers are being used.
         # - Note: this should already be checked in arguments.py.
         ensure_valid(use_contiguous_buffers_in_local_ddp)
-
+        self.use_global_grad_norm = use_global_grad_norm
         # Model grad buffer ranges.
         self.model_gbuf_ranges = []
         for model_index, model in enumerate(self.models):
@@ -550,29 +551,30 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
         self.allreduce_embedding_grads(args)
         timers('embedding-grads-all-reduce').stop()
 
-        # Reduce-scatter setup.
-        timers('grads-reduce-scatter', log_level=1).start(
-            barrier=args.barrier_with_L1_time)
-        data_parallel_rank = parallel_state.get_data_parallel_rank()
-        data_parallel_world_size = parallel_state.get_data_parallel_world_size()
-        data_parallel_group = parallel_state.get_data_parallel_group()
+        if args.foldx_mode is None:
+            # Reduce-scatter setup.
+            timers('grads-reduce-scatter', log_level=1).start(
+                barrier=args.barrier_with_L1_time)
+            data_parallel_rank = parallel_state.get_data_parallel_rank()
+            data_parallel_world_size = parallel_state.get_data_parallel_world_size()
+            data_parallel_group = parallel_state.get_data_parallel_group()
 
-        # Scale grad buffers by '1 / data_parallel_world_size'.
-        for model in self.models:
-            for dtype, gbuf in model._grad_buffers.items():
-                gbuf.data /= data_parallel_world_size
+            # Scale grad buffers by '1 / data_parallel_world_size'.
+            for model in self.models:
+                for dtype, gbuf in model._grad_buffers.items():
+                    gbuf.data /= data_parallel_world_size
 
-        # Reduce-scatter all grads.
-        gbuf_view_items = self.get_model_grad_buffer_dp_views()
-        for index, (model_index, dtype, gbuf, gbuf_views) \
-                in enumerate(gbuf_view_items):
-            torch.distributed._reduce_scatter_base(
-                gbuf_views[data_parallel_rank],
-                gbuf,
-                group=data_parallel_group,
-            )
+            # Reduce-scatter all grads.
+            gbuf_view_items = self.get_model_grad_buffer_dp_views()
+            for index, (model_index, dtype, gbuf, gbuf_views) \
+                    in enumerate(gbuf_view_items):
+                torch.distributed._reduce_scatter_base(
+                    gbuf_views[data_parallel_rank],
+                    gbuf,
+                    group=data_parallel_group,
+                )
 
-        timers('grads-reduce-scatter').stop()
+            timers('grads-reduce-scatter').stop()
 
     def gather_model_params(self, args, timers):
         """

@@ -1112,6 +1112,7 @@ def forward_backward_pipelining_with_foldx_aiao(*,
             output_tensor = None
         p2p_communication.async_communicate(output_tensor, None, False, False)
 
+    model_gradient_reduces = []
     if not parallel_state.is_pipeline_last_stage():
         _, output_tensor_grad, ops = p2p_communication.async_communicate(None, None, False, True)
         output_tensor_grads_ops.append((output_tensor_grad, ops[0]))
@@ -1124,13 +1125,19 @@ def forward_backward_pipelining_with_foldx_aiao(*,
 
         if get_model_chunk_id(k, forward=False) < num_model_chunks - 1 and \
                 get_model_chunk_id(k, forward=False) < get_model_chunk_id(k - 1, forward=False):
-            model[get_model_chunk_id(k, forward=False) + 1].allreduce_gradients(async_op=True)
+            handles = model[get_model_chunk_id(k, forward=False) + 1].allreduce_gradients(async_op=True)
+            model_gradient_reduces.append(handles)
         if recv_next:
             _, output_tensor_grad, ops = p2p_communication.async_communicate(None, None, False, True)
             output_tensor_grads_ops.append((output_tensor_grad, ops[0]))
 
         input_tensor_grad = backward_step_helper(k)
         p2p_communication.async_communicate(None, input_tensor_grad, False, False)
+    handles = model[0].allreduce_gradients(async_op=True)
+    model_gradient_reduces.append(handles)
+    for handles in model_gradient_reduces:
+        for handle in handles:
+            handle.wait()
 
     return losses_reduced
 
@@ -1805,6 +1812,7 @@ def forward_backward_pipelining_with_foldx_fifo(
             _, output_tensor_grad, ops = p2p_communication.async_communicate(None, None, False, True)
             output_tensor_grads_ops.append((output_tensor_grad, ops[0]))
 
+    model_gradient_reduces = []
     # Run cooldown backward passes (flush out pipeline).
     if all_warmup_microbatches:
         if not parallel_state.is_pipeline_last_stage():
@@ -1814,7 +1822,8 @@ def forward_backward_pipelining_with_foldx_fifo(
         gather_output_tensor_grad(k)
         if get_model_chunk_id(k, forward=False) < num_model_chunks - 1:
             if get_model_chunk_id(k, forward=False) < get_model_chunk_id(k - 1, forward=False):
-                model[get_model_chunk_id(k, forward=False) + 1].allreduce_gradients(async_op=True)
+                handles = model[get_model_chunk_id(k, forward=False) + 1].allreduce_gradients(async_op=True)
+                model_gradient_reduces.append(handles)
         input_tensor_grad = backward_step_helper(k)
         recv_next = init_recv_next(k)
         if k == (num_microbatches - 1):
@@ -1824,5 +1833,10 @@ def forward_backward_pipelining_with_foldx_fifo(
         if recv_next:
             _, output_tensor_grad, ops = p2p_communication.async_communicate(None, None, False, True)
             output_tensor_grads_ops.append((output_tensor_grad, ops[0]))
+    handles = model[0].allreduce_gradients(async_op=True)
+    model_gradient_reduces.append(handles)
+    for handles in model_gradient_reduces:
+        for handle in handles:
+            handle.wait()
 
     return losses_reduced

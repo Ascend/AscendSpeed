@@ -37,7 +37,8 @@ from ascendspeed.error_utils import check_equal
 
 def clip_grad_norm_fp32(parameters, grads_for_norm,
                         max_norm, norm_type=2,
-                        model_parallel_group=None):
+                        model_parallel_group=None,
+                        use_global_grad_norm=False):
     """Clips gradient norm of an iterable of parameters whose gradients
        are in fp32.
 
@@ -95,6 +96,10 @@ def clip_grad_norm_fp32(parameters, grads_for_norm,
         torch.distributed.all_reduce(total_norm,
                                      op=torch.distributed.ReduceOp.SUM,
                                      group=parallel_state.get_model_parallel_group())
+        if use_global_grad_norm:
+            torch.distributed.all_reduce(total_norm,
+                                         op=torch.distributed.ReduceOp.SUM,
+                                         group=parallel_state.get_data_parallel_group())
         total_norm = total_norm.item() ** (1.0 / norm_type)
 
     # Scale.
