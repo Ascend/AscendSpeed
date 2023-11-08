@@ -14,15 +14,15 @@
 # limitations under the License.
 
 from abc import abstractmethod, ABCMeta
-from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_api.chat import Chat
 
 
 class DatasetEval(metaclass=ABCMeta):
     @abstractmethod
-    def eval(self, llm_chat: LlmChat):
+    def eval(self, chat: Chat):
         """
         数据集评估
-        :param llm_chat: 大语言模型
+        :param chat: 大语言模型
         :return: 评估结果
         dict是各主题的答案, 结构 {"subject_name": {"题号": "选择", ”1“:"C",...}}
         pd.DataFrame是评估分数，包含字段：subject, question_n, acc

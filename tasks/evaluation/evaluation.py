@@ -23,7 +23,7 @@ from ascendspeed import get_args
 from ascendspeed.model import LlamaModel
 from ascendspeed.initialize import initialize_megatron
 from ascendspeed.arguments import core_transformer_config_from_args
-from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.boolq_eval import BoolqEval
 from tasks.evaluation.eval_impl.gsm8k_eval import Gsm8kEval
 from tasks.evaluation.eval_impl.mmlu_eval import MmluEval
@@ -34,6 +34,7 @@ from tasks.evaluation.eval_impl.human_eval import HumanEval
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -84,7 +85,7 @@ def get_result(result):
     return final_result
 
 
-class LlamaChat(LlmChat):
+class LLMChat(Chat):
     def __init__(self, llm_args):
         self.args = llm_args
 
@@ -109,7 +110,7 @@ def mmlu(eval_args, agent):
     try:
         if data_path:
             mmlu_eval = MmluEval(test_dir=data_path)
-            answer, score_df = mmlu_eval.eval(llm_chat=agent)
+            answer, score_df = mmlu_eval.eval(chat=agent)
             logger.info(score_df)
     except Exception as e:
         logger.info(e)
@@ -123,7 +124,7 @@ def gsm8k(eval_args, agent):
     try:
         if data_path:
             gsm8k_eval = Gsm8kEval(test_dir=data_path)
-            answer, score_df = gsm8k_eval.eval(llm_chat=agent)
+            answer, score_df = gsm8k_eval.eval(chat=agent)
             logger.info(score_df)
     except Exception as e:
         logger.info(e)
@@ -137,7 +138,7 @@ def boolq(eval_args, agent):
     try:
         if data_path:
             boolq_eval = BoolqEval(test_dir=data_path)
-            answer, score_df = boolq_eval.eval(llm_chat=agent)
+            answer, score_df = boolq_eval.eval(chat=agent)
             logger.info(score_df)
     except Exception as e:
         logger.info(e)
@@ -151,7 +152,7 @@ def ceval(eval_args, agent):
     try:
         if data_path:
             ceval_exam = CEvalExam(test_dir=data_path)
-            answer, score_df = ceval_exam.eval(llm_chat=agent)
+            answer, score_df = ceval_exam.eval(chat=agent)
             logger.info(score_df)
     except Exception as e:
         logger.info(e)
@@ -165,7 +166,7 @@ def human_eval(eval_args, agent):
     try:
         if data_path:
             human_eval_exam = HumanEval(test_dir=data_path)
-            answer, score_df = human_eval_exam.eval(llm_chat=agent)
+            answer, score_df = human_eval_exam.eval(chat=agent)
             logger.info(score_df)
     except Exception as e:
         logger.info(e)
@@ -179,7 +180,7 @@ def agi_eval(eval_args, agent):
     try:
         if data_path:
             agieval_exam = AGIEvalExam(test_dir=data_path)
-            answer, score_df = agieval_exam.eval(llm_chat=agent)
+            answer, score_df = agieval_exam.eval(chat=agent)
             logger.info(score_df)
     except Exception as e:
         logger.info(e)
@@ -193,7 +194,7 @@ def bbh_eval(eval_args, agent):
     try:
         if data_path:
             bbh = BBHEval(test_dir=data_path)
-            answer, score_df = bbh.eval(llm_chat=agent)
+            answer, score_df = bbh.eval(chat=agent)
             logger.info(score_df)
     except Exception as e:
         logger.info(e)
@@ -213,30 +214,30 @@ if __name__ == "__main__":
     template = "{instruction}"
     if 'mmlu' in args.task:
         a = time.time()
-        mmlu(args, LlamaChat(args))
+        mmlu(args, LLMChat(args))
         logger.info('MMLU Running Time: ', time.time() - a)
     if 'gsm8k' in args.task:
         a = time.time()
-        gsm8k(args, LlamaChat(args))
+        gsm8k(args, LLMChat(args))
         logger.info('GSM8k Running Time: ', time.time() - a)
     if 'boolq' in args.task:
         a = time.time()
-        boolq(args, LlamaChat(args))
+        boolq(args, LLMChat(args))
         logger.info('Boolq Running Time: ', time.time() - a)
     if 'ceval' in args.task:
         a = time.time()
-        ceval(args, LlamaChat(args))
+        ceval(args, LLMChat(args))
         logger.info('Ceval Running Time: ', time.time() - a)
     if 'bbh' in args.task:
         a = time.time()
-        bbh_eval(args, LlamaChat(args))
+        bbh_eval(args, LLMChat(args))
         logger.info('bbh Running Time: ', time.time() - a)
     if 'agieval' in args.task:
         a = time.time()
-        agi_eval(args, LlamaChat(args))
+        agi_eval(args, LLMChat(args))
         logger.info('agi_eval Running Time: ', time.time() - a)
     if 'human_eval' in args.task:
         a = time.time()
-        human_eval(args, LlamaChat(args))
+        human_eval(args, LLMChat(args))
         logger.info('Human_eval Running Time: ', time.time() - a)
 

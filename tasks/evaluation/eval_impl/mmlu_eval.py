@@ -20,7 +20,7 @@ import json
 import pandas as pd
 import tqdm
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
-from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.template import MMLU_TEMPLATE_DIR
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class MmluEval(DatasetEval):
         self.instruction_template = instruction_template
         self.output_template = [output_template1, output_template2]
 
-    def eval(self, llm_chat: LlmChat) -> (dict, pd.DataFrame):
+    def eval(self, chat: Chat) -> (dict, pd.DataFrame):
         answer_result = {}
         score_datas = []
         total_acc_n = 0
@@ -55,7 +55,7 @@ class MmluEval(DatasetEval):
                 instruction = self.instruction_template.format(few_shot_examples=mmlu_few_shot_template[subject_name],
                                                                subject=subject,
                                                                question=test_question)
-                chat_result, rank = llm_chat.chat(instruction=instruction, history=[])
+                chat_result, rank = chat.chat(instruction=instruction, history=[])
                 answer = None
                 if chat_result:
                     answer = chat_result[0]
@@ -81,7 +81,7 @@ class MmluEval(DatasetEval):
                 except Exception as e:
                     if rank == 0:
                         logger.info(e)
-                    subject_result[str(index)] = str(e) + ". AI answer:" + answer
+                    subject_result[str(idx)] = str(e) + ". AI answer:" + answer
             if rank == 0:
                 logger.info("%s acc = %d/%d=%e", subject_name, acc_n, len(data_df), acc_n / len(data_df))
                 total_n += len(data_df)

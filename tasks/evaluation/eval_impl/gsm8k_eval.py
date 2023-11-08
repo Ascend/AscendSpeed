@@ -21,7 +21,7 @@ import pandas as pd
 import tqdm
 
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
-from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.template import GSM8K_TEMPLATE_DIR
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class Gsm8kEval(DatasetEval):
         self.instruction_template = instruction_template
         self.output_template = output_template
 
-    def eval(self, llm_chat: LlmChat) -> (dict, pd.DataFrame):
+    def eval(self, chat: Chat) -> (dict, pd.DataFrame):
         answer_result = {}
         score_datas = []
         total_acc_n = 0
@@ -52,7 +52,7 @@ class Gsm8kEval(DatasetEval):
             for index, item in enumerate(gsm8k_list):
                 instruction = self.instruction_template.format(fewshot_template=gsm8k_few_shot_template['few_shot'],
                                                                question=item['question'])
-                chat_result, rank = llm_chat.chat(instruction=instruction, history=[])
+                chat_result, rank = chat.chat(instruction=instruction, history=[])
                 answer = None
                 if chat_result:
                     answer = chat_result[0]

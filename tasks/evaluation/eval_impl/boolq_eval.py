@@ -19,7 +19,7 @@ import json
 import pandas as pd
 import tqdm
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
-from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_api.chat import Chat
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +29,7 @@ class BoolqEval(DatasetEval):
         self.test_dir = test_dir
         self.instruction_template = instruction_template
 
-    def eval(self, llm_chat: LlmChat) -> (dict, pd.DataFrame):
+    def eval(self, chat: Chat) -> (dict, pd.DataFrame):
         answer_result = {}
         score_datas = []
         total_acc_n = 0
@@ -45,7 +45,7 @@ class BoolqEval(DatasetEval):
             acc_n = 0
             for index, item in enumerate(boolq_question_list):
                 instruction = self.instruction_template.format(passage=item['passage'], question=item['question'])
-                result, rank = llm_chat.chat(instruction=instruction, history=[])
+                result, rank = chat.chat(instruction=instruction, history=[])
                 if result:
                     answer = result[1]
                 else:
