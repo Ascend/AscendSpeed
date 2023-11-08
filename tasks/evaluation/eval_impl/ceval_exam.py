@@ -18,7 +18,7 @@ import json
 import pandas as pd
 import tqdm
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
-from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.template import CEVAL_TEMPLATE_DIR
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class CEvalExam(DatasetEval):
         self.test_dir = test_dir
         self.instruction_template = instruction_template
 
-    def eval(self, llm_chat: LlmChat) -> (dict, pd.DataFrame):
+    def eval(self, chat: Chat) -> (dict, pd.DataFrame):
         answer_result = {}
         total_acc_n = 0
         total_n = 0
@@ -50,7 +50,7 @@ class CEvalExam(DatasetEval):
                 test_question = f"{row['question']}\nA. {row['A']}\nB. {row['B']}\nC. {row['C']}\nD. {row['D']}"
                 instruction = self.instruction_template.format(fewshot_template=ceval_few_shot_template[subject_name],
                                                                question=test_question)
-                chat_result, rank = llm_chat.chat(instruction=instruction, history=[])
+                chat_result, rank = chat.chat(instruction=instruction, history=[])
                 answer = None
                 if chat_result:
                     answer = chat_result[0]

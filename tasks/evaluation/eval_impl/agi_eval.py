@@ -18,7 +18,7 @@ import json
 import pandas as pd
 import tqdm
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
-from tasks.evaluation.eval_api.llm_chat import LlmChat
+from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.template import AGIEVAL_TEMPLATE_DIR
 from ascendspeed.error_utils import check_divisible_by_zero
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class AGIEvalExam(DatasetEval):
         self.test_dir = test_dir
         self.instruction_template = instruction_template
 
-    def eval(self, llm_chat: LlmChat) -> (dict, pd.DataFrame):
+    def eval(self, chat: Chat) -> (dict, pd.DataFrame):
         answer_result = {}
         total_acc_n = 0
         total_n = 0
@@ -74,7 +74,7 @@ class AGIEvalExam(DatasetEval):
                                                                question_template=AGI_few_shot_template[subject_name][1],
                                                                options=options,
                                                                answer_template=AGI_few_shot_template[subject_name][2])
-                chat_result, rank = llm_chat.chat(instruction=instruction, history=[])
+                chat_result, rank = chat.chat(instruction=instruction, history=[])
                 answer = None
                 if chat_result:
                     answer = chat_result[0]

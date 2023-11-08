@@ -16,7 +16,7 @@
 from abc import abstractmethod, ABCMeta
 
 
-class LlmChat(metaclass=ABCMeta):
+class Chat(metaclass=ABCMeta):
     @abstractmethod
     def chat(self, instruction: str, history: list) -> str:
         """

@@ -16,11 +16,12 @@ WORLD_SIZE=$(($NPUS_PER_NODE*$NNODES))
 
 DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 
-CHECKPOINT=../models/llama-7b-tp2-pp4/
-VOCAB_FILE=../models/llama/
+CHECKPOINT="Your ckpt file path"
+VOCAB_FILE="Your vocab file path"
 DATA_PATH="../dataset/mmlu/test ../dataset/gsm8k/test ../dataset/boolq/test ../dataset/ceval/test"
 TASK="boolq gsm8k mmlu ceval agieval bbh human_eval"
-python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
+# Different task needs different max_new_tokens value, please follow the instruction in readme.
+python -m torch.distributed.launch $DISTRIBUTED_ARGS tasks/evaluation/evaluation.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
        --seq-length 2048 \

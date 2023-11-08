@@ -17,5 +17,5 @@ GSM8K_TEMPLATE_DIR = 'tasks/evaluation/eval_impl/fewshot_template/gsm8k_3shot_te
 MMLU_TEMPLATE_DIR = 'tasks/evaluation/eval_impl/fewshot_template/mmlu_5shot_template.json'
 CEVAL_TEMPLATE_DIR = 'tasks/evaluation/eval_impl/fewshot_template/ceval_5shot_template.json'
 AGIEVAL_TEMPLATE_DIR = 'tasks/evaluation/eval_impl/fewshot_template/AGI_fewshot.json'
-BBH_TEMPLATE_DIR = 'tasks/evaluation/eval_impl/fewshot_template/bbh_3shot.json'
+BBH_TEMPLATE_DIR = 'tasks/evaluation/eval_impl/fewshot_template/bbh_templatejson'
 CODE_TEST_LOG_DIR = 'tasks/evaluation/codecheck_log'
