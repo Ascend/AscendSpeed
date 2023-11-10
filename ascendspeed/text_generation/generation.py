@@ -22,10 +22,15 @@ def beam_search(model, tokens, **kwargs):
     length_penalty = kwargs.pop("length_penalty", 1.0)
     args = get_args()
 
+    if args.micro_batch_size > 1:
+        raise NotImplementedError("The input prompt nums should not greater than 1 "
+                                  "(i.e. micro_batch_size must be 1) in beam search mode.")
+
     # ==========================
     # Pad tokens
     # ==========================
-    final_sequence_length, prompt_length, tokens = _pad_tokens(args, tokens)
+    final_sequence_length = args.max_length_ori
+    prompt_length, context_lengths, tokens = _pad_tokens(args, tokens, beam_size, num_return_gen)
 
     # ==========================
     # Forward step
@@ -46,11 +51,11 @@ def beam_search(model, tokens, **kwargs):
     # ==========================
     with torch.no_grad():
         tokens = tokens.repeat(beam_size, 1)
-        micro_batch_size, seq_length = tokens.size()
+        batch_size, seq_length = tokens.size()
 
         attention_mask = torch.tril(torch.ones(
-            (micro_batch_size, seq_length, seq_length), device=tokens.device)).view(
-            micro_batch_size, 1, seq_length, seq_length)
+            (args.micro_batch_size, seq_length, seq_length), device=tokens.device)).view(
+            args.micro_batch_size, 1, seq_length, seq_length)
         attention_mask = (attention_mask < 0.5)
         position_ids = torch.arange(seq_length, dtype=torch.long,
                                     device=tokens.device)
@@ -66,24 +71,25 @@ def beam_search(model, tokens, **kwargs):
                                                                        num_return_gen=num_return_gen,
                                                                        position_ids=position_ids,
                                                                        prompt_length=prompt_length,
+                                                                       context_lengths=context_lengths,
                                                                        scores=scores,
                                                                        stop_token=stop_token,
                                                                        tokens=tokens)
 
         output_scores, output_tokens = _beam_search_post_process(beam_hyp=beam_hyp,
                                                                  beam_size=beam_size,
-                                                                 context_length=context_length,
                                                                  done=done,
                                                                  num_return_gen=num_return_gen,
                                                                  output_scores=output_scores,
                                                                  output_tokens=output_tokens,
+                                                                 context_length=context_length,
                                                                  prompt_length=prompt_length,
                                                                  scores=scores,
                                                                  scores_size_tensor=scores_size_tensor,
                                                                  tokens=tokens,
                                                                  tokens_size_tensor=tokens_size_tensor)
 
-        yield output_tokens, None, torch.exp(output_scores)
+        yield output_tokens, context_lengths, torch.exp(output_scores)
 
 
 def forward_loop(args, **kwargs):
@@ -96,6 +102,7 @@ def forward_loop(args, **kwargs):
     num_return_gen = kwargs.pop("num_return_gen")
     position_ids = kwargs.pop("position_ids")
     prompt_length = kwargs.pop("prompt_length")
+    context_lengths = kwargs.pop("context_lengths")
     scores = kwargs.pop("scores")
     stop_token = kwargs.pop("stop_token")
     tokens = kwargs.pop("tokens")
@@ -134,8 +141,8 @@ def forward_loop(args, **kwargs):
 
         tokens = broadcast_from_last_pipeline_stage(tokens.size(), torch.int64, tokens)
 
-        yield tokens[:num_return_gen], None, torch.exp(scores[:num_return_gen])
-    
+        yield tokens[:num_return_gen], context_lengths, torch.exp(scores[:num_return_gen])
+
     output_info = (context_length, done, scores, tokens)
     return output_info
 
@@ -293,17 +300,9 @@ def _beam_candidates_at_beginning(args, beam_size, new_scores):
     return indices, sorted_scores
 
 
-def _pad_tokens(args, tokens):
+def _pad_tokens(args, tokens, beam_size, num_return_gen):
     tokens, lengths = pad_batch(tokens, args)
-    tokens = get_accelerator().LongTensor(tokens)
-    prompt_length = min(lengths)
-    if args.text_generation_config['max_new_tokens'] > 0:
-        final_sequence_length = prompt_length + args.text_generation_config['max_new_tokens']
-    else:
-        final_sequence_length = args.text_generation_config['max_length']
-    final_sequence_length = min(final_sequence_length, args.max_position_embeddings)
-    # If the context is too big, this happens
-    if prompt_length >= final_sequence_length:
-        raise ValueError("The length of your input text exceeds the maximum. "
-                         "Please increase the value of 'max_length'.")
-    return final_sequence_length, prompt_length, tokens
+    prompt_length = lengths.min().item()
+    lengths = lengths.repeat(min(beam_size, num_return_gen)).cpu().numpy().tolist()
+
+    return prompt_length, lengths, tokens

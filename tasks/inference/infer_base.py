@@ -62,7 +62,7 @@ def task_do_sample(args, model, tokenizer=None, system_template="", dialog_templ
 
     t = time.time()
     output = model.generate(
-        instruction,
+        [instruction, instruction],
         do_sample=True,
         top_k=args.top_k,
         top_p=args.top_p,
