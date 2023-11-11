@@ -1,79 +1,99 @@
-# <center> <font face="黑体" size=10 > <u> *AscendSpeed* </u> </font> </center>
+<p align="center"> <img src="sources/images/logo.png" height="90px" width="400px"> </p>
 
-AscendSpeed provides end-to-end test scripts for large language models on [Ascend](https://open.codehub.huawei.com/OpenBaize/Ascend/ascendspeed/files?ref=master&filePath=examples%2Fbaichuan%2Fpretrain_baichuan_zero_7B.sh&isFile=true) chips, including pretrained models, parallel algorithms, fused kernels, and downstream tasks. The repository is jointly contributed by Ascend Computing Product Unit, Algorithm Unit, Research Unit, and OCK of Huawei Corporation.
+<p align="center">
+    <a>
+        <img alt="Docs" src="https://readthedocs.org/projects/internlm/badge/?version=latest">
+    </a>
+    <a href="https://gitee.com/ascend/AscendSpeed/blob/master/LICENSE">
+        <img alt="GitHub" src="https://img.shields.io/github/license/huggingface/transformers.svg?color=blue">
+    </a>
+    <a href="https://gitee.com/ascend/AscendSpeed">
+        <img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/docs/transformers/index.svg?down_color=red&down_message=offline&up_message=online">
+    </a>
+    <a>
+        <img src="https://app.codacy.com/project/badge/Grade/1710faac5e634acaabfc26b0a778cdde">
+    </a>
+</p>
+<p align="center">
+        <b>简体中文</b> |
+        <b><a href="https://gitee.com/fengliangjun66/AscendSpeed/blob/master/README_en.md">English</a> </b> 
+    </p>
+</p>
 
-## Why AscendSpeed? 
+AscendSpeed旨在为华为 [昇腾芯片](https://open.codehub.huawei.com/OpenBaize/Ascend/ascendspeed/files?ref=master&filePath=examples%2Fbaichuan%2Fpretrain_baichuan_zero_7B.sh&isFile=true) 上的大语言模型提供端到端的解决方案, 包含模型，算法，算子，以及下游任务。
+
+## AscendSpeed解决方案概览 
 
 ---
-### Prepared Models
-Currently, the pre-training of the following models has been supported: 
+### 大语言模型
+当前AscendSpeed支持下列模型的预训练以及全参微调: 
 
-* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[[README: 7B/13B]](examples/baichuan/README.md)
-* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[README: 7B/176B]](examples/bloom/README.md)
-* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[README: 7B]](examples/intern/README.md)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[README: 7B/13B/33B/65B]](examples/llama/README.md)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[README: 7B]](examples/llama2/README.md)
+* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[[使用说明: 7B/13B]](examples/baichuan/README.md)
+* <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[使用说明: 7B/176B]](examples/bloom/README.md)
+* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[使用说明: 7B]](examples/intern/README.md)
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[使用说明: 7B/13B/33B/65B]](examples/llama/README.md)
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[使用说明: 7B]](examples/llama2/README.md)
 
-LLaMA2-13B/70B, Aquila-7B are coming soon ...
+LLaMA2-13B/34B/70B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
 
-### Acceleration Features
-Currently, the following acceleration features for LLMs have been supported:
+### 下游任务
+当前AscendSpeed为大模型提供以下周边应用:
+* [指令/预训练数据集](#jump11)
+* [低参微调方法](#jump12)
+* [推理：人机对话](#jump13)
+* [基线数据集评估](#jump14)
 
+强化学习，多专家网络等特性持续研发中....
 
-* [Tensor parallelism](#jump1)
-* [Pipeline parallelism](#jump2)
-* [Virtual pipeline parallelism](#jump2)
-* [Optimized pipeline parallelism](#jump2)
+### 加速算法
+当前AscendSpeed支持以下分布式加速算法:
+
+* [张量并行](#jump1)
+* [(虚拟 & 动态) 流水并行](#jump2)
 * [Fold-3D](#jump3)
-* [Recomputation](#jump4)
-* [Selective recomputation](#jump4)
-* [Sequence parallelism](#jump5)
-* [ZeRO-1/2/3](#jump6)
-* [Inverted triangle acceleration](#jump7)
-* [Fused kernels and optimizers for LLMs](#jump8)
-* [Merged feed-forward network](#jump9)
-* [Gradient accumulation](#jump9)
+* [重计算策略](#jump4)
+* [序列并行](#jump5)
+* [ZeRO-1/2](#jump6)
+* [倒三角加速](#jump7)
+* [融合优化器](#jump8)
+* [前向网络合并](#jump9)
+* [梯度累积](#jump9)
 
-More novel and useful features are developing for LLMs training on Ascend ...
+更多高效的加速算法正在为昇腾芯片上的大语言模型研发中...
 
-### Downstream Tasks
-Currently, the following downstream tasks have been supported:
-* [Data-processing](#jump11)
-* [Fine-tuning](#jump12)
-* [Inference](#jump13)
-* [Evaluation](#jump14)
-
-The plan for more tasks, like RLHF, is under way ...
+### 融合算子
+即将上线 ...
 
 
-## Quick Start For Pretraining
+
+## 大语言模型
 
 ---
 
-### Model Performance
+### 模型性能
 <table>
   <thead>
     <tr>
-      <th>Model</th>
-      <th>Size</th>
-      <th>Servers</th>
-      <th>Mode</th>
-      <th>NPU Throughput</th>
-      <th>Reference Throughput</th>
-      <th>Loss Compare</th>
-      <th>Scripts</th>
+      <th>模型</th>
+      <th>参数</th>
+      <th>节点</th>
+      <th>模式</th>
+      <th>昇腾 </th>
+      <th>参考 </th>
+      <th>Loss</th>
+      <th>脚本</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td rowspan="2">Baichaun</td>
+      <td rowspan="2"><a href="examples/baichuan/README.md">Baichaun</a></td>
       <td>7B</td>
       <td> 1x8</td>
       <td> FP16 </td>
       <td> 1905 tokens/p/s </td>
       <td> 2036 tokens/p/s </td>
       <td> <a href="./sources/images/baichuan/7B_loss_compare.png">Loss</a> </td>
-      <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">Train</a> </td>
+      <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">训练</a> </td>
     </tr>
     <tr>
       <td>13B</td>
@@ -82,7 +102,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 1024 tokens/p/s </td>
       <td> 824 tokens/p/s </td>
       <td> <a href="./sources/images/baichuan/13B-loss-compare.png">Loss</a> </td>
-      <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
+      <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">训练</a> </td>
     </tr>
     <tr>
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
@@ -92,7 +112,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 2611 tokens/p/s </td>
       <td> 2525 tokens/p/s </td>
       <td>  <a href="sources/images/bloom7B1_loss.png">Loss</a> </td>
-      <td> <a href="examples/bloom/pretrain_bloom_7b1.sh">Train</a> </td>
+      <td> <a href="examples/bloom/pretrain_bloom_7b1.sh">训练</a> </td>
     </tr>
     <tr>
       <td >176B</td>
@@ -101,7 +121,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 100 tokens/p/s </td>
       <td> 107 tokens/p/s </td>
       <td> <a href="examples/bloom/images/bloom176b_lm_loss_compare.PNG">Loss</a> </td>
-      <td> <a href="examples/bloom/pretrain_bloom_176b.sh">Train</a> </td>
+      <td> <a href="examples/bloom/pretrain_bloom_176b.sh">训练</a> </td>
     </tr>
     <tr>
       <td><a href="examples/intern/README.md">InternLM</td>
@@ -111,7 +131,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 2777 tokens/p/s </td>
       <td> 2800 tokens/p/s </td>
       <td>  <a href="sources/images/intern7b_loss.png">Loss</a>  </td>
-      <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">Train</a> </td>
+      <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">训练</a> </td>
     </tr>
     <tr>
       <td rowspan="5"><a href="examples/llama/README.md">LLaMA</td>
@@ -121,7 +141,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 2862 tokens/p/s </td>
       <td> 2859 tokens/p/s </td>
       <td> <a href="sources/images/llama7b_loss.png">Loss</a> </td>
-      <td> <a href="examples/llama/pretrain_llama_7B_zero_8p.sh">Train</a> </td>
+      <td> <a href="examples/llama/pretrain_llama_7B_zero_8p.sh">训练</a> </td>
     </tr>
     <tr>
       <td>13B</td>
@@ -130,17 +150,17 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 1800 tokens/p/s </td>
       <td> 1734 tokens/p/s </td>
       <td> <a href="sources/images/llama13b_loss.png">Loss</a> </td>
-      <td> <a href="examples/llama/pretrain_llama_13B_zero_8p.sh">Train</a> </td>
+      <td> <a href="examples/llama/pretrain_llama_13B_zero_8p.sh">训练</a> </td>
     </tr>
     <tr>
         <td>33B</td>
-        <td>1x8</td>
+        <td>4x8</td>
         <td>FP16</td>
         <td>621 tokens/p/s</td>
         <td>520 tokens/p/s</td>
         <td>
         <a href="./sources/images/llama/llama33B_shape_layer8.png">Loss</a> </td>
-        <td><a href="examples/llama/pretrain_llama_33B_zero_32p.sh">Train</a> </td>
+        <td><a href="examples/llama/pretrain_llama_33B_zero_32p.sh">训练</a> </td>
     </tr>
     <tr>
       <td rowspan="2">65B</td>
@@ -151,7 +171,7 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 234 tokens/p/s </td>
       <td> 260 tokens/p/s </td>
       <td> <a href="sources/images/llama65b_bf_loss.png">Loss</a> </td>
-      <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">Train</a> </td>
+      <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">训练</a> </td>
     </tr>
     <tr>
       <td><a href="examples/llama2/README.md">LLaMA2</td>
@@ -161,17 +181,16 @@ The plan for more tasks, like RLHF, is under way ...
       <td> 2460 tokens/p/s </td>
       <td> 2348 tokens/p/s </td>
       <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
-      <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">Train</a> </td>
+      <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">训练</a> </td>
     </tr>
   </tbody>
 </table>
 
 
-### Model Training
-This is an example of model training with AscendSpeed, and the detailed guideline for each model could be found in the `examples/modelname` folder.
-Note that we use AscendSpeed with scripts currently, and would not provide `.whl` package for public 
+### 模型训练
+这里展示了一个使用AscendSpeed进行模型训练的例子，针对每一个模型具体的操作指导可以在 `examples/modelname` 文件夹下看到
 
-1. Clone the repository to your local server:
+1. 拷贝仓库到你的个人服务器:
 
 ```bash
 git clone https://gitee.com/ascend/AscendSpeed.git 
@@ -180,48 +199,49 @@ mkdir logs
 mkdir ckpt
 ```
 
-2. Build environment
+2. 构建运行环境
 
 ```bash
 # python3.7
 conda create -n test python=3.7
 conda activate test
 
-# install torch and torch_npu
+# 安装 torch 和 torch_npu
 # ARM
 wget https://download.pytorch.org/whl/torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
 wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2.2-pytorch1.11.0/torch_npu-1.11.0.post3-cp37-cp37m-linux_aarch64.whl
 # X86
 pip install torch==1.11 -i https://pypi.tuna.tsinghua.edu.cn/simple
 wget https://gitee.com/ascend/pytorch/releases/download/v5.0.rc2.2-pytorch1.11.0/torch_npu-1.11.0.post3-cp37-cp37m-linux_x86_64.whl
+# 如果使用 'wget' 下载失败, 可以在确保网站安全的情况下点击网站直接下载
 
 pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl (ARM)
 pip install torch_npu-1.11.0.post3-cp37-cp37m-linux_XXXXXX.whl
 
-# install apex
+# 安装 apex
 pip install apex-0.1_ascend_XXXXX-cp37-cp37m-linux_x86_64.whl
 pip install apex-0.1-ascend_XXXXX-cp37-cp37m-linux_aarch64.whl (ARM)
 
-# install megatron-core
+# 安装 megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
 
-# install deepspeed and deepspeed_npu
+# 安装 deepspeed 和 deepspeed_npu
 pip install deepspeed==0.9.2
 git clone https://gitee.com/ascend/DeepSpeed.git -b v0.9.2 deepspeed_npu
 cd deepspeed_npu
 pip3 install -e ./
 
-# install other packages
+# 安装其他的依赖
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 
-3. Prepare dataset (download tokenizer configs from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main)):
+3. 准备数据集 (点击 [这里](https://huggingface.co/yahma/llama-7b-hf/tree/main) 下载tokenizer配置文件):
 ```bash
-# for llama, download alpaca dataset, like
+# 对于 llama, 可以下载 alpaca 数据集, 比如：
 wget https://raw.githubusercontent.com/tatsu-lab/stanford_alpaca/main/alpaca_data.json
 
-# revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
+# 这里要将tokenizer_config.json中的"LLaMATokenizer"修改为"LlamaTokenizer"（这是huggingface的一个bug）
 mkdir dataset
 python tools/preprocess_data.py --input alpaca_data.json \
                                 --output-prefix dataset/alpaca \
@@ -231,7 +251,7 @@ python tools/preprocess_data.py --input alpaca_data.json \
                                 --handler-name GeneralInstructionHandler
 ```
 
-4. (Selective) Prepare pretrained weights (download weights from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main)):
+4. (可选的) 准备预训练权重 (点击 [这里](https://huggingface.co/yahma/llama-7b-hf/tree/main) 下载权重文件):
 ```bash
 python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir ../llama-7b-hf \
                                                                     --output-model-dir ckpt \
@@ -239,98 +259,40 @@ python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-mode
                                                                     --pipeline-model-parallel-size 1 \
                                                                     --type 7B
 
-# if you want to change the parallel strategy, the pretrained weights should also be sharded
-# by setting `tensor-model-parallel-size` and `pipeline-model-parallel-size`.
-# The script: tools/ckpt_convert/llama/convert_weights_when_tp_pp_change.py is helpful for weights merge in inference.
+# 如果你想要改变并行策略，可以通过设置 `tensor-model-parallel-size` 和 `pipeline-model-parallel-size` 标志，实现预训练权重的切分
+# 脚本: tools/ckpt_convert/llama/convert_weights_when_tp_pp_change.py 对于推理时的权重合并也是有帮助的.
 ```
 
-5. Start your task
+5. 启动训练
 
 ```bash
-# set your data path / weight path / tokenizer path etc.   
+# 在脚本中设置你自己的数据/权重/tokenizer等路径  
 sh examples/llama/pretrain_llama_7B_zero_8p.sh
 ```
 
-## Introduction For Acceleration Features
+
+## 下游任务
 
 ---
 
-### <span id="jump1"> Tensor Parallelism </span>
-Tensor parallelism (TP) is a kind of model parallelism strategy, which splits execution of a single transformer module over multiple devices. 
-The basic principle of PP is:<div align=center>
-<img src="sources/images/tp_in_mlp.png" height="280px" width="500px">
-<img src="sources/images/tp_in_sa.png" height="280px" width="500px"></div>
-To use tensor model parallelism in Ascendspeed, add the `--tensor-model-parallel-size` flag to specify the number of GPUs among which to split the model.
-
-### <span id="jump2">  (Virtual & Optimized) Pipeline Parallelism  </span>
-Pipeline parallelism (PP) is a kind of model parallelism strategy, which shards the transformer modules into stages
-with an equal number of transformer modules on each stage and then pipelines execution by breaking the batch into
-smaller microbatches. Virtual pipeline (VP) parallelism optimizes PP by add virtual stages to reduce pipeline bubble time. Optimized Pipline Parallelism (OPP) is an enhanced version of VP, which further reduces the bubble time by reasonably setting the size of each microbatch. The basic principle of PP and VP is:<div align=center>
-<img src="sources/images/pp_vp.png" height="350px" width="800px"></div>
-
-To enable pipeline model parallelism, use the `--pipeline-model-parallel-size` flag to specify the number of stages to split the model into (e.g., splitting a model with 24 transformer layers across 4 stages would mean each stage gets 6 transformer layers each).
-To enable virtual pipeline parallelism, additionally use `--num-layers-per-virtual-pipeline-stage` flag to decide number of layers per virtual stage. 
-To enable optimized pipeline parallelism, additionally use `--optimized-pipeline` and `--manual-mbs example-config-1` flag based on PP. Note that both VP and OPP reduce bubble time, but increase communication time.
-
-### <span id="jump3"> Fold3D </span>
-Fold3D hides the commutation time of data parallelism in VP. The basic principle of Fold3D is:<div align=center>
-<img src="sources/images/fold3d.png" height="350px" width="800px"></div>
-To enable pipeline model parallelism, use the `--fold-mode "aiao"` flag to choose strategy.
-
-### <span id="jump4"> (Selective) Recomputation </span>
-To reduce NPU memory usage so deploy a large model to a training system, we support activation checkpointing and recomputation. 
-We support two levels of recompute granularity: full and selective. To enable full recomputation, please use `--checkpoint-activations` flag, and to enable selective recomputation, please use `--checkpoint-policy` flag to 
-decide the strategy of selective recomputation. Note that the selective strategy is customized and optimized for Ascend chips.
-
-### <span id="jump5"> Sequence Parallelism </span>
-Sequence parallelism (SP) is a kind of model parallelism strategy, which splits the sequence axis in dropout and layernorm layers. SP depends on TP in our implementation. 
-The allreduce operation in TP is split to reduce-scatter and allgather by SP, which reduces the memory occupation in model training. The basic principle of SP is:<div align=center>
-<img src="sources/images/sp.png" height="250px" width="800px"></div>
-To enable sequence parallelism (SP), `--tensor-model-parallel-size` flag should be lager than 1, and set `--sequence-parallel` flag.
-
-### <span id="jump6"> ZeRO-1/2/3 </span>
-Zero Redundancy Optimizer (ZeRO) is a kind of memory-optimization strategy in data parallelism proposed by MicroSoft. 
-AscendSpeed supports ZeRO-1/2/3 by adding a deepspeed branch. The basic principle of ZeRO is:<div align=center>
-<img src="sources/images/ZeRO.png" height="250px" width="600px"></div>
-To enable ZeRO-1/2/3, a deepspeed config is required and an [example](examples/llama/pretrain_llama_7B_zero_8p.sh) could be referred. 
-Notably, if only the ZeRO-1 is supposed, deepspeed is not necessary, and simply set the `--use-distributed-optimizer` flag.
-
-### <span id="jump7"> Inverted Triangle Acceleration </span>
-
-Inverted triangle acceleration is an acceleration module for attention calculation, which implements flash attention with python. Basically, the calculation of self-attention takes all of the attention mask into consideration. For this scenario, inverted triangle attention acceleration algorithm is used to avoid
-blocks that do not need to be calculated in the upper triangle position in the attention mask, thereby reducing the amount of calculation. The calculation process is:<div align=center>
-<img src="sources/images/triangle.png" height="600px" width="600px"></div>
-To enable inverted triangle acceleration, set `--triangle-attn` flag.
-
-### <span id="jump8"> Fused Kernels & Optimizer </span>
-For LLMs, Ascend chips support various fused kernels, such as `scaled_masked_softmax` and `rotary_pos_emb`. The related examples can be found by searching in this project, and more detailed information is coming soon.
-For fused optimizer, two kinds of fused adam optimizers are provided by `--optimizer`. Specifically, the choice `--optimizer adam` saves more memory, and the choice `--optimizer fused_adam` trains faster.
-
-### <span id="jump9">  Merged Feed-Forward Network & Gradient Accumulation </span>
-For llama and other LLMs without bias in FFN, the linear transformation in FFN could be merged to save communication in tensor parallelism. To enable this feature, please set `--mlp-layer-fusion` flag. Gradient accumulation uses gradient of N rounds to make an optimizer step and update parameters. Here, N = global batchsize / micro batchsize / DP, and DP = device nums / tp / pp.
-
-## Downstream Tasks
-
----
-
-### Content List
+### 内容列表
 <table>
   <thead>
     <tr>
-      <th>Model</th>
-      <th>Size</th>
-      <th>Fine-tuning</th>
-      <th>Inference</th>
-      <th>Evaluation</th>
-      <th>Dataset Support</th>
+      <th>模型</th>
+      <th>参数</th>
+      <th>微调</th>
+      <th>推理</th>
+      <th>评估</th>
+      <th>数据集</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td> Baichaun </td>
+      <td> <a href="examples/baichuan/README.md">Baichuan</a> </td>
       <td> 13B </td>
       <td> -- </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/generate_baichuan_13B_tp8_pp1.sh">inference</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/generate_baichuan_13B_tp8_pp1.sh">对话</a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
@@ -338,19 +300,19 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
       <td> 7B1 </td>
       <td> -- </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_bloom_7B_tp8_pp1.sh">inference</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_bloom_7B_tp8_pp1.sh">对话</a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
     <tr>
       <td> 176B </td>
       <td> -- </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_176b_2nodes.sh">inference</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_176b_2nodes.sh">对话</a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
     <tr>
-      <td>InternLM</td>
+      <td><a href="examples/intern/README.md">InternLM</a></td>
       <td>7B</td>
       <td> -- </td>
       <td> -- </td>
@@ -358,39 +320,39 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
       <td> -- </td>
     </tr>
     <tr>
-      <td rowspan="4">LLaMA</td>
+      <td rowspan="4"><a href="examples/llama/README.md">LLaMA</a></td>
       <td>7B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">对话 </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td>13B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_13B_tp8_pp1.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_13B_tp8_pp1.sh">对话 </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td>33B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_33B_tp8_pp1.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_33B_tp8_pp1.sh">对话 </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td > 65B </td>
       <td > -- </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_65B_tp8_pp1.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_65B_tp8_pp1.sh">对话 </a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
     <tr>
-      <td>LLaMA2</td>
+      <td><a href="examples/llama2/README.md">LLaMA2</a></td>
       <td>7B</td>
       <td> -- </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">对话 </a> </td>
       <td> -- </td>
       <td> -- </td>
     </tr>
@@ -400,16 +362,16 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
 
 
 
-### <span id="jump11"> Dataset Processing </span>
-#### Quick Start
+### <span id="jump11"> 指令/预训练数据集 </span>
+#### 快速开始
 
 ```bash
-# for llama, download alpaca dataset, like
+# 对于llama, 可以下载alpaca数据集, 比如
 wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
 
-# download tokenizer configs and (selective) weights from 
+# 下载 tokenizer 配置， 地址：
 # https://huggingface.co/yahma/llama-7b-hf/tree/main
-# revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
+# 这里要将tokenizer_config.json中的"LLaMATokenizer"修改为"LlamaTokenizer"（这是huggingface的一个bug）
 mkdir dataset
 python tools/preprocess_data.py --input train-00000-of-00001-a09b74b3ef9c3b56.parquet \
                                 --output-prefix dataset/alpaca \
@@ -419,21 +381,19 @@ python tools/preprocess_data.py --input train-00000-of-00001-a09b74b3ef9c3b56.pa
                                 --handler-name GeneralInstructionHandler
 ```
 
-#### Preprocessing pretraining dataset
+#### 处理预训练数据集
 
-##### wikipedia dataset 
+##### wikipedia 数据集
 
-+ download [wikipedia data](https://huggingface.co/datasets/wikipedia/tree/main) from huggingface to WORKSPACE/wikipedia
-+ download [llama tokenizer model and config](https://huggingface.co/yahma/llama-7b-hf/tree/main) from huggingface to WORKSPACE/llama-7b-hf
-+ use preprocessing script to preprocess wikipedia data
++ 下载 [wikipedia](https://huggingface.co/datasets/wikipedia/tree/main) 数据集到 WORKSPACE/wikipedia 目录
++ 下载 [llama tokenizer](https://huggingface.co/yahma/llama-7b-hf/tree/main) 配置到 WORKSPACE/llama-7b-hf 目录
++ 再使用如下脚本处理数据集
 
 ```shell
-# We assume that data and tokenizer has already been downloaded to WORKSPACE.
+# 这里认为 数据集 和 tokenizer 已经下载放到了 WORKSPACE.
 cd WORKSPACE
 mkdir wikipedia_preprocessed
 
-# specify huggingface load_dataset parameters.(--input param will be ignored)
-# these params will just be feed into datasets.load_dataset function 
 hf_config_json="./hf_config_json.json"
 cat <<EOT > $hf_config_json
 {
@@ -456,18 +416,14 @@ python tools/preprocess_data.py \
     --workers 8
 ```
 
-After preprocessing, there will be a `wikipedia_text_document.bin` and a `wikipedia_text_document.idx` in the `WORKSPACE/wikipedia_preprocessed` dictionary.
-Then, We can train a model with `--data-path WORKSPACE/wikipedia_preprocessed/wikipedia_text_document` flag.
+处理完后, `WORKSPACE/wikipedia_preprocessed` 文件夹下会有 `wikipedia_text_document.bin` 和 `wikipedia_text_document.idx` 文件， 我们便可以使用 `--data-path WORKSPACE/wikipedia_preprocessed/wikipedia_text_document` 标志训练模型了
 
-Note that datasets in huggingface have a format like [this](https://huggingface.co/datasets/wikipedia/viewer/20220301.en/train). The name of the text field of the dataset can be changed by using the `--json-key` flag which default is `text`.
-In wikipedia dataset, it has four columns which are `id`, `url`, `title` and `text`. 
-Then we can specify `--json-key` flag to choose a column used to train.
+请注意huggingface中的数据集格式是[这样](https://huggingface.co/datasets/wikipedia/viewer/20220301.en/train)的. 我们处理数据时利用的数据列可以通过 `--json-key` 标志设置，默认为 `text`，
+比如，wikipedia数据集有四列, 包括 `id`, `url`, `title` 和 `text`, 我们就可以通过 `--json-key` 标志选择一列处理该数据集
 
-##### alpaca dataset
+##### alpaca 数据集
 
-Besides, we can also use alpaca dataset to pretrain like below.
-
-Download dataset form [alpaca](https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet) which has a `text` column.
+此外, 我们也可以使用 [alpaca](https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet) 数据集用于预训练如下：
 
 ```shell
 python tools/preprocess_data.py --input WORKSPACE/train-00000-of-00001-a09b74b3ef9c3b56.parquet \
@@ -479,15 +435,10 @@ python tools/preprocess_data.py --input WORKSPACE/train-00000-of-00001-a09b74b3e
 ```
 
 
-#### Preprocessing instruction dataset
-##### alpaca dataset
+#### 处理指令微调数据集
+##### alpaca 数据集
 ```bash
-# for llama, download alpaca dataset, like
-# wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
-
-# download tokenizer configs and (selective) weights from 
-# https://huggingface.co/yahma/llama-7b-hf/tree/main
-# revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
+# 数据集：wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
 
 cd WORKSPACE
 mkdir alpaca_preprocessed
@@ -499,35 +450,30 @@ python tools/preprocess_data.py --input WORKSPACE/alpaca/train-00000-of-00001-a0
                                 --handler-name GeneralInstructionHandler
 ```
 
-After preprocessing, there will be three `bin` files and three `idx` files in the `WORKSPACE/alpaca_preprocessed` dictionary.
-Then, We can train a model with `--data-path WORKSPACE/alpaca_preprocessed/alpaca` and `--is-instruction-dataset` flags. 
-In addition, we have developed the dynamic padding function based on the instruction dataset, which can be implemented using the `--variable-seq-lengths` flag.
+在处理后，`WORKSPACE/alpaca_preprocessed` 文件夹下会有3个 `bin` 文件 和 3个 `idx` 文件，我们便可以通过添加 `--data-path WORKSPACE/alpaca_preprocessed/alpaca` 和 `--is-instruction-dataset` 标志来进行指令微调。 
+此外，基于指令数据集，我们还可以通过加上 `--variable-seq-lengths` 标志使用动态序列长度训练模型。
 
-Note that instruction dataset has a `--handler-name GeneralInstructionHandler` flag which will choose `GeneralInstructionHandler` class to create prompt in `ascendspeed/data/data_handler.py`.
-If you have an alpaca-style dataset which have `instruction`, `input` and `output` columns, just use `GeneralInstructionHandler`.
-In addition, `BelleMultiTurnInstructionHandler` is used to handle [belle dataset](https://huggingface.co/datasets/BelleGroup/multiturn_chat_0.8M),
-`MOSSInstructionHandler` is used to handle [MOSS dataset](https://huggingface.co/datasets/fnlp/moss-003-sft-data) and `LeetcodePythonInstructionHandler` is used to handle [Leetcode dataset](https://huggingface.co/datasets/mhhmm/leetcode-solutions-python).
+请注意，使用 `--handler-name GeneralInstructionHandler` 标志的指令数据集，在处理时会从 `ascendspeed/data/data_handler.py` 中选择 `GeneralInstructionHandler` 类来制作prompt。如果你处理的是 alpaca 格式风格的数据集，即包含 `instruction`, `input` 和 `output` 列的数据集，可以直接使用 `--handler-name GeneralInstructionHandler` 标志。
+此外，`BelleMultiTurnInstructionHandler` 可以被用于处理 [belle](https://huggingface.co/datasets/BelleGroup/multiturn_chat_0.8M) 格式的数据集，`MOSSInstructionHandler` 可以被用于处理 [MOSS](https://huggingface.co/datasets/fnlp/moss-003-sft-data) 格式的数据集，`LeetcodePythonInstructionHandler` 可以被用于处理 [Leetcode](https://huggingface.co/datasets/mhhmm/leetcode-solutions-python) 风格的数据集
 
-
-### <span id="jump12"> Finetune </span>
+### <span id="jump12"> 低参微调 </span>
 #### Lora
 
-Now, we support Lora to fine-tune your models. 
+当前 AscendSpeed基于 peft 仓库支持对大模型的 Lora 微调功能：
 
-First, you need to install version 0.4.0 of the peft library, like this:
 ```shell
 pip install peft==0.4.0
 ```
-You can also choose to install from [the source package in the GitHub repository](https://github.com/huggingface/peft/archive/refs/tags/v0.4.0.tar.gz), so you can modify the setup.py file to avoid some dependency issues.
+你也可以选择直接从它Github仓库的 [源码安装](https://github.com/huggingface/peft/archive/refs/tags/v0.4.0.tar.gz)， 通过修改它的setup.py文件来回避一些依赖问题。 
 
-Next, you just need to add this argument in your script to open Lora:
+之后，你仅仅只需要在启动脚本中使能如下标志便可以启动lora微调训练:
 
 ```shell
 # Llama example
 --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
 ```
 
-There are other Lora related arguments here, you can find their definitions in the [PEFT](https://github.com/huggingface/peft) library.
+Lora有一些相关参数，在 [PEFT](https://github.com/huggingface/peft) 仓库中有详细介绍，比如：
 
 ```shell
 # Llama example
@@ -537,18 +483,18 @@ There are other Lora related arguments here, you can find their definitions in t
 --lora-register-forward-hook word_embeddings input_layernorm \
 ```
 
-Among them, the argument `--lora-register-forward-hook` is used to repair the gradient chain break caused by PP. It only needs to be set to the input layer of each PP stage, and the repair will not increase the trainable parameters.
+在这些参数中，标志 `--lora-register-forward-hook` 被用于修复由PP造成的梯度链中断，它仅仅只需要在每一个PP阶段的输入层设置，并不会增加训练参数。
 
-Finally, only Lora's parameters are saved after turning on Lora. Similarly, when loading a model, you need to specify the original model weight path and the Lora weight path. Parameters such as the optimizer are subject to those in the Lora weight path.
+最后，Lora微调后保存的权重仅仅只会包含新增的Lora权重。相似的，当你加载一个Lora模型时，除了原始权重路径需要设置，还需要设置一个加载Lora权重的路径，如下：
 
 ```shell
 --load ${ORIGIN_CHECKPOINT} \
 --lora-load ${LORA_CHECKPOINT} \
 ```
 
-There is an [example](examples/llama/tune_llama_ptd_13b.sh) could be referred. 
+这个 [例子](examples/llama/tune_llama_ptd_13b.sh) 可以用于参考。
 
-After using Lora to fine-tune the Llama model, the instruction dialogue effect is as follows:
+在使用 Lora 微调 Llama 模型以后，指令对话的效果如下：
 
 ```shell
 You >> Give three tips for staying healthy.
@@ -560,21 +506,19 @@ AscendSpeed:
 - Take medications regularly.
 ```
 
-### <span id="jump13"> Inference </span>
-Currently, we support the following four strategies for inference:
-- PTD only
-- DeepSpeed ZeRO only
-- DeepSpeed ZeRO in PIPELINE with TP
-- Model fine-tuned with lora
+### <span id="jump13"> 推理: 人机对话 </span>
+当前，我们支持使用如下并行策略训练的模型进行推理:
+- 仅仅使用 PTD 策略训练的模型
+- 仅仅使用 DeepSpeed 中 ZeRO 策略训练的模型
+- 基于 DeepSpeed 拉起的带 TP 策略的模型
+- 使用 Lora 策略微调的模型
 
-#### Quick Start
-Here are some example scripts in different mode mentioned above for you to launch directly.
+#### 快速开始
 
-***Please Note that:***
-1. If you want to use the weight from huggingface, please run the weight conversion script first. 
-    Take Llama-7B, for example:
+这里有一些使用不同模式的样例脚本可以尝试运行，***请注意：***
+1. 如果你尝试使用 huggingface 的模型权重，请首先进行权重转换， 以 Llama-7B 为例:
     
-      - PTD only
+      - PTD 策略的转换
     
            ```bash
            python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
@@ -584,43 +528,42 @@ Here are some example scripts in different mode mentioned above for you to launc
                                                                                --type 7B
            ```
     
-    - DeepSpeed ZeRO only
-        ```bash
-        python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
-                                                                            --output-model-dir llama-7b-deepspeed \
-                                                                            --type 7B \
-                                                                            --deepspeed
-        ```
+      - ZeRO 策略的转换
+          ```bash
+          python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
+                                                                              --output-model-dir llama-7b-deepspeed \
+                                                                              --type 7B \
+                                                                              --deepspeed
+          ```
     
-2. You need to modify some variables in the shell script such as **model weight path** and **vocab path**.
+5. 下面脚本中的一些路径需要修改，比如：模型权重路径 和 词表路径.
 
-    - **PTD only:** In this mode, the model is split by pipeline parallel and tensor parallel mode in megatron ways.
+    - 仅仅使用 PTD 策略训练的模型：在这种模式下，模型以 Megatron-LM 的风格被 流水并行 和 张量并行 切分
         ```bash
         sh examples/llama/generate_llama_7B_tp2_pp2.sh
         ```
-    - **Deepspeed ZeRO only:** In this mode, the model uses DeepSpeed ZeRO 1, 2 or 3 definition with tp=1, pp=1.
+    - 仅仅使用 DeepSpeed 中 ZeRO 策略训练的模型：在这种模式下，模型使用 DeepSpeed 的 ZeRO 1, 2 or 3 策略训练，并且 tp=1, pp=1
         ```bash
         sh examples/alpaca/generate_alpaca_13B_deepspeed.sh
         ```
-    - **Deepspeed ZeRO in Pipe with TP:** In this mode, the model uses pipe model definition in DeepSpeed ZeRO 1, 2 or 3 with tp>1, pp=1.
+    - 基于 DeepSpeed 拉起的带 TP 策略的模型：在这种模式下，模型使用 DeepSpeed 的 ZeRO 1, 2 or 3 策略训练，并且 tp>1, pp=1
         ```bash
         sh examples/llama/generate_llama_7B_deepspeed_pipeline.sh
         ```
-    - **If you want to use lora model**, for details, refer to:
+    - 如果你仅仅使用 Lora, 可以参考:
         ```bash
         sh examples/alpaca/generate_alpaca_13B_lora_deepspeed.sh
         ```
 
-***Some examples with [Chinese-LLaMA-Alpaca-13B weights](https://github.com/ymcui/Chinese-LLaMA-Alpaca) is see [here](#case1)***
+#### 使用手册
+这里列举了一些使用 [Chinese-LLaMA-Alpaca-13B](https://github.com/ymcui/Chinese-LLaMA-Alpaca) 权重进行推理的例子，
+同时依据下列步骤可以写出你自己的推理例子:
 
-#### Usage Guide
-Follow these steps to write your own inference code:
-
-##### Initializing the Distributed Environment
+##### 初始化分布式环境
 ```python
 initialize_megatron(args_defaults={'no_load_rng': True, 'no_load_optim': True})
 ```
-##### Initializing model and loading weights
+##### 初始化模型和权重
 ```python
 from ascendspeed import get_args
 from ascendspeed.model import LlamaModel
@@ -656,7 +599,7 @@ pretrained_model_name_or_path(`str`, *optional*, defaults to None):
     If it is None, the random initialized weights will be used.
 """
 ```
-##### <span id="case1"> Generate text in HuggingFace-like ways </span>
+##### <span id="case1"> 以 HuggingFace 的风格生成文本 </span>
 
 - Greedy Search
     ```python
@@ -706,18 +649,18 @@ pretrained_model_name_or_path(`str`, *optional*, defaults to None):
     ```
     <img src="sources/images/beam_search_sampling.png">
 
-## <span id="jump14"> Evaluation with Benchmarks </span>
-### Quick Show
+### <span id="jump14"> 使用基线数据集进行评估 </span>
+#### 评估样例
 
 <table>
   <thead>
     <tr>
-      <th>Task</th>
-      <th>Subset</th>
-      <th>Model</th>
-      <th>AscendSpeed+NPU</th>
-      <th>Reference</th>
-      <th>Benchmark</th>
+      <th>任务</th>
+      <th>验证集</th>
+      <th>模型</th>
+      <th>昇腾值</th>
+      <th>参考值</th>
+      <th>社区值</th>
     </tr>
   </thead>
 
@@ -781,16 +724,16 @@ pretrained_model_name_or_path(`str`, *optional*, defaults to None):
   </tbody>
 </table>
 
-### Quick Start
+#### 快速开始
 ```bash
-# Configure model path and vocab_file path
-# Vocab file can be downloaded from https://huggingface.co/yahma/llama-7b-hf
+# 配置模型和词表路径
+# 词表路径地址：https://huggingface.co/yahma/llama-7b-hf
 CHECKPOINT=../models/llama-7b-tp2-pp4/
 VOCAB_FILE=../models/llama7b-hf/
-# configure task and data path
+# 配置任务和数据路径
 DATA_PATH="dataset/boolq/test"
 TASK="boolq"
-# configure generation parameters 
+# 配置生成参数 
 python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
@@ -810,13 +753,13 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
        --fp16  \
        --micro-batch-size 1  \
        --seed 42 | tee logs/train.log
-# start evaluation
+# 开启评估
 bash tasks/evaluation/eval_llama.sh
 ```
 
-### Task Introduction
-The most important evaluation parameters must be `--max-new-tokens`, which means the output length of model generation. For example, multiple-choice
-questions' output length is obviously shorter than coding tasks. Besides, this parameter largely influences the speed of model generation.
+#### 任务介绍
+最重要的评估参数是 `--max-new-tokens`, 它表示模型输出的生成长度，比如，多项选择问题的输出长度就会明显比编码任务的输出长度小，该参数也很大程度上影响了模型的生成速度。
+
 ```bash
 python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
        --task-data-path $DATA_PATH \
@@ -838,83 +781,134 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
        --micro-batch-size 1  \
        --seed 42 | tee logs/train.log
 ```
-#### BoolQ 
-BoolQ is a question answering dataset for yes/no questions. Each question contains a triplet of (question, passage, answer), with the title of the page as optional additional context.
-The evaluation of the BoolQ data set is relatively simple, just configure `TASK="boolq"`, `--seq-length=512`, `--max-position-embeddings=512`, `--max-new-token=2`.
-The zero-shot results usually affected by the given prompt, and a higher score can be obtained by a suitable prompt. 
-The prompt can be modified in `tasks/evaluation/evaluation.py`
+##### BoolQ 
+BoolQ 是一个 yes/no 的问答数据集， 每一个问题包含了一个（问题，文章，答案）三元组，同时有文章的标题作为额外的选择性输入。BoolQ 数据集的评估相对简单，只需要配置 `TASK="boolq"`, `--seq-length=512`, `--max-position-embeddings=512`, `--max-new-token=2`。
+零样本评估的结果通常会被给定的 prompt 影响，可以尝试通过在 `tasks/evaluation/evaluation.py` 中设置合适的 prompt 得到更高的分数，
+
 ```bash
-# Update new prompt by changing the template
+# 通过修改 template 更新prompt
 template = {instruction}
 ```
 
-#### MMLU 
-Since MMLU is a multidisciplinary task and 5 shots are performed, the length of each subject question varies greatly. If you want to run 57 subjects at the same time, you need to set `TASK="mmlu"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=2`. (`--max-new-tokens` can be set to between 2-4).
-On many websites, the accuracy of the MMLU is evaluated according to disciplines. The 57 categories of single subjects belong to four main categories. Therefore, the statistics should be summarized according to the major categories of the subjects. The [website](https://github.com/hendrycks/test/blob/master/categories.py) gives the major categories of subjects for 57 categories of subjects.
+##### MMLU 
+由于 MMLU 是一项多学科任务，并且需要进行 5-shot 评估，因此每个学科问题的长度差异很大。如果你想同时跑57个学科任务，可以尝试设置 `TASK="mmlu"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=2` (`--max-new-tokens` 可以在 2-4 取值)。
+在很多网站，MMLU 的精度会依据学科进行评估，57个学科主要属于四个大类， 因此该数据集也可以基于四个大类进行打分，[网站](https://github.com/hendrycks/test/blob/master/categories.py) 给出了具体的57个类别。
 
 
-#### GSM8K 
-GSM8K is a dataset of 8.5K high quality linguistically diverse grade school math word problems created by human problem writers. The answer of each question is a specific number. Since few shots are performed,  the question length is relatively long in GSM8K, and the output answer contains a chain of thoughts, it is necessary to configure `TASK="gsm8k"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=128`. (`--max-new-tokens` can be set between 256-512).
+##### GSM8K 
+GSM8K 是一个有8.5k高质量小学数学应用题文本的数据集，每一个问题的回答是具体的数字。由于该数据集通常采用 few-shot 的形式进行评估，GSM8K的问题长度相对是比较长的，输出答案包含一整个思维链路，相关入参应该设置为 `TASK="gsm8k"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=128` (`--max-new-tokens` 可以是 256-512).
 
-#### HumanEval 
-HumanEval dataset is a handcrafted set of 164 programming problems designed to challenge code generation models. The problems include a function signature, docstring, body, and several unit tests, all handwritten to ensure they're not included in the training set of code generation models. 
-Since the answer of HumanEval dataset contains long codes, it is necessary to configure `TASK="human_eval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024`.
+##### HumanEval 
+HumanEval 是一个用于挑战代码生成问题的数据集，具有164个编程问题，包含函数签名，文档，函数主体和单元测试等。该数据的所有问题都是手写的，以确保它们不在训练集中，由于答案包含长代码，相关参数可以设置为 `TASK="human_eval"`, `--seq-length=2048`,
+`--max-position-embeddings=2048`, `--max-new-token=1024`。
 
-#### AGIEval
-AGIEval is a human-centric benchmark specifically designed to evaluate the general 
-abilities of foundation models in tasks pertinent to human cognition and problem-solving. This benchmark is derived from 20 official, public, and high-standard admission and qualification exams intended for general human test-takers, such as general college admission tests (e.g., Chinese College Entrance Exam (Gaokao) and American SAT), law school admission tests, math competitions, lawyer qualification tests, and national civil service exams.Since the length of answers to different type of questions varies, we have to configure `TASK="agieval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024` to fit the longest answer. 
+##### AGIEval
+AGIEval 是一个用于评估大模型在人类认知和问题解决能力方面生成能力的基准数据集，它源于20个面向普通考生的官方、公开和高标准的入学和资格考试，相关参数可以设置为 `TASK="agieval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024`。
 
-#### Big-Bench-Hard
-Big-bench-hard dataset is a subset of big bench, which is a diverse evaluation suite that focuses on a suite of 23 challenging BIG-Bench tasks. These are the task for which prior language model evaluations did not outperform the average human-rater. This dataset covers multiple areas including text understanding, reasoning, logical reasoning, mathematical reasoning, and common sense reasoning.
-Except word_sorting, all datasets are multiple-choice questions. So we can set `TASK="bbh"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=32`. (`--max-new-tokens` can be set between 32-64).
+##### Big-Bench-Hard
+Big-bench-hard 数据集是 BIG-Bench 的一个子集，专注于有挑战性的23个 BIG-Bench 任务， 涵盖文本理解、推理、逻辑推理、数学推理和常识推理等多个领域，相关参数可以设置为 `TASK="bbh"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=32` (`--max-new-tokens` 可以是 32-64)。
 
-#### CEval
-As [C-Eval](https://cevalbenchmark.com/) shows, C-Eval is a comprehensive Chinese evaluation suite for foundation models. It consists of 13948 multi-choice questions spanning 52 diverse disciplines and four difficulty levels, as shown below. You may explore our dataset examples at Explore, or check our paper for more details. The dataset contains validation and test data, however, only validation data has label for auto-evaluation. If 
-you want to evaluate on test data, you should email your results to [C-Eval](https://cevalbenchmark.com/). 
+##### CEval
+如 [C-Eval](https://cevalbenchmark.com/) 展示的, C-Eval 是一个针对大模型的综合中文评估数据集， 它由13948道多项选择题组成，涵盖52个不同学科和4个难度级别，划分为验证和测试集，验证集包含标签用于个人评估，测试集合的标签没有公开，如果想要知道模型得分，需要将结果 邮件发送给 [C-Eval](https://cevalbenchmark.com/)。
+
+## 加速算法介绍
+
+---
+
+### <span id="jump1"> 张量并行 </span>
+张量并行（Tensor Parallelism，TP）是一种模型并行策略，它将单个Transformer模块的执行拆分到多个设备上，以均分内存消耗。TP的基本原理如下：<div align=center>
+<img src="sources/images/tp_in_mlp.png" height="280px" width="500px">
+<img src="sources/images/tp_in_sa.png" height="280px" width="500px"></div>
+在 AscendSpeed 中使用张量并行， 可以在启动脚本中增加  `--tensor-model-parallel-size` 标志， 来明确用于拆分模型的GPU数量。
+
+### <span id="jump2">  (虚拟 & 动态) 流水并行  </span>
+流水并行（Pipeline Parallelism (PP)）是一种将模型所有的Transformer模块划分为多个stage放在不同卡上训练的模型并行技术。 
+在PP中，每一个stage都有相等数量的Transformer，同时通过将 全局的 （global） batchsize 拆分为多个 微 （micro） batchsize，在stage间流水化训练这些微 batchsize，以达到训练整个模型的目的。
+虚拟流水并行 （Virtual Pipeline (VP) Parallelism），通过增加虚拟的 stage 来减少 PP 运行时的空泡时间， 动态流水并行 （Dynamic Pipline Parallelism，DPP） 则是增强版本的 VP， 通过合理的设置每个微 batchsize的大小进一步降低空泡时间。
+PP 和 VP的基本原理如下：<div align=center> <img src="sources/images/pp_vp.png" height="350px" width="800px"> </div>
+
+在AscendSpeed中，可以通过使能`--pipeline-model-parallel-size` 标志来明确PP要将模型划分为多少个 stage，比如，该参数设置为4，就是将一个具有24层transformer的模型划分为4个stage，每个stage有6层transformer。
+为了使用VP，需要额外添加 `--num-layers-per-virtual-pipeline-stage` 标志，来决定每个虚拟stage的层数；为了使用DPP，则需要在PP的基础上添加 `--optimized-pipeline` 和 `--manual-mbs example-config-1` 标志。需要说明的是，虽然VP和DPP可以减少空泡时间，但是会增加通讯时间。
 
 
-### Configuration of models and datasets
-As the example shown below, we want to use llama7b model for BoolQ dataset evaluation, so the model path and vocab file should correspond to llama7b model. Model can be segmented with suitable segmentation parameters: the following example set tensor-model-parallel-size(tp) = 2 and pipeline-model-parallel-size(pp) = 4. Segmentation example shows as followed:
-```bash
-python convert_weights_from_huggingface.py \
-        --input-model-dir /home/w425040/models/llama-7b-hf \
-        --output-model-dir /home/w425040/models/llama-7b-tp2-pp4 \
-        --type 7B \
-        --tensor-model-parallel-size 2 \
-        --pipeline-model-parallel-size 4 
-```
-Then, configure dataset path and task.  Note: since the evaluation parameters of different datasets are not totally same, it is not recommended to evaluate two or more different datasets together. Evaluation parameters such as `--seq-length`, `--max-new-tokens` and `--max-position-embeddings` need to be adjusted to datasets. The recommended parameters for each dataset will be given in the following instruction.
+### <span id="jump3"> Fold3D </span>
+Fold3D 隐藏了 PP 中数据并行的通信时间，其基本原理如下：<div align=center>
+<img src="sources/images/fold3d.png" height="350px" width="800px"></div>
+在AscendSpeed中，使用 `--fold-mode "aiao"` 标志可以打开该功能。
 
-```bash
-# configure model path and vocab_file path
-CHECKPOINT=../models/llama-7b-tp2-pp4/
-VOCAB_FILE=../models/llama7b-hf/
-# configure task and data path
-DATA_PATH="dataset/boolq/test"
-TASK="boolq"
-# configure generation parameters 
-```
-\
-\
-<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring website security.</font>
+### <span id="jump4"> (选择性) 重计算 </span>
+为了使用有限的显存来训练更大的模型，AscendSpeed 支持完全重计算以及选择性重计算策略，为了使能完全重计算，可以使用 `--checkpoint-activations` 标志，
+至于选择性重计算，则可以通过添加 `--checkpoint-policy` 标志来决定选择性重计算的策略。
 
-## Appendix
+### <span id="jump5"> 序列并行 </span>
+序列并行（Sequence Parallelism，SP）是一种模型并行策略，它依赖TP的实现，沿着序列轴按照TP的维度拆分了dropout层和layernorm层。
+SP将TP中的allreduce操作拆分为了reduce-scatter和allgather操作，这降低了模型训练中的内存占用。
 
-### Inner Function Description
-Here are some inner implementation interface introduction [InnerInterface](https://gitee.com/ascend/AscendSpeed/wikis/Inner%20API%20Description/Some%20inner%20interface%20description?sort_id=8824096)
+<img src="sources/images/sp.png" height="250px" width="800px"></div>
 
-### Parameters Description
-Here are some parameters description and usage [param](https://gitee.com/ascend/AscendSpeed/wikis/Home). Concrete content you can see from the Algorithm and Solution Introduction.
+为了使能SP, `--tensor-model-parallel-size` 标志应该大于1，同时设置 `--sequence-parallel` 标志。
 
-### Permission Description
-It is recommended that the umask value of Linux be greater than or eqaul to 027.
+### <span id="jump6"> ZeRO-1/2/3 </span>
+无冗余优化器（Zero Redundancy Optimizer，ZeRO）是微软提出的一种在数据并行中优化内存的并行策略。AscendSpeed通过增加deepspeed分支，支持了ZeRO-1/2，其基本原理如下：
+<div align=center>
+<img src="sources/images/ZeRO.png" height="250px" width="600px"></div>
 
-Before running the program, you are advised to take security measures such as permission control for files required for training, such as ckpt, logs and so on. You are advised to run the program or execute commands as a regular user not as root or super user. Also, you are advised to set the folder permission to 750 and the file permission to 640.
+为了使能ZeRO-1/2, 我们需要配置一个如 [例子](examples/llama/pretrain_llama_7B_zero_8p.sh) 所示的deepspeed config。
+值得一提的是，如果仅仅是需要ZeRO-1，那么deepspeed不是必须的，只需要设置 `--use-distributed-optimizer` 标志就可以了。
 
-When multiple users share datasets, set the read and write permissions for folders and files based on the minimum permissions to avoid security problems such as unauthorized access.
+### <span id="jump7"> 倒三角加速 </span>
+倒三角在python层面实现了flash attention，是一种针对attention模块的加速算法。基本的，self-attention在计算attention值的时候会把整个attention mask纳入计算，
+而倒三角加速算法仅仅会计算必要的部分，从而降低计算量，计算过程如下：
+<div align=center>
+<img src="sources/images/triangle.png" height="600px" width="600px"></div>
 
-### Path Description
-When you're using interface such as `torch.load`, unless weights_only parameter is set to True, uses pickle module implicitly, which is known to be insecure. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling. We don't suggest you load data that could have come from an untrusted source in an unsafe mode, or that could have been tampered with. Please load data you trust. Moreover, when you need to read data from outside or your specified path you'd better make it trusted and safe, including but not limited to weights path, dataset path.
+在AscendSpeed中可以通过使能 `--triangle-attn` 标志打开倒三角加速。
 
-### Communication Matrix
-Please refer to this [link](https://gitee.com/ascend/AscendSpeed/wikis/Communition%20Matrix/AscendSpeed%20Communication%20Matrix?sort_id=8855822) to check the communication matrix.
+
+### <span id="jump8"> 融合优化器 </span>
+融合优化器通过减小算子下发降低计算时间，在AscendSpeed中，通过 `--optimizer` 可以选择不同的优化器，具体的，选择 `--optimizer adam` 可以节省更多内存，选择 `--optimizer fused_adam` 则可以运行的更快。
+
+### <span id="jump9">  前向网络合并 </span>
+对于llama以及一些在FFN中没有bias的模型，FFN中的线性层可以合并计算以减少TP中的通信量，通过设置 `--mlp-layer-fusion` 标志，可以使用该特性。
+
+
+### <span id="jump9">  梯度累积 </span>
+梯度累积基于 N 轮梯度更新一次参数，这里的 N = global batchsize / micro batchsize / DP，DP = device nums / tp / pp。
+
+
+## 致谢
+
+---
+
+AscendSpeed由华为公司的下列部门联合贡献
+：
+- 昇腾计算产品线
+- 计算算法部
+- 计算研究部
+- 开源计算工具部
+- 公共开发部
+- 全球技术服务部
+
+感谢来自社区的每一个PR，欢迎贡献 AscendSpeed
+
+## 备注
+
+---
+- 内部函数说明:  [内部函数](https://gitee.com/ascend/AscendSpeed/wikis/Inner%20API%20Description/Some%20inner%20interface%20description?sort_id=8824096)
+- 参数说明: [参数说明](https://gitee.com/ascend/AscendSpeed/wikis/Home)
+- 许可描述: 在运行程序之前，建议您对训练所需的文件（如ckpt、日志等）采取权限控制（普通用户而不是root权限）等安全措施
+- 路径描述: 当你使用 `torch.load` 接口时，除非 weights_only 参数被设置为 True， 否则请隐式的使用 pickle 模块，我们不建议您加载和使用任何来源未知或不可信任的数据
+- 通信矩阵: [通信矩阵](https://gitee.com/ascend/AscendSpeed/wikis/Communition%20Matrix/AscendSpeed%20Communication%20Matrix?sort_id=8855822)
+
+
+
+
+
+
+
+
+
+
+
+
+
