@@ -21,6 +21,7 @@ from ascendspeed.model import LayerNorm
 from ascendspeed.model.fused_layer_norm import MixedFusedLayerNorm
 from ascendspeed.model.lora_utils import is_enable_lora
 from ascendspeed.optimizer.adam import AdamW as Adam
+from ascendspeed.optimizer.cadam import CAdamW as CAdam
 from ascendspeed.error_utils import check_equal
 
 from .grad_scaler import ConstantGradScaler, DynamicGradScaler
@@ -141,7 +142,11 @@ def get_megatron_optimizer(model):
                                  weight_decay=args.weight_decay,
                                  betas=(args.adam_beta1, args.adam_beta2),
                                  eps=args.adam_eps)
-
+        elif args.optimizer == 'cadam':
+            optimizer = CAdam(param_groups,
+                            lr=args.lr,
+                            weight_decay=args.weight_decay,
+                            beta=args.adam_beta1)
         else:
             raise Exception('{} optimizer is not supported.'.format(
             args.optimizer))
