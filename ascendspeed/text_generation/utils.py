@@ -28,7 +28,7 @@ def get_batch(context_tokens):
     tokenizer = get_tokenizer()
 
     # Move to GPU.
-    tokens = context_tokens.view(args.micro_batch_size, -1).contiguous().to(get_accelerator().device_name())
+    tokens = context_tokens.contiguous().to(get_accelerator().device_name())
     # Get the attention mask and position ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
@@ -41,29 +41,45 @@ def get_batch(context_tokens):
 
 
 def pad_batch(batch, args):
+    max_context_length = get_accelerator().LongTensor([max(len(val) for val in batch)])
+    torch.distributed.all_reduce(max_context_length)
+    max_context_length = torch.div(max_context_length, torch.distributed.get_world_size(), rounding_mode="floor")
+
     tokenizer = get_tokenizer()
 
     pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id else tokenizer.eos_token_id
     context_lengths = [len(val) for val in batch]
 
     if args.text_generation_config['max_new_tokens'] > 0:
-        max_length = max(context_lengths) + args.text_generation_config['max_new_tokens']
+        max_length = max_context_length[0].item() + args.text_generation_config['max_new_tokens']
     else:
         max_length = args.text_generation_config['max_length']
 
     # set fused_operator_contiguous_num = 32
-    max_length = math.ceil(max_length / 32) * 32
+    max_length_padded = math.ceil(max_length / 32) * 32
 
     for i, tokens in enumerate(batch):
-        if context_lengths[i] < max_length:
-            tokens.extend([pad_id] * (max_length - context_lengths[i]))
+        if context_lengths[i] < max_length_padded:
+            tokens.extend([pad_id] * (max_length_padded - context_lengths[i]))
 
-    return batch, context_lengths
+    context_tokens_tensor = get_accelerator().LongTensor(batch)
+    context_length_tensor = get_accelerator().LongTensor(context_lengths)
+
+    torch.distributed.broadcast(context_length_tensor, args.master_rank)
+    torch.distributed.broadcast(context_tokens_tensor, args.master_rank)
+
+    args.seq_length = context_tokens_tensor.shape[1]
+    args.max_position_embeddings = args.seq_length
+    args.max_length_ori = max_length
+
+    return context_tokens_tensor, context_length_tensor
 
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     """
-    This function has been mostly taken from huggingface conversational ai code 
+    This function has been mostly taken from huggingface conversational ai code at
+        https://medium.com/huggingface/how-to-build-a-state-of-the-art-conversational-ai-with-transfer
+        -learning-2d818ac26313
     """
 
     if top_k > 0:
@@ -98,16 +114,7 @@ def greedy_search_or_sampling(model, context_tokens, model_latencies=None, singl
     model_latencies = [] if model_latencies is None else model_latencies
     single_token_latency = [] if single_token_latency is None else single_token_latency
 
-    context_tokens, context_lengths = pad_batch(context_tokens, args)
-    context_tokens_tensor = get_accelerator().LongTensor(context_tokens)
-    context_length_tensor = get_accelerator().LongTensor(context_lengths)
-
-    torch.distributed.broadcast(context_length_tensor,
-                                parallel_state.get_tensor_model_parallel_src_rank(),
-                                group=parallel_state.get_tensor_model_parallel_group())
-    torch.distributed.broadcast(context_tokens_tensor,
-                                parallel_state.get_tensor_model_parallel_src_rank(),
-                                group=parallel_state.get_tensor_model_parallel_group())
+    context_tokens_tensor, context_length_tensor = pad_batch(context_tokens, args)
 
     context_length = context_length_tensor.min().item()
 
@@ -118,13 +125,17 @@ def greedy_search_or_sampling(model, context_tokens, model_latencies=None, singl
         model_latencies=model_latencies
     )
 
-    count = 0
+    yield from _post_process(
+        batch_token_iterator,
+        context_length,
+        context_length_tensor,
+        single_token_latency
+    )
 
-    yield from _post_process(batch_token_iterator, context_length, count, single_token_latency)
 
-
-def _post_process(batch_token_iterator, context_length, count, single_token_latency):
+def _post_process(batch_token_iterator, context_length, context_lengths, single_token_latency):
     t0 = time.time()
+    count = 0
     for tokens, lengths, log_probs in batch_token_iterator:
         if count > 1:
             get_accelerator().synchronize()
@@ -135,13 +146,12 @@ def _post_process(batch_token_iterator, context_length, count, single_token_late
         count += 1
         context_length += 1
         if tokens is not None:
-            yield tokens[:, :context_length], lengths, log_probs
+            yield tokens[:, :context_length], context_lengths.cpu().numpy().tolist(), log_probs
         else:
             yield None, None, None
 
 
 def switch(val1, val2, boolean):
-
     boolean = boolean.type_as(val1)
     return (1 - boolean) * val1 + boolean * val2
 
@@ -165,9 +175,10 @@ def forward_step(model, tokens, **kwargs):
     t0 = time.time()
     args = get_args()
     orig_seq_length = args.seq_length
-    args.seq_length = tokens.shape[1]
+    args.micro_batch_size = tokens.shape[0]
     config = get_model_config(model)
     tensor_shapes = [args.seq_length, args.micro_batch_size, args.hidden_size]
+
     input_tensor = recv_forward(tensor_shapes, config)
 
     _unwrap_and_set_input_tensor(args, input_tensor, model)
@@ -241,10 +252,9 @@ def sample_sequence_batch(model, context_tokens, context_lengths, type_ids=None,
         counter = 0
         layer_past = None
         batch_size = tokens.size(0)
-        max_length = tokens.size(1)
+        max_length = args.max_length_ori
         context_length = context_lengths.min().item()
         is_done = torch.zeros([batch_size]).byte().to(get_accelerator().device_name())
-        lengths = torch.ones([batch_size]).long().to(get_accelerator().device_name()) * max_length
 
         while context_length < max_length:
             if args.text_generation_config['recompute']:
@@ -277,7 +287,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths, type_ids=None,
 
             done = _is_done(is_done, prev, started, tokenizer)
 
-            yield tokens, lengths, output_log_probs
+            yield tokens, max_length, output_log_probs
 
             context_length += 1
             counter += 1

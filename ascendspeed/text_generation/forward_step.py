@@ -70,30 +70,26 @@ class ForwardStep:
         self.pipeline_size_larger_than_one = (
             args.pipeline_model_parallel_size > 1)
         # Threshold of pipelining.
-        self.pipelining_batch_x_seqlen = \
-            args.inference_batch_times_seqlen_threshold
+        self.pipelining_batch_x_seqlen = args.inference_batch_times_seqlen_threshold
+        self.micro_batch_size = args.micro_batch_size
 
     def __call__(self, tokens, position_ids, attention_mask):
         """Invocation of the forward methods. Note that self.inference_params
         is being modified by the forward step."""
         # Pipelining case.
         if self.pipeline_size_larger_than_one:
-            current_batch_x_seqlen = tokens.size(0) * tokens.size(1)
-            if current_batch_x_seqlen >= self.pipelining_batch_x_seqlen:
-                micro_batch_size = \
-                    max(1, self.pipelining_batch_x_seqlen // tokens.size(1))
-                return _with_pipelining_forward_step(self.model,
-                                                     (tokens,
-                                                      position_ids,
-                                                      attention_mask),
-                                                     self.inference_params,
-                                                     micro_batch_size)
-
-        return _no_pipelining_forward_step(self.model,
-                                           (tokens,
-                                            position_ids,
-                                            attention_mask),
-                                           self.inference_params)
+            return _with_pipelining_forward_step(self.model,
+                                                 (tokens,
+                                                  position_ids,
+                                                  attention_mask),
+                                                 self.inference_params,
+                                                 self.micro_batch_size)
+        else:
+            return _no_pipelining_forward_step(self.model,
+                                               (tokens,
+                                                position_ids,
+                                                attention_mask),
+                                               self.inference_params)
 
 
 def _get_recv_buffer_dtype(args):
@@ -157,12 +153,12 @@ def _with_pipelining_forward_step(model, inputs, inference_params, micro_batch_s
             dtype=torch.float32, device=torch.cuda.current_device())
 
     for micro_batch_index in range(num_micro_batches):
-        # Slice among the batch dimenion.
+        # Slice among the batch dimension.
         start = micro_batch_index * micro_batch_size
         end = min(start + micro_batch_size, batch_size)
         this_micro_batch_size = end - start
-        tokens2use = tokens[start:end, ...]
-        position_ids2use = position_ids[start:end, ...]
+        tokens2use = tokens[start: end, ...]
+        position_ids2use = position_ids[start: end, ...]
 
         output = _forward_step_helper(model,
                                       tokens2use,
@@ -176,7 +172,7 @@ def _with_pipelining_forward_step(model, inputs, inference_params, micro_batch_s
 
         # Copy logits.
         if parallel_state.is_pipeline_last_stage():
-            logits[start:end, ...] = output
+            logits[start: end, ...] = output
 
     # Once we are done with all the micro-batches, we can
     # adjust the sequence length offset.

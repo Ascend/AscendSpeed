@@ -278,10 +278,14 @@ class MegatronModuleForCausalLMABC(torch.nn.Module, abc.ABC):
 
         Parameters:
         ----------
-        input_ids(str | torch.Tensor):
+        input_ids(str | list | LongTensor):
             The text entered by the user, e.g. 'Hello!'
             Or
             The text, which encoded by tokenizer, entered by the user, e.g. [0, 13, 5, ...]
+            Or
+            The List, which includes multi texts or tokens,
+            e.g. [['Hello!'], ["How are you?"]] | [[0, 13, 5, ...], [0, 21, ...]].
+            Notice that in beam-search mode multi texts or tokens is forbidden.
         do_sample (`bool`, *optional*, defaults to `False`):
             Whether to use sampling ; use greedy decoding otherwise.
         top_k (`int`, *optional*, defaults to 0):
@@ -421,36 +425,10 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         return engine
 
     @staticmethod
-    def _broadcast_tokens(context_tokens, context_length, master_rank):
-        if dist.get_world_size() > 1:
-            if dist.get_rank() == master_rank:
-                context_tokens_tensor = get_accelerator().LongTensor(context_tokens)
-                dist.broadcast(context_tokens_tensor, master_rank)
-            else:
-                context_tokens_tensor = torch.empty(context_length,
-                                                    dtype=torch.int64,
-                                                    device=torch.device(get_accelerator().device_name()))
-                dist.broadcast(context_tokens_tensor, master_rank)
-        else:
-            context_tokens_tensor = get_accelerator().LongTensor(context_tokens)
-
-        return context_tokens_tensor
-
-    @staticmethod
-    def _check_output(output, stream):
-        if not stream:
-            full_output = None
-            for tmp in output:
-                full_output = tmp
-            return full_output
-        else:
-            return output
-
-    @staticmethod
     def _ids_check(ids, tokenizer):
         checked_ids = []
         for per_ids in ids:
-            if torch.max(per_ids) >= len(tokenizer):
+            if per_ids == torch.Size([]) and torch.max(per_ids) >= len(tokenizer):
                 warning_info = "The output ids exceeds the tokenizer length, "\
                                "the clamp operation is enforced, please check!!"
                 logging.warning(warning_info)
@@ -537,14 +515,9 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         # so you don't need to pass the prompt on
         # each process.
         # =======================================
-        context_length, context_tokens, master_rank = self._tokenize(input_ids)
-
-        # =======================================
-        # For parallel we need to send context tokens
-        # to other process
-        # =======================================
-        context_tokens_tensor = self._broadcast_tokens(context_tokens, context_length, master_rank).unsqueeze(0)
-        context_tokens = context_tokens_tensor.cpu().numpy().tolist()
+        context_tokens, master_rank = self._tokenize(input_ids)
+        args.master_rank = master_rank
+        args.micro_batch_size = len(context_tokens)
 
         # =======================================
         # Get the streaming tokens generator
@@ -568,12 +541,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         # Post processions in order to get final
         # output texts/tokens
         # =======================================
-        output = self._post_processing(token_stream,
-                                       context_length,
-                                       self.include_input,
-                                       self.detokenize,
-                                       self.num_beams)
-        return self._check_output(output, self.stream)
+        return self._token_generator(token_stream)
 
     def _init_tokenizer(self, args):
         if self.tokenizer_new is None:
@@ -596,57 +564,94 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         else:
             raise ValueError("Your tokenizer doesn't include eos_token.")
 
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+
     def _tokenize(self, input_ids):
+        context_tokens = [[]]
         broadcast_rank = torch.zeros(dist.get_world_size(),
                                      dtype=torch.int64,
                                      device=torch.device(get_accelerator().device_name()))
 
-        if input_ids:
+        if input_ids is not None and len(input_ids) > 0:
             if isinstance(input_ids, str):
-                context_tokens = self.tokenizer.encode(input_ids)
+                context_tokens = [self.tokenizer.encode(input_ids)]
+            elif torch.is_tensor(input_ids):
+                if len(input_ids.shape) == 1:
+                    context_tokens = input_ids.unsqueeze(0).numpy().tolist()
+                elif len(input_ids.shape) == 2:
+                    context_tokens = input_ids.numpy().tolist()
+            elif isinstance(input_ids, (tuple, list)):
+                if len(input_ids) and isinstance(input_ids[0], (tuple, list)):
+                    context_tokens = input_ids
+                elif len(input_ids) and isinstance(input_ids[0], int):
+                    context_tokens = [input_ids]
+                elif len(input_ids) and isinstance(input_ids[0], str):
+                    context_tokens = [self.tokenizer.encode(val) for val in input_ids]
             else:
-                context_tokens = input_ids
+                raise TypeError("Please check input_ids in correct type.")
 
-            context_length = len(context_tokens)
-            counts = 1
             broadcast_rank[dist.get_rank()] = 1
-        else:
-            context_tokens = [self.tokenizer.encode("EMPTY TEXT")]
-            context_length = 0
-            counts = 0
 
-        input_info = [counts, context_length]
-        input_info_tensor = get_accelerator().LongTensor(input_info)
-        dist.all_reduce(input_info_tensor)
         dist.all_reduce(broadcast_rank)
-        counts = input_info_tensor[0].item()
-        if counts == 0:
-            raise ValueError("Please pass prompt on at least one process.")
-        context_length = input_info_tensor[1].item() // counts
         master_rank = torch.nonzero(broadcast_rank)[0, 0]
-        return context_length, context_tokens, master_rank
 
-    def _post_processing(self, token_stream, context_length, include_input, detokenize, num_beams):
-        for output, _, log_probs in token_stream:
-            if not include_input:
-                output = [val[context_length:] for val in output]
+        return context_tokens, master_rank
 
-            if detokenize:
-                try:
-                    output_checked = self._ids_check(output, self.tokenizer)
-                    output = self.tokenizer.batch_decode(output_checked, skip_special_tokens=True)
-                except Exception as e:
-                    error_info = "Meet errors when trying to decode the tokens. "\
-                                 "Please handle it by yourself."
-                    logging.error(error_info)
-                    logging.error(e)
+    def _post_processing(self, output, context_lengths, log_probs):
+        if not self.include_input:
+            output = [val[context_lengths[i]:] for i, val in enumerate(output)]
 
-            output = output[0] if len(output) == 1 else output
+        # When batch size > 1, you need truncate the tokens after eos_token_id
+        self._truncate_in_multi_batch(output)
 
-            if not self.return_output_log_probs:
-                yield output
-            else:
-                if num_beams == 1:
-                    log_probs = [val[context_length:, :] for val in log_probs] if log_probs is not None else None
+        if self.detokenize:
+            try:
+                output_checked = self._ids_check(output, self.tokenizer)
+                output = self.tokenizer.batch_decode(output_checked, skip_special_tokens=True)
+            except Exception as e:
+                error_info = "Meet errors when trying to decode the tokens. "\
+                             "Please handle it by yourself."
+                logging.error(error_info)
+                logging.error(e)
 
-                yield output, log_probs[0] if len(log_probs) == 1 else log_probs
+        output = output[0] if len(output) == 1 else output
+
+        if not self.return_output_log_probs:
+            res = output
+        else:
+            if self.num_beams == 1:
+                log_probs = [val[context_lengths[i]:, :] for i, val in enumerate(log_probs)] \
+                    if log_probs is not None else None
+
+            res = output, log_probs[0] if len(log_probs) == 1 else log_probs
+
+        return res
+
+    def _truncate_in_multi_batch(self, output):
+        if len(output) > 1:
+            for idx, batch in enumerate(output):
+                trunc_index = torch.nonzero(batch == self.tokenizer.eos_token_id)
+
+                if min(trunc_index.shape):
+                    output[idx][trunc_index.min():] = self.tokenizer.eos_token_id
+
+    def _yield(self, token_stream):
+        output, context_lengths, log_probs = None, None, None
+        for output, context_lengths, log_probs in token_stream:
+            if self.stream:
+                res = self._post_processing(output, context_lengths, log_probs)
+                yield res
+
+        if not self.stream:
+            yield self._post_processing(output, context_lengths, log_probs)
+
+    def _token_generator(self, token_stream):
+        token_stream = self._yield(token_stream)
+        if not self.stream:
+            full_output = None
+            for tmp in token_stream:
+                full_output = tmp
+            return full_output
+        else:
+            return token_stream

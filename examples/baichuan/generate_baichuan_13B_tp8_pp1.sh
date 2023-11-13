@@ -33,5 +33,5 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --micro-batch-size 1 \
        --seq-length 1024 \
        --max-new-tokens 256 \
-       --seed 42
+       --seed 42 \
        --position-embedding-type alibi \
