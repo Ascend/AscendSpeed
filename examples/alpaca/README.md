@@ -1,50 +1,54 @@
 # Chinese-LLaMA-Alpaca
+<p align="left">
+        <b>简体中文</b> |
+        <b><a href="https://gitee.com/ascend/AscendSpeed/blob/master/examples/alpaca/README_en.md">English</a> </b> 
+    </p>
+</p>
 
-This directory contains scripts used to produce the results of Chinese-LLaMA-Alpaca in AscendSpeed.
 
-Chinese-LLaMA-Alpaca model is from: [Efficient and Effective Text Encoding for Chinese LLaMA and Alpaca](https://arxiv.org/abs/2304.08177)
+
+这里介绍如何快速复现 AscendSpeed 中 [Chinese-LLaMA-Alpaca](https://arxiv.org/abs/2304.08177) 的测试结果
 
 > Cui, Yang, and Yao, et al. "Efficient and Effective Text Encoding for Chinese LLaMA and Alpaca." arXiv preprint arXiv:2304.08177 (2023).
 
 
 
-# Contents
+# 目录
 
-- [Contents](#contents)
+- [模型权重](#模型权重)
 
-- [Model Weights](#model-Weights)
+- [合并权重](#合并权重)
 
-- [Merge Model](#merge-Model)
+- [微调](#微调)
 
-- [Fine-tune](#fine-tune)
+  - [训练](#训练)
+  - [脚本](#脚本)
+  - [性能](#性能)
 
-  - [Training](#training)
-  - [Script](#script)
-  - [Performance](#performance)
+    - [吞吐](#吞吐)
+    - [精度](#精度)
 
-    - [Machine performance](#machine-performance)
-    - [Accuracy of the loss](#accuracy-of-the-loss)
+- [推理](#推理)
+  - [脚本](#脚本)
 
-  - [Inference](#Inference)
-    - [Script](#script)
+  - [举例](#举例)
 
-  - [Example](#example)
-
-- [Citation](#citation)
+- [引用](#引用)
 
   
 
-# Model Weights
+# 模型权重
 
 
-First download the [original LLaMA model](https://github.com/facebookresearch/llama) weights, then download the [Chinese-LLaMA-Alpaca model](https://github.com/ymcui/Chinese-LLaMA-Alpaca) LoRA weight, which can be understood as a "patch" on the original LLaMA model. And then merge the original LLaMA model with it to obtain a complete weight.
+下载 [原始 LLaMA 模型](https://github.com/facebookresearch/llama) 权重, 并下载 [Chinese-LLaMA-Alpaca 模型的 LoRA](https://github.com/ymcui/Chinese-LLaMA-Alpaca) 权重, 这里的 Lora 权重可以理解为是LLaMA权重的一个”补丁”
 
-# Merge Weights
+# 合并权重
+在合并权重前，请先确认机器是否有足够的内存加载模型权重，比如 7B的模型就要求13~15G 内存，同时基于[SHA256](https://github.com/ymcui/Chinese-LLaMA-Alpaca/blob/main/SHA256.md)检查权重的完整性以确保合并成功。
+原始 LLaMA 文件包括: tokenizer.model, tokenizer_checklist.chk, consolidated.*.pth, params.json等 
 
-Before merging weights, please ensure that the machine has enough memory to load the complete model weights (for example, 7B model requires 13-15G) for the merge model operation. And confirm the integrity of the base model and the downloaded LoRA model, and check whether they are consistent with the values ​​shown in SHA256.md, otherwise the merge operation cannot be performed. The original LLaMA includes: tokenizer.model, tokenizer_checklist.chk, consolidated.*.pth, params.json. 
+#### 步骤 1: [将原始 LLaMA 模型转化为 huggingface 的格式](https://github.com/ymcui/Chinese-LLaMA-Alpaca/wiki/%E6%89%8B%E5%8A%A8%E6%A8%A1%E5%9E%8B%E5%90%88%E5%B9%B6%E4%B8%8E%E8%BD%AC%E6%8D%A2#step-1-%E5%B0%86%E5%8E%9F%E7%89%88llama%E6%A8%A1%E5%9E%8B%E8%BD%AC%E6%8D%A2%E4%B8%BAhf%E6%A0%BC%E5%BC%8F)
+请使用 Transformers 提供的 [convert_llama_weights_to_hf.py](https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py) 脚本将 LLAMA 模型权重转化为 `huggingface` 的格式
 
-#### Step 1: [Convert the original LLaMA model to HF format.](https://github.com/ymcui/Chinese-LLaMA-Alpaca/wiki/%E6%89%8B%E5%8A%A8%E6%A8%A1%E5%9E%8B%E5%90%88%E5%B9%B6%E4%B8%8E%E8%BD%AC%E6%8D%A2#step-1-%E5%B0%86%E5%8E%9F%E7%89%88llama%E6%A8%A1%E5%9E%8B%E8%BD%AC%E6%8D%A2%E4%B8%BAhf%E6%A0%BC%E5%BC%8F)
-Please use the script [convert_llama_weights_to_hf.py](https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/convert_llama_weights_to_hf.py) provided by Transformers to convert the original LLAMA model to `huggingFace` format. 
 ```
 python convert_llama_weights_to_hf.py \
     --input_dir path_to_original_llama_root_dir \
@@ -52,7 +56,7 @@ python convert_llama_weights_to_hf.py \
     --output_dir path_to_original_llama_hf_dir
 ```
 
-Model files in HF format will be generated in the `--output_dir` directory, such as:
+新的 huggingface 模型文件生成在 `--output_dir` 目录下，如下：
 
 ```
 config.json
@@ -66,12 +70,11 @@ tokenizer.json
 tokenizer.model
 ```
 
-#### Step 2: [Combine LoRA weights to generate full model weights.](https://github.com/ymcui/Chinese-LLaMA-Alpaca/wiki/%E6%89%8B%E5%8A%A8%E6%A8%A1%E5%9E%8B%E5%90%88%E5%B9%B6%E4%B8%8E%E8%BD%AC%E6%8D%A2#step-2-%E5%90%88%E5%B9%B6lora%E6%9D%83%E9%87%8D%E7%94%9F%E6%88%90%E5%85%A8%E9%87%8F%E6%A8%A1%E5%9E%8B%E6%9D%83%E9%87%8D)
+#### 步骤 2: [结合 LoRA 权重生成完整模型权重](https://github.com/ymcui/Chinese-LLaMA-Alpaca/wiki/%E6%89%8B%E5%8A%A8%E6%A8%A1%E5%9E%8B%E5%90%88%E5%B9%B6%E4%B8%8E%E8%BD%AC%E6%8D%A2#step-2-%E5%90%88%E5%B9%B6lora%E6%9D%83%E9%87%8D%E7%94%9F%E6%88%90%E5%85%A8%E9%87%8F%E6%A8%A1%E5%9E%8B%E6%9D%83%E9%87%8D)
 
-This step will expand the Chinese vocabulary of the original LLaMA model (HF format), merge the LoRA weights and generate the full model weights. Here you can choose to output the PyTorch version weight (.pth file) or HuggingFace version weight (.bin file). Please convert it to pth file first, compare the SHA256 of the merged model and then convert it to HF format as needed. 
+**单个 LoRA 权重合并** (可应用于 Chinese-LLaMA, Chinese-LLaMA-Plus, Chinese-Alpaca).
 
-**Single LoRA weight merging** (applicable to Chinese-LLaMA, Chinese-LLaMA-Plus, Chinese-Alpaca). 
-Download the script [merge_llama_with_chinese_lora.py](https://github.com/ymcui/Chinese-LLaMA-Alpaca/blob/main/scripts/merge_llama_with_chinese_lora.py), and execute the following command:
+下载脚本 [merge_llama_with_chinese_lora.py](https://github.com/ymcui/Chinese-LLaMA-Alpaca/blob/main/scripts/merge_llama_with_chinese_lora.py), 并执行:
 ```
 python merge_llama_with_chinese_lora.py \
     --base_model path_to_original_llama_hf_dir \
@@ -79,18 +82,16 @@ python merge_llama_with_chinese_lora.py \
     --output_type huggingface \
     --output_dir path_to_merged_hf_dir 
 ```
-Parameter Description:
+参数说明:
 
-- `--base_model`：Directory to store LLAMA model weights and configuration files in HF format (STEP 1 generation).
-- `--lora_model`：Directory where the Chinese LLAMA/Alpaca LoRA decompressed files are located. 
-- `--output_type`: Specify the output format, which can be `pth` or `huggingface`. If it is not specified, the default is `pth`.
-- `--output_dir`：Specify the directory of saving full model weight, default `./`.
-- (Optional)`--offload_dir`(Only valid for old script `scripts/merge_llama_with_chinese_lora.py`)：For low memory users, you need to specify an Office cache path.
-- (Optional)`--verbose`(Only valid for new script `scripts/merge_llama_with_chinese_lora_low_mem.py`)：Display the detailed information during the merge process.
+- `--base_model`： 存放 HF格式 LLaMA 模型和配置文件的目录 (步骤 1 中生成).
+- `--lora_model`： 存放 Chinese LLAMA/Alpaca LoRA 解压文件的目录 
+- `--output_type`： 明确输出格式，可以是 `pth` or `huggingface`，默认为 `pth`.
+- `--output_dir`：明确输出文件保存目录，默认为 `./`.
 
+**多 LoRA 权重合并** (可应用于 Chinese-Alpaca-Plus 和 Chinese-Alpaca-Pro). 
 
-**Multi-LoRA weight merging** (applicable to Chinese-Alpaca-Plus and Chinese-Alpaca-Pro). 
-Download the script [merge_llama_with_chinese_lora.py](https://github.com/ymcui/Chinese-LLaMA-Alpaca/blob/main/scripts/merge_llama_with_chinese_lora.py), and execute the following command:
+下载脚本 [merge_llama_with_chinese_lora.py](https://github.com/ymcui/Chinese-LLaMA-Alpaca/blob/main/scripts/merge_llama_with_chinese_lora.py), 并执行:
 ```
 python merge_llama_with_chinese_lora.py \
     --base_model path_to_original_llama_hf_dir \
@@ -99,13 +100,13 @@ python merge_llama_with_chinese_lora.py \
     --output_dir path_to_merged_hf_dir 
 ```
 
-#### Step 3: Check SHA256 after merge.
+#### 步骤 3: 合并后检查 SHA256
 
- Be sure to check [SHA256](https://github.com/ymcui/Chinese-LLaMA-Alpaca/blob/main/SHA256.md) after the merge is complete. It is recommended to convert to pth format first, and after comparing the SHA256 is correct, then convert to HF format if necessary, because the model SHA256 corresponding to the HF format often changes (meta information changes).
+权重合并后请检查 [SHA256](https://github.com/ymcui/Chinese-LLaMA-Alpaca/blob/main/SHA256.md)，由于 HF格式的 SHA256 经常发生变化，一般推荐先转化为 `pth` 格式，在确认 SHA256 正确以后，再根据需要转换为 HF 格式。
 
-#### Step 4: Convert ckpt from huggingface format to model parallel format. 
+#### 步骤 4: 将HF的权重格式转化为AscendSpeed格式
 
-Based on megatron launcher, execute the following command:
+如果要使用AscendSpeed的张量和流水并行策略，执行：
 
 ```
 python tools/ckpt_convert/llama/convert_weights_from_huggingface.py \
@@ -115,7 +116,7 @@ python tools/ckpt_convert/llama/convert_weights_from_huggingface.py \
     --pipeline-model-parallel-size 2 \
     --type 7B                                                                    
 ```
-Based on deepspeed launcher, execute the following command:
+如果要使用AscendSpeed中DeepSpeed的并行策略，执行:
 
 ```
 python tools/ckpt_convert/llama/convert_weights_from_huggingface.py \
@@ -128,20 +129,22 @@ python tools/ckpt_convert/llama/convert_weights_from_huggingface.py \
 ```
 
 
-# Fine-tune
-## Training
-Here's a hardware summary of fine-tuning Chinese LLaMA Alpaca-13B:
+# 微调
+## 训练
+Chinese LLaMA Alpaca-13B 微调的硬件配置:
 
-| Hardware |                      Value                      |
-| :------: | :---------------------------------------------: |
-|   CPU    | 4xKunPeng920@3.0GHz，64 Core Pre Socket 256CPUS |
-|   RAM    |                  32x64 GB DDR4                  |
-|   NPU    |               8 x Ascend910 64G                |
+|  硬件 |       配置        |
+|:---:|:---------------:|
+| CPU | 4xKunPeng920@3.0GHz，64 Core Pre Socket 256CPUS |
+| RAM |               32x64 GB DDR4                     |
+| NPU | 8 x Ascend NPUs |
 
-Here's a software summary of fine-tuning Chinese LLaMA Alpaca-13B:
-|         Software          |   Version   |
-| :-----------------------: |:-----------:|
-|          Python           |   3.8.18    |
+
+Chinese LLaMA Alpaca-13B 微调的软件配置：
+
+|            软件             |                                                      版本                                                      |
+|:-------------------------:|:------------------------------------------------------------------------------------------------------------:|
+|          Python           |                                                    3.8.18                                                    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
@@ -152,10 +155,10 @@ Here's a software summary of fine-tuning Chinese LLaMA Alpaca-13B:
 
 
 
-## Script
+## 脚本
 
 
-1. Clone the repository to your local server
+1. 拷贝代码仓到本地服务器
 
 ```bash
 git clone https://gitee.com/ascend/AscendSpeed.git 
@@ -164,38 +167,38 @@ mkdir logs
 mkdir ckpt
 ```
 
-2. Build environment
+2. 搭建环境
 
 ```bash
 # python3.8
 conda create -n test python=3.8
 conda activate test
 
-# install torch and torch_npu
+# 安装 torch 和 torch_npu
 pip install torch-2.0.1-cp38-cp38-manylinux2014_aarch64.whl
 pip install torch_npu-2.0.1rc1.post_XXXXXX-cp38-cp38-linux_aarch64.whl
 
-# install megatron-core
+# 安装 megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
 
-# install deepspeed and deepspeed_npu
+# 安装 deepspeed 和 deepspeed_npu
 pip install deepspeed==0.9.2
 git clone https://gitee.com/ascend/DeepSpeed.git -b v0.9.2 deepspeed_npu
 cd deepspeed_npu
 pip3 install -e ./
 
-# install other packages
+# 安装其他包
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
-3. Prepare dataset
+3. 准备数据集
 ```bash
-# for llama, download alpaca dataset and save it into $DATA_PATH, like
+# 对于llama，下载 alpaca 数据集并将其放入 $DATA_PATH, 比如
 wget http://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json
 
-# download tokenizer configs and (selective) weights from 
+# 下载 tokenizer 配置 
 # https://huggingface.co/yahma/llama-7b-hf/tree/main
-# revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
-# save the downloaded tokenizer into $TOKENIZER_PATH
+# 将 tokenizer_config.json 文件中的 "LLaMATokenizer" 修改为 "LlamaTokenizer" (这是 huggingface 的一个bug)
+# 将 tokenizer 文件放在 $TOKENIZER_PATH
 mkdir dataset
 python tools/preprocess_data.py --input alpaca_data.json \
                                 --output-prefix $DATA_PATH \
@@ -205,62 +208,57 @@ python tools/preprocess_data.py --input alpaca_data.json \
                                 --handler-name GeneralInstructionHandler
 ```
 
-4. Config Chinese-LLaMA-Alpaca fine-tune script 
+4. 配置 Chinese-LLaMA-Alpaca 微调脚本 
 
-Parameters of 7B/13B/33B are distinguished through `$MODEL_PATH`. For example, if `$MODEL_PATH` matches `*7b*`, then using the parameter of 7B.
+通过设置 `$MODEL_PATH` 变量区分 7B/13B/33B 参数，比如，当 `$MODEL_PATH` 入参的字符串可以匹配为 `*7b*` 时，脚本便会使用 7B的参数
 
-* Based on PyTorch's built-in distributed launcher : [Chinese-LLaMA-Alpaca-7B/13B/33B](finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh)
+* 基于torch拉起任务的启动脚本为 : [Chinese-LLaMA-Alpaca-7B/13B/33B](finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh)
 
 ```bash
 bash examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh
 ```
 
-* Based on Deepspeed launcher : [Chinese-LLaMA-Alpaca-7B/13B/33B](finetune_chinese_llama_alpaca_7_13_33b_tp1_pp1_deepspeed.sh)
+* 基于deepspeed拉起任务的启动脚本为 : [Chinese-LLaMA-Alpaca-7B/13B/33B](finetune_chinese_llama_alpaca_7_13_33b_tp1_pp1_deepspeed.sh)
 
 ```bash
 bash examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp1_pp1_deepspeed.sh
 ```
 
-## Performance
+## 性能
 
-### Machine performance
+### 吞吐
 
-The performance of the Chinese LLaMA Alpaca-13B in **Ascend910 NPUs** and **A100 GPUs**:
+以下是 Chinese LLaMA Alpaca-13B 在昇腾芯片和参考芯片上的吞吐对比：
 
-|  Device  |   Model   | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
-| :------: | :-------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
-|   GPUs   | Chinese LLaMA Alpaca-13B |       3000        |             5.83              |         1493.73            |           5.48           |                153.91                 |
-|   NPUs   | Chinese LLaMA Alpaca-13B |       3000        |             6.08              |         1556.77            |           5.26           |                160.41                 |
+|  芯片  |            模型            | 迭代次数 | 样本吞吐 (samples/s/p) | token吞吐 (tokens/s/p) | 单步时间 (s/step) | 浮点计算次数 (TFLOPs/s) |
+|:----:|:------------------------:|:----:|:------------------:|:--------------------:|:-------------:|:-----------------:|
+| GPUs | Chinese LLaMA Alpaca-13B | 3000 |        5.83        |       1493.73        |     5.48      |      153.91       |
+| NPUs | Chinese LLaMA Alpaca-13B | 3000 |        6.08        |       1556.77        |     5.26      |      160.41       |
 
 
 
-### Accuracy of the loss
+### 精度
 
 NPU vs GPU loss.
 
-The NPU runs smoothly, the resource usage is stable, no errors are reported in the middle of the process, the Loss is on a decreasing trend, and the convergence speed is as expected.
-
 ![NPU-LOSS](../../sources/images/alpaca/13b_lm_loss.png)
 
-NPU vs GPU loss relative error.
+NPU vs GPU loss 相对误差.
 
-The relative error between NPU and GPU Loss is less than 0.02 throughout, as expected.
 
 ![NPU-Relative-Error](../../sources/images/alpaca/relative_error.png)
 
 
-## Inference
+## 推理
 
-We support AscendSpeed Inference for text generation with Chinese LLaMA Alpaca-13B.
+AscendSpeed 当前支持 Chinese LLaMA Alpaca-13B 的文本生成推理
 
-### Script
+### 脚本
 
-We generate text samples using the `generate_alpaca` script. Inference different from pre-training, such as we need to Load pre training checkpoint and the length of the output samples:
-
-Config Chinese LLaMA Alpaca-13B inference script: examples/alpaca/generate_alpaca_13B_tp8_pp1.sh
+推理脚本中配置路径参数：[examples/alpaca/generate_alpaca_13B_tp8_pp1.sh](examples/alpaca/generate_alpaca_13B_tp8_pp1.sh)
 
 ```shell
-# modify the model weight path and tokenizer path
+# 修改模型权重和tokenizer词表路径
 CHECKPOINT=<checkpoint-path>
 VOCAB_FILE=<vocabfile-path>
 ```
@@ -269,19 +267,14 @@ VOCAB_FILE=<vocabfile-path>
 bash examples/alpaca/generate_alpaca_13B_tp8_pp1.sh
 ```
 
-## Example
+## 举例
 Chinese LLaMA Alpaca-13B:
 
 ![alpaca_13b_generate.png](../../sources/images/alpaca/alpaca_13b_generate.png)
 
-All the provided scripts are tested on 910 64GB NPUs for Chinese LLaMA Alpaca-13B(fp16). These scripts might not work for other models or a different number of NPUs.
-
-> Note: Sometimes NPUs memory is not freed when inference deployment crashes. You can free this memory by running kill all python in terminal.
 
 
-# Citation
-
-You may also consider original work in your reference:
+# 引用
 
 ```
 @article{chinese-llama-alpaca,
@@ -292,6 +285,3 @@ You may also consider original work in your reference:
       year={2023}
 }
 ```
-\
-\
-<font size=1>If the download of the file fails using 'wget' , you can download it manually while ensuring website security.</font>
