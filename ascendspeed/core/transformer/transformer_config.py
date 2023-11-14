@@ -75,11 +75,9 @@ class TransformerConfig(ModelParallelConfig):
 
         # activation recomputation
 
-        recompute_granularity (str): megatron-core supports 'selective' activation checkpointing where only the memory
-                                     intensive part of attention is checkpointed.  These memory intensive activations
+        recompute_granularity (str): These memory intensive activations
                                      are also less compute intensive which makes activation checkpointing more efficient
-                                     for LLMs (20B+). 'full' will checkpoint the entire transformer layer.  Must be
-                                     'selective' or 'full'. Defaults to None.
+                                     for LLMs (20B+). 'full' will checkpoint the entire transformer layer.
 
         recompute_method (str): uniform will uniformly divide the total number of transformer layers in a transformer
                                 block and recompute the input activation of each divided chunk at the specified
@@ -211,9 +209,9 @@ class TransformerConfig(ModelParallelConfig):
             self.output_layer_init_method = scaled_init_method_normal(self.init_method_std, self.num_layers)
 
     def __recompute_granularity_init(self):
-        if self.recompute_granularity not in ['full', 'selective']:
+        if self.recompute_granularity not in ['full']:
             raise ValueError(
-                f'When using recompute_granuarlity: {self.recompute_granularity} must be "full" or "selective".')
+                f'When using recompute_granuarlity: {self.recompute_granularity} must be "full".')
 
         if self.recompute_method is not None:
             if self.recompute_method not in ['block', 'uniform']:

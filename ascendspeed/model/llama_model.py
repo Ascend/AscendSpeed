@@ -507,7 +507,7 @@ class LlamaParallelAttention(MegatronModule):
         # ==================================
         # Rotary Position Embedding
         # ==================================
-        # [sq, b, np, hn] --> [b, np, sq, hn] TODO optimize the permute of dimension back and forth
+        # [sq, b, np, hn] --> [b, np, sq, hn]
         query_layer = query_layer.permute(1, 2, 0, 3).contiguous()
         key_layer = key_layer.permute(1, 2, 0, 3).contiguous()
         value_layer = value_layer.permute(1, 2, 0, 3).contiguous()

@@ -20,13 +20,12 @@ import torch.nn.functional as F
 from ascendspeed import get_args
 from ascendspeed.core import tensor_parallel, parallel_state
 from ascendspeed.enums import PositionEmbeddingType
-from ascendspeed.core.enums import LayerType, AttnMaskType
+from ascendspeed.core.enums import LayerType, AttnMaskType, ModelType
+from ascendspeed.core.models.common.rotary_pos_embedding import RotaryEmbedding
 from ascendspeed.model.module import MegatronModule
 from ascendspeed.model.transformer import ParallelTransformer
 from ascendspeed.model.utils import get_linear_layer
 from ascendspeed.model.utils import init_method_normal, scaled_init_method_normal
-from ascendspeed.core.tensor_parallel.mappings import gather_from_sequence_parallel_region
-from ascendspeed.core.tensor_parallel.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.error_utils import (
     check_equal,
     ensure_var_is_none,
@@ -70,27 +69,26 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
 
 
 def get_language_model(config, num_tokentypes, add_pooler,
-                       encoder_attn_mask_type, init_method=None,
-                       scaled_init_method=None, add_decoder=False,
+                       encoder_attn_mask_type,
+                       add_encoder=True,
+                       add_decoder=False,
                        decoder_attn_mask_type=AttnMaskType.causal,
                        pre_process=True, post_process=True, num_experts=[1]):
     """Build language model and return along with the key to save."""
     args = get_args()
+    if config.init_method is None:
+        config.init_method = init_method_normal(config.init_method_std)
 
-    if init_method is None:
-        init_method = init_method_normal(args.init_method_std)
-
-    if scaled_init_method is None:
-        scaled_init_method = scaled_init_method_normal(args.init_method_std,
-                                                       args.num_layers)
+    if config.output_layer_init_method is None:
+        config.output_layer_init_method = scaled_init_method_normal(config.init_method_std,
+                                                                    config.num_layers)
 
     # Language model.
     language_model = TransformerLanguageModel(
         config,
-        init_method,
-        scaled_init_method,
         encoder_attn_mask_type,
         num_tokentypes=num_tokentypes,
+        add_encoder=add_encoder,
         add_decoder=add_decoder,
         decoder_attn_mask_type=decoder_attn_mask_type,
         add_pooler=add_pooler,
@@ -121,13 +119,18 @@ class Pooler(MegatronModule):
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
         self.sequence_parallel = args.sequence_parallel
 
+
     def forward(self, hidden_states, sequence_index=0):
         # hidden_states: [b, s, h]
         # sequence_index: index of the token to pool.
+
+        # gather data along sequence dimensions
+        # same pooler is run on all tensor parallel nodes
         if self.sequence_parallel:
-            hidden_states = gather_from_sequence_parallel_region(
+            hidden_states = tensor_parallel.gather_from_sequence_parallel_region(
                 hidden_states,
                 tensor_parallel_output_grad=False)
+
         pooled = hidden_states[:, sequence_index, :]
         pooled = self.dense(pooled)
         pooled = torch.tanh(pooled)
@@ -146,41 +149,44 @@ class Embedding(MegatronModule):
         init_method: weight initialization method
         num_tokentypes: size of the token-type embeddings. 0 value
                         will ignore this embedding
+        embedding_weights_in_fp32: casts word embedding weights to
+                                   fp32 before sampling. Required to
+                                   maintain reproducibility when
+                                   training in bf16.
     """
 
     def __init__(self,
-                 config,
                  hidden_size,
                  vocab_size,
                  max_sequence_length,
                  embedding_dropout_prob,
-                 init_method,
-                 num_tokentypes=0):
+                 config,
+                 num_tokentypes=0,
+                 embedding_weights_in_fp32=False):
         super(Embedding, self).__init__()
 
         self.hidden_size = hidden_size
-        self.init_method = init_method
+        self.init_method = config.init_method
         self.num_tokentypes = num_tokentypes
 
         args = get_args()
         self.sequence_parallel = args.sequence_parallel
-        # Word embeddings (parallel)
+        # Word embeddings (parallel).
+        self.embedding_weights_in_fp32 = embedding_weights_in_fp32
+        self.params_dtype = args.params_dtype
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-            vocab_size, self.hidden_size,
-            config=config,
-            init_method=self.init_method)
+            vocab_size, self.hidden_size, config=config, init_method=config.init_method)
         self._word_embeddings_key = 'word_embeddings'
 
         # Position embedding (serial).
-        self.position_embedding_type = args.position_embedding_type
-        if self.position_embedding_type == PositionEmbeddingType.absolute:
-            max_position_embeddings = args.max_position_embeddings
-            ensure_var_is_not_none(max_position_embeddings)
+        self.add_position_embedding = args.position_embedding_type == PositionEmbeddingType.absolute
+        if self.add_position_embedding:
             self.position_embeddings = torch.nn.Embedding(
-                max_position_embeddings, self.hidden_size)
+                max_sequence_length, self.hidden_size)
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
-            self.init_method(self.position_embeddings.weight)
+            if args.perform_initialization:
+                self.init_method(self.position_embeddings.weight)
         else:
             self.position_embeddings = None
 
@@ -193,12 +199,26 @@ class Embedding(MegatronModule):
             self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes,
                                                            self.hidden_size)
             # Initialize the token-type embeddings.
-            self.init_method(self.tokentype_embeddings.weight)
+            if args.perform_initialization:
+                self.init_method(self.tokentype_embeddings.weight)
         else:
             self.tokentype_embeddings = None
 
+        self.fp32_residual_connection = args.fp32_residual_connection
+        self.sequence_parallel = args.sequence_parallel
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
+
+    def zero_parameters(self):
+        """Zero out all parameters in embedding."""
+        self.word_embeddings.weight.data.fill_(0)
+        self.word_embeddings.weight.shared = True
+        if self.add_position_embedding:
+            self.position_embeddings.weight.data.fill_(0)
+            self.position_embeddings.weight.shared = True
+        if self.num_tokentypes > 0:
+            self.tokentype_embeddings.weight.data.fill_(0)
+            self.tokentype_embeddings.weight.shared = True
 
     def add_tokentype_embeddings(self, num_tokentypes):
         """Add token-type embedding. This function is provided so we can add
@@ -219,45 +239,52 @@ class Embedding(MegatronModule):
 
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
+        if self.embedding_weights_in_fp32:
+            self.word_embeddings = self.word_embeddings.to(torch.float32)
         words_embeddings = self.word_embeddings(input_ids)
-        embeddings = words_embeddings
-
-        if self.position_embedding_type == PositionEmbeddingType.absolute:
-            ensure_var_is_not_none(self.position_embeddings)
-            embeddings = embeddings + self.position_embeddings(position_ids)
+        if self.embedding_weights_in_fp32:
+            words_embeddings = words_embeddings.to(self.params_dtype)
+            self.word_embeddings = self.word_embeddings.to(self.params_dtype)
+        if self.add_position_embedding:
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings = words_embeddings + position_embeddings
         else:
-            ensure_var_is_none(self.position_embeddings)
-
+            embeddings = words_embeddings
         if tokentype_ids is not None:
             ensure_var_is_not_none(self.tokentype_embeddings)
             embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
         else:
             ensure_var_is_none(self.tokentype_embeddings)
+        if self.fp32_residual_connection:
+            embeddings = embeddings.float()
 
+        # Dropout.
         if self.sequence_parallel:
             embeddings = embeddings.transpose(0, 1).contiguous()
-            embeddings = scatter_to_sequence_parallel_region(embeddings)
+            embeddings = tensor_parallel.scatter_to_sequence_parallel_region(embeddings)
             embeddings = embeddings.transpose(0, 1).contiguous()
-        # Dropout.
-        embeddings = self.embedding_dropout(embeddings)
+            with tensor_parallel.get_cuda_rng_tracker().fork():
+                embeddings = self.embedding_dropout(embeddings)
+        else:
+            embeddings = self.embedding_dropout(embeddings)
 
         return embeddings
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
+    def state_dict_for_save_checkpoint(self, prefix='', keep_vars=False):
         """For easy load."""
 
         state_dict_ = {}
         state_dict_[self._word_embeddings_key] \
-            = self.word_embeddings.state_dict(destination, prefix, keep_vars)
-        if self.position_embeddings == PositionEmbeddingType.absolute:
+            = self.word_embeddings.state_dict(prefix=prefix,
+                                              keep_vars=keep_vars)
+        if self.add_position_embedding:
             state_dict_[self._position_embeddings_key] \
-                = self.position_embeddings.state_dict(
-                destination, prefix, keep_vars)
+                = self.position_embeddings.state_dict(prefix=prefix,
+                                                  keep_vars=keep_vars)
         if self.num_tokentypes > 0:
             state_dict_[self._tokentype_embeddings_key] \
-                = self.tokentype_embeddings.state_dict(
-                destination, prefix, keep_vars)
+                = self.tokentype_embeddings.state_dict(prefix=prefix,
+                                                       keep_vars=keep_vars)
 
         return state_dict_
 
@@ -277,7 +304,7 @@ class Embedding(MegatronModule):
         self.word_embeddings.load_state_dict(state_dict_, strict=strict)
 
         # Position embedding.
-        if self.position_embedding_type == PositionEmbeddingType.absolute:
+        if self.add_position_embedding:
             if self._position_embeddings_key in state_dict:
                 state_dict_ = state_dict[self._position_embeddings_key]
             else:
@@ -356,65 +383,91 @@ class TransformerLanguageModel(MegatronModule):
 
     def __init__(self,
                  config,
-                 init_method,
-                 output_layer_init_method,
                  encoder_attn_mask_type,
                  num_tokentypes=0,
+                 add_encoder=True,
                  add_decoder=False,
                  decoder_attn_mask_type=AttnMaskType.causal,
                  add_pooler=False,
                  pre_process=True,
                  post_process=True,
                  num_experts=[1]):
-        super(TransformerLanguageModel, self).__init__()
         args = get_args()
+        if args.untie_embeddings_and_output_weights:
+            ensure_valid(not add_decoder)
+        super(TransformerLanguageModel, self).__init__(share_embeddings_and_output_weights=not args.untie_embeddings_and_output_weights)
 
         self.pre_process = pre_process
         self.post_process = post_process
-        self.hidden_size = args.hidden_size
+        self.hidden_size = config.hidden_size
         self.num_tokentypes = num_tokentypes
         self.init_method = config.init_method
+        self.add_encoder = add_encoder
         self.encoder_attn_mask_type = encoder_attn_mask_type
         self.add_decoder = add_decoder
         self.decoder_attn_mask_type = decoder_attn_mask_type
         self.add_pooler = add_pooler
+        self.encoder_hidden_state = None
+        self.add_retriever = args.retro_add_retriever
+        self.untie_embeddings_and_output_weights = args.untie_embeddings_and_output_weights
         self.num_experts = num_experts
 
         # Embeddings.
         if self.pre_process:
-            self.embedding = Embedding(config,
-                                       self.hidden_size,
+            self.embedding = Embedding(self.hidden_size,
                                        args.padded_vocab_size,
                                        args.max_position_embeddings,
                                        args.hidden_dropout,
-                                       self.init_method,
-                                       self.num_tokentypes)
+                                       config,
+                                       self.num_tokentypes,
+                                       args.embedding_weights_in_fp32)
             self._embedding_key = 'embedding'
 
-        # Transformer.
-        self.encoder = ParallelTransformer(
-            config,
-            self.init_method,
-            output_layer_init_method,
-            self_attn_mask_type=self.encoder_attn_mask_type,
-            pre_process=self.pre_process,
-            post_process=self.post_process,
-            num_experts=self.num_experts
-        )
-        self._encoder_key = 'encoder'
+        # Rotary positional embeddings
+        self.use_rotary_position_embeddings = \
+            args.position_embedding_type == PositionEmbeddingType.rope
+        if self.use_rotary_position_embeddings:
+            self.seq_length = args.seq_length
+            rotary_dim = args.hidden_size // args.num_attention_heads \
+                if args.kv_channels is None else args.kv_channels
 
-        # Decoder
+            if args.rotary_percent < 1.0:
+                rotary_dim = int(rotary_dim * args.rotary_percent)
+
+            # partial rotary embeddings, which is better than full rotary
+            # Wang and Komatsuzaki et al
+            self.rotary_pos_emb = RotaryEmbedding(rotary_dim)
+
+        # Encoder (usually set to True, False if part of an encoder-decoder
+        # architecture and in encoder-only stage).
+        if self.add_encoder:
+            self.encoder = ParallelTransformer(
+                config,
+                model_type=args.model_type if not args.retro_add_retriever \
+                    else ModelType.retro_decoder,
+                self_attn_mask_type=self.encoder_attn_mask_type,
+                pre_process=self.pre_process,
+                post_process=self.post_process,
+                num_experts=self.num_experts
+            )
+            self._encoder_key = 'encoder'
+        else:
+            self.encoder = None
+
+        # Decoder (usually set to False, True if part of an encoder-decoder
+        # architecture and in decoder-only stage).
         if self.add_decoder:
-            error_info = 'pipeline parallelism is not supported in the presence of decoder'
-            check_equal(args.pipeline_model_parallel_size, 1, error_info)
             self.decoder = ParallelTransformer(
                 config,
-                self.init_method,
-                output_layer_init_method,
+                model_type=args.model_type,
                 layer_type=LayerType.decoder,
                 self_attn_mask_type=self.decoder_attn_mask_type,
+                pre_process=self.pre_process,
+                post_process=self.post_process,
                 num_experts=self.num_experts)
             self._decoder_key = 'decoder'
+        else:
+            self.decoder = None
 
         if self.post_process:
             # Pooler.
@@ -422,33 +475,89 @@ class TransformerLanguageModel(MegatronModule):
                 self.pooler = Pooler(self.hidden_size, self.init_method)
                 self._pooler_key = 'pooler'
 
+            if self.untie_embeddings_and_output_weights:
+                self.output_layer = tensor_parallel.ColumnParallelLinear(
+                    args.hidden_size,
+                    args.padded_vocab_size,
+                    config=config,
+                    init_method=self.init_method,
+                    bias=False) # Setting bias to False always to keep it consistent with embedding tying that also does not have a bias.
+                self._output_layer_key = 'output_layer'
+
     def set_input_tensor(self, input_tensor):
         """ See ascendspeed.model.transformer.set_input_tensor()"""
-        self.encoder.set_input_tensor(input_tensor)
+
+        # This is usually handled in schedules.py but some inference code still
+        # gives us non-lists or None
+        if not isinstance(input_tensor, list):
+            input_tensor = [input_tensor]
+
+        if self.add_encoder and self.add_decoder:
+            ensure_valid(len(input_tensor) == 1,
+                         'input_tensor should only be length 1 for stage with both encoder and decoder')
+            self.encoder.set_input_tensor(input_tensor[0])
+        elif self.add_encoder:
+            ensure_valid(len(input_tensor) == 1, 'input_tensor should only be length 1 for stage with only encoder')
+            self.encoder.set_input_tensor(input_tensor[0])
+        elif self.add_decoder:
+            if len(input_tensor) == 2:
+                self.decoder.set_input_tensor(input_tensor[0])
+                self.encoder_hidden_state = input_tensor[1]
+            elif len(input_tensor) == 1:
+                self.decoder.set_input_tensor(None)
+                self.encoder_hidden_state = input_tensor[0]
+            else:
+                raise Exception('input_tensor must have either length 1 or 2')
+        else:
+            raise Exception('Stage must have at least either encoder or decoder')
 
     def forward(self, enc_input_ids, enc_position_ids, enc_attn_mask,
                 dec_input_ids=None, dec_position_ids=None, dec_attn_mask=None,
-                enc_dec_attn_mask=None, tokentype_ids=None, layer_past=None,
-                get_key_value=False, pooling_sequence_index=0,
+                retriever_input_ids=None,
+                retriever_position_ids=None,
+                retriever_attn_mask=None,
+                enc_dec_attn_mask=None, tokentype_ids=None,
+                inference_params=None,
+                pooling_sequence_index=0,
                 enc_hidden_states=None, output_enc_hidden=False):
 
-        # Embeddings.
+        # Encoder embedding.
         if self.pre_process:
-            embedding_output = self.embedding(enc_input_ids, enc_position_ids,
-                                              tokentype_ids=tokentype_ids)
-            encoder_input = embedding_output
+            encoder_input = self.embedding(enc_input_ids, enc_position_ids,
+                                           tokentype_ids=tokentype_ids)
         else:
             encoder_input = None
 
-        # encoder.
-        if enc_hidden_states is None:
-            encoder_output, *moe_losses = self.encoder(encoder_input,
-                                          enc_attn_mask,
-                                          layer_past=layer_past,
-                                          get_key_value=get_key_value)
+        # Retriever embedding.
+        if self.add_retriever and self.pre_process:
+            retriever_input = self.embedding(retriever_input_ids,
+                                             retriever_position_ids,
+                                             tokentype_ids=tokentype_ids)
         else:
-            encoder_output = enc_hidden_states.to(encoder_input.dtype)
-            moe_losses = []
+            retriever_input = None
+
+        # Rotary positional embeddings
+        rotary_pos_emb = None
+        if self.use_rotary_position_embeddings:
+            if inference_params is not None:
+                rotary_pos_emb = \
+                    self.rotary_pos_emb(inference_params.max_sequence_len)
+            else:
+                rotary_pos_emb = self.rotary_pos_emb(self.seq_length)
+        # Run encoder.
+        if enc_hidden_states is None:
+            if self.encoder is not None:
+                encoder_output, *encoder_moe_losses = self.encoder(
+                    encoder_input,
+                    enc_attn_mask,
+                    retriever_input=retriever_input,
+                    retriever_attn_mask=retriever_attn_mask,
+                    inference_params=inference_params,
+                    rotary_pos_emb=rotary_pos_emb)
+            else:
+                encoder_output = self.encoder_hidden_state
+        else:
+            encoder_output, encoder_moe_losses = enc_hidden_states.to(encoder_input.dtype), []
 
         if self.post_process:
             if self.add_pooler:
@@ -460,64 +569,74 @@ class TransformerLanguageModel(MegatronModule):
         # similarity between two sequences by average pooling
         if not self.add_decoder or output_enc_hidden:
             if self.add_pooler and self.post_process:
-                return (encoder_output, pooled_output, *moe_losses)
+                return encoder_output, pooled_output, encoder_moe_losses
             else:
-                return (encoder_output, *moe_losses)
+                return encoder_output, encoder_moe_losses
 
-        # Decoder Embedding
-        dec_embedding_output = self.embedding(dec_input_ids,
-                                              dec_position_ids)
-        # decoder
-        decoder_output, *moe_losses = self.decoder(dec_embedding_output,
-                                      dec_attn_mask,
-                                      layer_past=layer_past,
-                                      get_key_value=get_key_value,
-                                      encoder_output=encoder_output,
-                                      enc_dec_attn_mask=enc_dec_attn_mask)
+        # Decoder embedding.
+        if self.pre_process:
+            decoder_input = self.embedding(dec_input_ids,
+                                           dec_position_ids)
+        else:
+            decoder_input = None
+        # Run decoder.
+        decoder_output, *decoder_moe_losses = self.decoder(
+            decoder_input,
+            dec_attn_mask,
+            encoder_output=encoder_output,
+            enc_dec_attn_mask=enc_dec_attn_mask,
+            inference_params=inference_params,
+            rotary_pos_emb=rotary_pos_emb)
 
         if self.add_pooler and self.post_process:
-            return (decoder_output, encoder_output, pooled_output, *moe_losses)
+            return decoder_output, encoder_output, pooled_output, decoder_moe_losses, encoder_moe_losses
         else:
-            return (decoder_output, encoder_output, *moe_losses)
+            return decoder_output, encoder_output, decoder_moe_losses, encoder_moe_losses
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
+    def state_dict_for_save_checkpoint(self, prefix='', keep_vars=False):
         """For easy load."""
         args = get_args()
         state_dict_ = {}
         moe_state_dict = {}
         if self.pre_process:
             state_dict_[self._embedding_key] \
-                = self.embedding.state_dict_for_save_checkpoint(
-                    destination, prefix, keep_vars)
-        encoder_state_dict = self.encoder.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars)
-        if args.random_ltd:
-            # When using random-LTD, it is required to call remove_random_ltd_state_dict
-            # during model checkpoint saving to transfer the random-LTD-wrapped
-            # layers back to original layers. This will help to remove the dependency
-            # to random-LTD inside the checkpoint, so that during evaluation or
-            # finetuning of the checkpoint there is no need to depend on random-LTD
-            # again.
-            from deepspeed.runtime.data_pipeline.data_routing.helper import remove_random_ltd_state_dict
-            encoder_state_dict = remove_random_ltd_state_dict(encoder_state_dict)
-        # MoE states need to be handled separately by DeepSpeed engine, thus
-        # moving them to the top level dictionary
-        # If components other than encoder may contain MoE states, need to add
-        # the same logic
-        for key in list(encoder_state_dict.keys()):
-            if 'expert' in key and 'moe.gate.wg.weight' not in key:
-                moe_state_dict[self._encoder_key + key] = encoder_state_dict.pop(key)
-        state_dict_[self._encoder_key] = encoder_state_dict
+                = self.embedding.state_dict_for_save_checkpoint(prefix=prefix,
+                                                                keep_vars=keep_vars)
+        if self.add_encoder:
+            encoder_state_dict = self.encoder.state_dict_for_save_checkpoint(
+                prefix=prefix, keep_vars=keep_vars)
+            if args.random_ltd:
+                # When using random-LTD, it is required to call remove_random_ltd_state_dict
+                # during model checkpoint saving to transfer the random-LTD-wrapped
+                # layers back to original layers. This will help to remove the dependency
+                # to random-LTD inside the checkpoint, so that during evaluation or
+                # finetuning of the checkpoint there is no need to depend on random-LTD
+                # again.
+                from deepspeed.runtime.data_pipeline.data_routing.helper import remove_random_ltd_state_dict
+                encoder_state_dict = remove_random_ltd_state_dict(encoder_state_dict)
+            # MoE states need to be handled separately by DeepSpeed engine, thus
+            # moving them to the top level dictionary
+            # If components other than encoder may contain MoE states, need to add
+            # the same logic
+            for key in list(encoder_state_dict.keys()):
+                if 'expert' in key and 'moe.gate.wg.weight' not in key:
+                    moe_state_dict[self._encoder_key + key] = encoder_state_dict.pop(key)
+            state_dict_[self._encoder_key] = encoder_state_dict
+
         if self.post_process:
             if self.add_pooler:
                 state_dict_[self._pooler_key] \
-                    = self.pooler.state_dict_for_save_checkpoint(
-                        destination, prefix, keep_vars)
+                    = self.pooler.state_dict_for_save_checkpoint(prefix=prefix,
+                                                                 keep_vars=keep_vars)
+            if self.untie_embeddings_and_output_weights:
+                state_dict_[self._output_layer_key] \
+                    = self.output_layer.state_dict(prefix=prefix, keep_vars=keep_vars)
+
         if self.add_decoder:
             state_dict_[self._decoder_key] \
-                = self.decoder.state_dict_for_save_checkpoint(
-                    destination, prefix, keep_vars)
+                = self.decoder.state_dict_for_save_checkpoint(prefix=prefix,
+                                                              keep_vars=keep_vars)
+
         state_dict_["moe_state_dict"] = moe_state_dict
         return state_dict_
 
@@ -537,53 +656,59 @@ class TransformerLanguageModel(MegatronModule):
             self.embedding.load_state_dict(state_dict_, strict=strict)
 
         # Encoder.
-        if self._encoder_key in state_dict:
-            state_dict_ = state_dict[self._encoder_key]
-        # for backward compatibility.
-        elif 'transformer' in state_dict:
-            state_dict_ = state_dict['transformer']
-        else:
-            # for backward compatibility.
-            state_dict_ = {}
-            for key in state_dict.keys():
-                if 'transformer.' in key:
-                    state_dict_[key.split('transformer.')[1]] = state_dict[key]
-
-        # for backward compatibility.
-        # Somehow this backward compatibility could be wrong: sometimes
-        # '.attention.' is the actual key used so should not be replaced. Thus
-        # added another logic to only replace if the key does not match
-        state_dict_self_attention = {}
-        encoder_state_dict_keys = list(self.encoder.state_dict().keys())
-        for key in state_dict_.keys():
-            if '.attention.' in key and key not in encoder_state_dict_keys:
-                state_dict_self_attention[key.replace(".attention.",
-                    ".self_attention.")] = state_dict_[key]
+        if self.add_encoder:
+            if self._encoder_key in state_dict:
+                state_dict_ = state_dict[self._encoder_key]
+            # For backward compatibility.
+            elif 'transformer' in state_dict:
+                state_dict_ = state_dict['transformer']
             else:
-                state_dict_self_attention[key] = state_dict_[key]
-        state_dict_ = state_dict_self_attention
+                # For backward compatibility.
+                state_dict_ = {}
+                for key in state_dict.keys():
+                    if 'transformer.' in key:
+                        state_dict_[key.split('transformer.')[1]] = state_dict[key]
 
-        # Gather encoder MoE states
-        if "moe_state_dict" in state_dict:
-            for key in list(state_dict["moe_state_dict"].keys()):
-                if self._encoder_key in key:
-                    key_list = key.split('.')
-                    while key_list[0] != 'encoder':
+            # For backward compatibility.
+            # Somehow this backward compatibility could be wrong: sometimes
+            # '.attention.' is the actual key used so should not be replaced. Thus
+            # added another logic to only replace if the key does not match
+            state_dict_self_attention = {}
+            encoder_state_dict_keys = list(self.encoder.state_dict().keys())
+            for key in state_dict_.keys():
+                if '.attention.' in key and key not in encoder_state_dict_keys:
+                    state_dict_self_attention[key.replace(".attention.",
+                        ".self_attention.")] = state_dict_[key]
+                else:
+                    state_dict_self_attention[key] = state_dict_[key]
+            state_dict_ = state_dict_self_attention
+
+            # Gather encoder MoE states
+            if "moe_state_dict" in state_dict:
+                for key in list(state_dict["moe_state_dict"].keys()):
+                    if self._encoder_key in key:
+                        key_list = key.split('.')
+                        while key_list[0] != 'encoder':
+                            key_list.pop(0)
                         key_list.pop(0)
-                    key_list.pop(0)
-                    actual_key = '.'.join(key_list)
-                    state_dict_[actual_key] = state_dict["moe_state_dict"].pop(key)
-            if len(state_dict["moe_state_dict"]) == 0:
-                del state_dict["moe_state_dict"]
-        self.encoder.load_state_dict(state_dict_, strict=strict)
+                        actual_key = '.'.join(key_list)
+                        state_dict_[actual_key] = state_dict["moe_state_dict"].pop(key)
+                if len(state_dict["moe_state_dict"]) == 0:
+                    del state_dict["moe_state_dict"]
+            self.encoder.load_state_dict(state_dict_, strict=strict)
 
+        # Pooler.
         if self.post_process:
-            # pooler
             if self.add_pooler:
                 ensure_valid('pooler' in state_dict, error_message='could not find data for pooler in the checkpoint')
                 self.pooler.load_state_dict(state_dict[self._pooler_key],
                                             strict=strict)
-        # decoder
+            if self.untie_embeddings_and_output_weights:
+                ensure_valid('output_layer' in state_dict,
+                             'could not find data for output_layer in the checkpoint')
+                self.output_layer.load_state_dict(state_dict[self._output_layer_key],
+                                                  strict=strict)
+        # Decoder.
         if self.add_decoder:
             ensure_valid('decoder' in state_dict, error_message='could not find data for pooler in the checkpoint')
             self.decoder.load_state_dict(state_dict[self._decoder_key],

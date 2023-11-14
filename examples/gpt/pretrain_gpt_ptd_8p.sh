@@ -46,6 +46,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
        --checkpoint-activations \
+       --recompute-method block \
        --log-interval 10 \
        --save-interval 10000 \
        --eval-interval 1000 \
