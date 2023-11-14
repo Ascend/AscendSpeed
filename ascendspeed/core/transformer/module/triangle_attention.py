@@ -70,16 +70,17 @@ class TriangleAttention(nn.Module):
         sparse_groups = sequence_len // self.block_size
         # Determine whether blocks size can be divided by sequence_length
         flag = sequence_len == self.block_size * sparse_groups
+        key_layer = key_layer.transpose(2, 3).contiguous()
         if flag:
             q_tmp_layers = torch.chunk(query_layer, sparse_groups, 2)
-            k_tmp_layers = torch.chunk(key_layer, sparse_groups, 2)
+            k_tmp_layers = torch.chunk(key_layer, sparse_groups, 3)
             v_tmp_layers = torch.chunk(value_layer, sparse_groups, 2)
         else:
             seq_tmp = self.block_size * sparse_groups
-            q_last, k_last = query_layer[:, :, seq_tmp:, :], key_layer[:, :, seq_tmp:, :].transpose(2, 3).contiguous()
-            v_last, mask_last = value_layer[:, :, seq_tmp:, :], attention_mask[:, :, seq_tmp:, seq_tmp:]
+            q_last = query_layer[:, :, seq_tmp:, :].contiguous()
+            mask_last = attention_mask[:, :, seq_tmp:, :].contiguous()
             q_tmp_layers = torch.chunk(query_layer[:, :, :seq_tmp, :], sparse_groups, 2)
-            k_tmp_layers = torch.chunk(key_layer[:, :, :seq_tmp, :], sparse_groups, 2)
+            k_tmp_layers = torch.chunk(key_layer[:, :, :, :seq_tmp], sparse_groups, 3)
             v_tmp_layers = torch.chunk(value_layer[:, :, :seq_tmp, :], sparse_groups, 2)
         context_list_tmp, k_tmp, v_tmp = [], (), ()
         for i in range(sparse_groups):
@@ -89,10 +90,10 @@ class TriangleAttention(nn.Module):
             q_tmp = q_tmp_layers[i]
             # slice k and v
             if i == 0:
-                k_tmp = k_tmp_layers[i].transpose(2, 3).contiguous()
+                k_tmp = k_tmp_layers[i].contiguous()
                 v_tmp = v_tmp_layers[i].contiguous()
             else:
-                k_tmp = torch.cat((k_tmp, k_tmp_layers[i].transpose(2, 3)), -1).contiguous()
+                k_tmp = torch.cat((k_tmp, k_tmp_layers[i]), -1).contiguous()
                 v_tmp = torch.cat((v_tmp, v_tmp_layers[i]), -2).contiguous()
 
             if not self.mask_tmp_initialed:
@@ -106,12 +107,12 @@ class TriangleAttention(nn.Module):
 
         if not flag:
             # circumstances that cannot be divisible
-            context_layer_tmp = self.compute_attn(q_last, k_last, v_last, mask_last)
+            context_layer_tmp = self.compute_attn(q_last, key_layer, value_layer, mask_last)
             context_list_tmp.append(context_layer_tmp)
         context_layer = torch.cat(context_list_tmp, 2)
         self.mask_tmp_initialed = True
         new_context_layer_shape = (sequence_len, bsz, head_num * head_dim)
-        context_layer = torch.npu_confusion_transpose(context_layer, [2, 0, 1, 3], [*new_context_layer_shape], True)
+        context_layer = torch_npu.npu_confusion_transpose(context_layer, [2, 0, 1, 3], [*new_context_layer_shape], True)
         # =========================
         # Context layer. [sq, b, hp]
         # =========================
