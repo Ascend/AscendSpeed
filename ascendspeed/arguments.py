@@ -15,13 +15,17 @@
 
 """ascendspeed arguments."""
 
-import dataclasses
 import argparse
+import dataclasses
+import json
 import os
+import types
 
+import deepspeed
 import torch
 import torch.nn.functional as F
-import deepspeed
+
+from ascendspeed.global_vars import set_retro_args, get_retro_args
 from ascendspeed.core.transformer import TransformerConfig
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.data.parse import ParseDataPaths, ParseDataPathsPath
@@ -34,7 +38,7 @@ from ascendspeed.error_utils import (
 ) 
 
 
-def parse_args(extra_args_provider=None, defaults={},
+def parse_args(extra_args_provider=None,
                ignore_unknown_args=False):
     """Parse all arguments."""
     parser = argparse.ArgumentParser(description='AscendSpeed Arguments',
@@ -62,6 +66,9 @@ def parse_args(extra_args_provider=None, defaults={},
     parser = _add_optimized_pipeline_args(parser)
     parser = _add_manual_layer_allocation(parser)
     parser = _add_lora_args(parser)
+    parser = _add_transformer_engine_args(parser)
+    parser = _add_retro_args(parser)
+
 
     # Custom arguments.
     if extra_args_provider is not None:
@@ -81,16 +88,26 @@ def parse_args(extra_args_provider=None, defaults={},
     # Distributed args.
     args.rank = int(os.getenv('RANK', '0'))
     args.world_size = int(os.getenv("WORLD_SIZE", '1'))
+
+    return args
+
+
+def validate_args(args, defaults={}):
     # Tensor model parallel size.
     args.tensor_model_parallel_size = min(
         args.tensor_model_parallel_size, args.world_size)
-    check_divisible(args.world_size, args.tensor_model_parallel_size, error_info='world size'\
-                    ' ({}) is not divisible by tensor model parallel size ({})'.format(
-                    args.world_size, args.tensor_model_parallel_size))
+    check_divisible(args.world_size, args.tensor_model_parallel_size, error_info='world size' \
+                       ' ({}) is not divisible by tensor model parallel size ({})'.format(
+        args.world_size, args.tensor_model_parallel_size))
     # Pipeline model parallel size.
     args.pipeline_model_parallel_size = min(
         args.pipeline_model_parallel_size,
         (args.world_size // args.tensor_model_parallel_size))
+    args.transformer_pipeline_model_parallel_size = (
+        args.pipeline_model_parallel_size - 1
+        if args.standalone_embedding_stage else
+        args.pipeline_model_parallel_size
+    )
     # Checks.
     if args.no_pipeline_parallel:
         check_equal(args.pipeline_model_parallel_size, 1, error_info="pipeline_model_parallel_size"\
@@ -233,6 +250,14 @@ def parse_args(extra_args_provider=None, defaults={},
         if args.lr_warmup_fraction is not None:
             check_equal(args.lr_warmup_samples, 0, error_info='can only specify one of lr-warmup-fraction ' \
                                                               'and lr-warmup-samples')
+    if args.num_layers is not None:
+        ensure_valid(args.encoder_num_layers is None,
+                     'cannot have both num-layers and encoder-num-layers specified')
+        args.encoder_num_layers = args.num_layers
+    else:
+        ensure_valid(args.encoder_num_layers is not None,
+                     'either num-layers or encoder-num-layers should be specified')
+        args.num_layers = args.encoder_num_layers
 
     # Check required arguments.
     required_args = ['num_layers', 'hidden_size', 'num_attention_heads',
@@ -260,10 +285,32 @@ def parse_args(extra_args_provider=None, defaults={},
 
     if args.variable_seq_lengths:
         ensure_valid(args.is_instruction_dataset, 'Dynamic padding based on instruction dataset.')
+    # Retro checks.
+    if args.retro_add_retriever:
+        # Sequence parallelism unsupported.
+        ensure_valid(not args.sequence_parallel, "retro currently does not support sequence parallelism.")
+
+        # Pipeline parallelism unsupported.
+        ensure_valid(args.pipeline_model_parallel_size == 1, "retro currently does not support pipeline parallelism.")
+
+        # Load retro
+        retro_args_path = os.path.join(args.retro_workdir, "args.json")
+        ensure_valid(os.path.exists(retro_args_path), "retro workdir missing args.json")
+        with open(retro_args_path) as f:
+            retro_args = types.SimpleNamespace(**json.load(f))
+            retro_args.retro_return_doc_ids = args.retro_return_doc_ids
+            retro_args.retro_gpt_retrieved_length = \
+                args.retro_num_retrieved_chunks * \
+                retro_args.retro_gpt_chunk_length
+            set_retro_args(retro_args)
+
+    # Legacy RoPE arguments
+    if args.use_rotary_position_embeddings:
+        args.position_embedding_type = 'rope'
 
     if (args.position_embedding_type == PositionEmbeddingType.absolute or
             args.position_embedding_type == PositionEmbeddingType.alibi or
-            args.position_embedding_type == PositionEmbeddingType.rotary):
+            args.position_embedding_type == PositionEmbeddingType.rope):
         ensure_var_is_not_none(args.max_position_embeddings)
         if not args.seq_length:
             ensure_valid(args.max_position_embeddings >= args.seq_length)
@@ -315,7 +362,7 @@ def parse_args(extra_args_provider=None, defaults={},
     args.fp8_e4m3 = False
     args.fp8_hybrid = False
 
-    if args.group_query_attention and args.position_embedding_type != PositionEmbeddingType.rotary:
+    if args.group_query_attention and args.position_embedding_type != PositionEmbeddingType.rope:
         raise NotImplementedError(
                     'Currently the group query attention only '
                     'support rotary position embedding.')
@@ -389,7 +436,11 @@ def _add_network_size_args(parser):
 
     group.add_argument('--num-layers', type=int, default=None,
                        help='Number of transformer layers.')
-    group.add_argument('--num-experts', type=int, nargs='+' , default=[1,], 
+    group.add_argument('--encoder-num-layers', type=int, default=None,
+                       help='Number of encoder transformer layers.')
+    group.add_argument('--decoder-num-layers', type=int, default=None,
+                       help='Number of decoder transformer layers.')
+    group.add_argument('--num-experts', type=int, nargs='+' , default=[1,],
                            help='number of experts list, MoE related.')
     group.add_argument('--mlp-type', type=str, default='standard',
                            help='Only applicable when num-experts > 1, accepts [standard, residual]')
@@ -419,7 +470,10 @@ def _add_network_size_args(parser):
                        'This is the size of position embedding.')
     group.add_argument('--position-embedding-type', type=lambda x: PositionEmbeddingType[x],
                        choices=list(PositionEmbeddingType), default=PositionEmbeddingType.absolute,
-                       help='Define position embedding type ("absolute" | "rotary" | "alibi"). "absolute" by default.')
+                       help='Define position embedding type ("absolute" | "rope" | "alibi"). "absolute" by default.')
+    group.add_argument('--use-rotary-position-embeddings', action='store_true',
+                       help='Use rotary positional embeddings or not. '
+                       'Deprecated: use --position-embedding-type')
     group.add_argument('--make-vocab-size-divisible-by', type=int, default=128,
                        help='Pad the vocab size to be divisible by this value.'
                        'This is added for computational efficieny reasons.')
@@ -437,18 +491,26 @@ def _add_network_size_args(parser):
                        help='Use OpenAIs GeLU implementation. This option'
                        'should not be used unless for backward compatibility'
                        'reasons.')
+    group.add_argument('--squared-relu', action='store_true',
+                       help='Use squared relu activation instead of default gelu')
+    group.add_argument('--swiglu', action='store_true',
+                       help='Use gated linear units and SiLU activation instead of default gelu')
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')
     group.add_argument('--bert-no-binary-head', action='store_false',
                        help='Disable BERT binary head.',
                        dest='bert_binary_head')
+    group.add_argument('--untie-embeddings-and-output-weights', action='store_true',
+                       help='Untie embeddings and output weights.'),
     group.add_argument('--mlp-layer-fusion', action='store_true',
                        help='Fuse gate and upprojection in MLP for llama families, '
                        'e.g. llama or internlm')
     group.add_argument('--use-flash-attn', action='store_true',
                        default=False,
                        help='Use flash attention')
+    group.add_argument('--embedding-weights-in-fp32', action='store_true',
+                       help='Cast word embedding weights to fp32 before embedding fwd.'),
     return parser
 
 
@@ -460,7 +522,7 @@ def _add_logging_args(parser):
     group.add_argument('--log-num-zeros-in-grad', action='store_true',
                        help='If set, calculate and log the number of zeros in gradient.')
     group.add_argument('--timing-log-level', type=int,
-                       default=0, choices=range(0,3), 
+                       default=0, choices=range(0,3),
                        help='Granularity level to measure and report timing. '
                        '   0: report only iteration time and make sure timing '
                        '      does not introduce extra overhead.'
@@ -571,6 +633,35 @@ def _add_training_args(parser):
                        ' (1024 - 16) / 8 = 126 intervals will increase'
                        'the batch size linearly to 1024. In each interval'
                        'we will use approximately 300000 / 126 = 2380 samples.')
+    group.add_argument('--recompute-activations', action='store_true',
+                       help='recompute activation to allow for training '
+                       'with larger models, sequences, and batch sizes.')
+    group.add_argument('--recompute-granularity', type=str, default=None,
+                       choices=['full'],
+                       help='Checkpoint activations to allow for training '
+                       'with larger models, sequences, and batch sizes.'
+                       'It is supported at two granularities 1) full: '
+                       'whole transformer layer is recomputed')
+    group.add_argument('--distribute-saved-activations',
+                       action='store_true',
+                       help='If set, distribute recomputed activations '
+                       'across model parallel group.')
+    group.add_argument('--recompute-method', type=str, default=None,
+                       choices=['uniform', 'block'],
+                       help='1) uniform: uniformly divide the total number of '
+                       'Transformer layers and recompute the input activation of '
+                       'each divided chunk at specified granularity, '
+                       '2) recompute the input activations of only a set number of '
+                       'individual Transformer layers per pipeline stage and do the '
+                       'rest without any recomputing at specified granularity'
+                       'default) do not apply activations recompute to any layers')
+    group.add_argument('--recompute-num-layers', type=int, default=1,
+                       help='1) uniform: the number of Transformer layers in each '
+                       'uniformly divided recompute unit, '
+                       '2) block: the number of individual Transformer layers '
+                       'to recompute within each pipeline stage.')
+
+
     group.add_argument('--checkpoint-activations', action='store_true',
                        help='Checkpoint activation to allow for training '
                        'with larger models, sequences, and batch sizes.')
@@ -633,6 +724,9 @@ def _add_training_args(parser):
     group.add_argument('--create-moe-param-group', action='store_true',
                        help='Create separate groups for MoE params.'
                        'This is necessary for techniques like ZeRO.')
+    group.add_argument('--disable-bias-linear', action='store_false',
+                       help='Disable bias in the linear layers',
+                       dest='add_bias_linear')
     group.add_argument('--optimizer', type=str, default='adam',
                        choices=['adam', 'sgd', 'fused_adam'],
                        help='Optimizer function')
@@ -757,6 +851,11 @@ def _add_checkpointing_args(parser):
                        help='Load model for finetuning. Do not load optimizer '
                        'or rng state from checkpoint and set iteration to 0. '
                        'Assumed when loading a release checkpoint.')
+    group.add_argument('--no-initialization', action='store_false',
+                       help='Do not perform initialization when building model, '
+                       'can reduce startup time when definitely loading from a '
+                       'checkpoint',
+                       dest='perform_initialization')
 
     return parser
 
@@ -854,6 +953,11 @@ def _add_distributed_args(parser):
                        'initialization uses CPU')
     group.add_argument('--triangle-attn', action='store_true',
                        help="use triangle attention instead self attention")
+    group.add_argument('--standalone-embedding-stage', action='store_true',
+                       default=False, help='If set, *input* embedding layer '
+                       'is placed on its own pipeline stage, without any '
+                       'transformer layers. (For T5, this flag currently only '
+                       'affects the encoder embedding.)')
     group.add_argument('--use-distributed-optimizer', action='store_true',
                        help='Use distributed optimizer.')
     return parser
@@ -1147,7 +1251,7 @@ def _add_distillation_args(parser):
     
     group.add_argument('--num-layers-teacher', type=int, default=None,
                        help='Number of the teacher transformer layers.')                  
-    group.add_argument('--num-experts-teacher', type=int, nargs='+', default=[1,], 
+    group.add_argument('--num-experts-teacher', type=int, nargs='+', default=[1,],
                         help='number of teacher experts list, MoE related.')
     group.add_argument('--hidden-size-teacher', type=int, default=None,
                        help='Tansformer teacher hidden size.')
@@ -1203,6 +1307,17 @@ def _get_manual_layer_allocation(args=None):
         args.manual_layers = manual_layers
 
 
+def _add_transformer_engine_args(parser):
+    group = parser.add_argument_group(title='Transformer-Engine')
+
+    group.add_argument('--transformer-impl', default='local',
+                       choices=['local', 'transformer_engine'],
+                       help='Which Transformer implementation to use.',
+                       dest='transformer_impl')
+
+    return parser
+
+
 def _add_lora_args(parser):
     group = parser.add_argument_group(title='lora')
 
@@ -1221,5 +1336,45 @@ def _add_lora_args(parser):
                        help='Lora register forward hook.')
     group.add_argument('--lora-adapter-name', type=str, default='default',
                        help='Lora adapter name.')
+
+    return parser
+
+
+def _add_retro_args(parser):
+    group = parser.add_argument_group(title='retro')
+
+    group.add_argument('--retro-workdir', default=None,
+                       help='Retro working directory, which contains the '
+                            'preprocessed data for for pretraining. This directory '
+                            'is built during preprocessing (see '
+                            'tools/retro/README.md), and contains subdirectories '
+                            'for the chunk database and pretraining neighbors.')
+    group.add_argument('--retro-add-retriever',
+                       action='store_true', default=False,
+                       help='Add a retriever to the transformer, for use in '
+                       'pretraining a Retro model.')
+    group.add_argument('--retro-encoder-layers', type=int, default=2,
+                       help='Number of layers to use for the retrieval '
+                       'encoder.')
+    group.add_argument('--retro-encoder-hidden-dropout',
+                       type=float, default=0.1, help='Hidden dropout for '
+                       'retrieval encoder.')
+    group.add_argument('--retro-encoder-attention-dropout',
+                       type=float, default=0.1, help='Attention dropout for '
+                       'retrieval encoder.')
+    group.add_argument("--retro-num-neighbors", type=int, default=2,
+                       help='Number of neighbors to retrieve during '
+                       'pretraining.')
+    group.add_argument("--retro-num-retrieved-chunks", type=int, default=2,
+                       help='Number of chunks to retrieve from the retrieval '
+                       'database.')
+    group.add_argument("--retro-return-doc-ids", action="store_true",
+                       help="Turn this on when preprocessing retro data.")
+
+    # Enforce argument naming convention.
+    for action in group._group_actions:
+        prefix = action.dest.split("_")[0]
+        ensure_valid(prefix == "retro", "Retro args must be prefixed with '--retro-*', for consistent " \
+                                        "styling. Please fix '%s'." % ", ".join(action.option_strings))
 
     return parser

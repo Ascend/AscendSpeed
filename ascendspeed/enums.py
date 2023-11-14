@@ -33,6 +33,6 @@ class AttnMaskType(enum.Enum):
 
 
 class PositionEmbeddingType(enum.Enum):
-    rotary = 1
+    rope = 1
     absolute = 2
     alibi = 3

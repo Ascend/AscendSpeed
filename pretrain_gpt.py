@@ -273,13 +273,13 @@ def forward_step(data_iterator, model):
 
     if args.mos or args.kd:
         # The forward func can return either the loss or the logits, depending on whether passing in the labels or not.
-        stu_output, *other_losses = model(tokens, position_ids, attention_mask)
+        stu_output, other_losses = model(tokens, position_ids, attention_mask)
         if args.curriculum_learning_legacy and args.curriculum_seqlen < args.seq_length:
             ensure_var_is_not_none(args.curriculum_seqlen)
             labels = labels[:, :args.curriculum_seqlen].contiguous()
         output_tensor = tensor_parallel.vocab_parallel_cross_entropy(stu_output.contiguous().float(), labels)
     else:
-        output_tensor, *other_losses = model(tokens, position_ids, attention_mask,
+        output_tensor, other_losses = model(tokens, position_ids, attention_mask,
                                              labels=labels)
     if args.curriculum_learning_legacy and args.curriculum_seqlen < args.seq_length:
         loss_mask = loss_mask[:, :args.curriculum_seqlen].contiguous()
@@ -287,7 +287,11 @@ def forward_step(data_iterator, model):
     moe_losses = []
     for moe_loss in other_losses:
         if moe_loss is not None:
-            moe_losses.append(moe_loss)
+            if isinstance(moe_loss, list):
+                for moe_loss_i in moe_loss:
+                    moe_losses.append(moe_loss_i)
+            else:
+                moe_losses.append(moe_loss)
     moe_loss = sum(moe_losses) * args.moe_loss_coeff
 
     mos_loss = 0

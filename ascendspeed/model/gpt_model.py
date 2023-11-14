@@ -33,29 +33,20 @@ from .utils import scaled_init_method_normal
 
 from .module import MegatronModule, MegatronModuleForCausalLM, fp32_to_float16
 from .language_model import EmbeddingPipe
-from .transformer import ParallelTransformerLayerPipe
+from .transformer import ParallelTransformerLayerPipe, LMHeadPipe
 from .manual_pipe import ManuallyAllocatedPipelineModule
 
 
 def post_language_model_processing(lm_output, labels, logit_weights,
-                                   get_key_value, parallel_output,
-                                   forward_method_parallel_output,
+                                   parallel_output,
                                    fp16_lm_cross_entropy):
-    if get_key_value:
-        lm_output, presents = lm_output
-
-    # Output.
-    if forward_method_parallel_output is not None:
-        parallel_output = forward_method_parallel_output
+    # Output. Format [s b h]
     output = parallel_lm_logits(
         lm_output,
         logit_weights,
         parallel_output)
-
-    if get_key_value:
-        output = [output, presents]
-
     if labels is None:
+
         return output
     else:
         if fp16_lm_cross_entropy:
@@ -84,35 +75,39 @@ class GPTModel(MegatronModule, MegatronModuleForCausalLM):
                  parallel_output=True,
                  pre_process=True,
                  post_process=True,
-                 prefix_lm=False,
                  return_moe_loss=True):
-        super(GPTModel, self).__init__(config,)
         args = get_args()
+        super().__init__(config=config, share_embeddings_and_output_weights=not args.untie_embeddings_and_output_weights)
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
         self.return_moe_loss = return_moe_loss
+        self.untie_embeddings_and_output_weights = args.untie_embeddings_and_output_weights
+
         self.language_model, self._language_model_key = get_language_model(
             config=config,
             num_tokentypes=num_tokentypes,
             add_pooler=False,
-            encoder_attn_mask_type=AttnMaskType.prefix if prefix_lm else AttnMaskType.causal,
-            init_method=init_method_normal(args.init_method_std),
-            scaled_init_method=scaled_init_method_normal(args.init_method_std, args.num_layers),
+            encoder_attn_mask_type=AttnMaskType.causal,
             pre_process=self.pre_process,
-            post_process=self.post_process)
+            post_process=self.post_process,
+            num_experts=args.num_experts)
 
-        self.initialize_word_embeddings()
+        if not args.untie_embeddings_and_output_weights:
+            self.initialize_word_embeddings()
 
     def set_input_tensor(self, input_tensor):
         """See ascendspeed.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
-    def forward(self, input_ids, position_ids, attention_mask, labels=None,
-                tokentype_ids=None, layer_past=None, get_key_value=False,
-                forward_method_parallel_output=None, curriculum_seqlen=None):
+    def forward(self, input_ids, position_ids, attention_mask,
+                retriever_input_ids=None,
+                retriever_position_ids=None,
+                retriever_attn_mask=None,
+                labels=None, tokentype_ids=None, inference_params=None,
+                curriculum_seqlen=None):
         args = get_args()
         if curriculum_seqlen is not None:
             args.curriculum_seqlen = curriculum_seqlen
@@ -135,29 +130,24 @@ class GPTModel(MegatronModule, MegatronModuleForCausalLM):
             input_ids,
             position_ids,
             attention_mask,
-            layer_past=layer_past,
-            get_key_value=get_key_value)
-
+            retriever_input_ids=retriever_input_ids,
+            retriever_position_ids=retriever_position_ids,
+            retriever_attn_mask=retriever_attn_mask,
+            inference_params=inference_params)
         if self.post_process:
             lm_output = post_language_model_processing(
-                    lm_output, labels,
-                    self.shared_embedding_or_output_weight(),
-                    get_key_value,
-                    self.parallel_output,
-                    forward_method_parallel_output,
-                    self.fp16_lm_cross_entropy)
+                lm_output, labels,
+                self.language_model.output_layer.weight if self.untie_embeddings_and_output_weights else self.shared_embedding_or_output_weight(),
+                self.parallel_output,
+                self.fp16_lm_cross_entropy)
 
-        if self.return_moe_loss:
-            return (lm_output, *moe_losses)
-        else:
-            return lm_output
+        return lm_output, moe_losses if self.return_moe_loss else lm_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
+    def state_dict_for_save_checkpoint(self, prefix='', keep_vars=False):
 
         state_dict_ = {}
         language_model_state_dict = self.language_model.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars)
+                prefix=prefix, keep_vars=keep_vars)
         # MoE states need to be handled separately by DeepSpeed engine, thus
         # moving them to the top level dictionary
         if "moe_state_dict" in language_model_state_dict:
@@ -166,16 +156,17 @@ class GPTModel(MegatronModule, MegatronModuleForCausalLM):
             del language_model_state_dict["moe_state_dict"]
         state_dict_[self._language_model_key] = language_model_state_dict
         # Save word_embeddings.
-        if self.post_process and not self.pre_process:
+        if self.post_process and not self.pre_process and not self.untie_embeddings_and_output_weights:
             state_dict_[self._word_embeddings_for_head_key] \
-                = self.word_embeddings.state_dict(destination, prefix, keep_vars)
+                = self.word_embeddings.state_dict(prefix=prefix,
+                                                  keep_vars=keep_vars)
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
         # Load word_embeddings.
-        if self.post_process and not self.pre_process:
+        if self.post_process and not self.pre_process and not self.untie_embeddings_and_output_weights:
             self.word_embeddings.load_state_dict(
                 state_dict[self._word_embeddings_for_head_key], strict=strict)
         # Gather MoE states and move under language model
@@ -242,7 +233,12 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
         args = get_args()
         self.parallel_output = parallel_output
 
-        init_method = init_method_normal(args.init_method_std)
+        if config.init_method is None:
+            config.init_method = init_method_normal(config.init_method_std)
+
+        if config.output_layer_init_method is None:
+            config.output_layer_init_method = scaled_init_method_normal(config.init_method_std,
+                                                                        config.num_layers)
 
         self.specs = []
 
@@ -257,16 +253,26 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
         self.specs.append(_to_float16)
 
         # Embedding layer
-        self.specs.append(TiedLayerSpec('embed',
-                                        EmbeddingPipe,
-                                        config,
+        if args.untie_embeddings_and_output_weights:
+            self.specs.append(LayerSpec(EmbeddingPipe,
                                         args.hidden_size,
                                         args.padded_vocab_size,
                                         args.max_position_embeddings,
                                         args.hidden_dropout,
-                                        init_method=init_method,
+                                        config,
                                         num_tokentypes=num_tokentypes,
-                                        tied_weight_attr='word_embeddings_weight'))
+                                        embedding_weights_in_fp32=args.embedding_weights_in_fp32,))
+        else:
+            self.specs.append(TiedLayerSpec('embed',
+                                            EmbeddingPipe,
+                                            args.hidden_size,
+                                            args.padded_vocab_size,
+                                            args.max_position_embeddings,
+                                            args.hidden_dropout,
+                                            config,
+                                            num_tokentypes=num_tokentypes,
+                                            embedding_weights_in_fp32=args.embedding_weights_in_fp32,
+                                            tied_weight_attr='word_embeddings_weight'))
 
         if args.fp32_residual_connection:
             if getattr(args, 'pretrain_causal_attention', False):
@@ -283,15 +289,10 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
 
         for layer_idx in range(args.num_layers):
             self.specs.append(
-                LayerSpec(
-                    ParallelTransformerLayerPipe,
-                    config=config,
-                    init_method=init_method,
-                    output_layer_init_method=scaled_init_method_normal(args.init_method_std,
-                                                                       args.num_layers),
+                LayerSpec(ParallelTransformerLayerPipe,
+                    config,
                     layer_number=layer_idx,
-                    self_attn_mask_type=attn_mask_type)
-            )
+                    self_attn_mask_type=AttnMaskType.causal))
 
         # Undo data format change
         def undo(x):
@@ -320,20 +321,24 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
                 lm_output,
                 embedding.word_embeddings_weight,
                 self.parallel_output)
-
-        self.specs.append(
-            TiedLayerSpec('embed',
-                          EmbeddingPipe,
-                          config,
-                          args.hidden_size,
-                          args.padded_vocab_size,
-                          args.max_position_embeddings,
-                          args.hidden_dropout,
-                          init_method=init_method,
-                          num_tokentypes=num_tokentypes,
-                          forward_fn=_logits_helper,
-                          tied_weight_attr='word_embeddings_weight')
-        )
+        if args.untie_embeddings_and_output_weights:
+            self.specs.append(
+                LayerSpec(LMHeadPipe, args.hidden_size, args.padded_vocab_size, config)
+            )
+        else:
+            self.specs.append(
+                TiedLayerSpec('embed',
+                              EmbeddingPipe,
+                              args.hidden_size,
+                              args.padded_vocab_size,
+                              args.max_position_embeddings,
+                              args.hidden_dropout,
+                              config,
+                              num_tokentypes=num_tokentypes,
+                              embedding_weights_in_fp32=args.embedding_weights_in_fp32,
+                              forward_fn=_logits_helper,
+                              tied_weight_attr='word_embeddings_weight')
+            )
 
         # Convert to fp32 if needed
         if args.fp16 or args.bf16:
@@ -341,6 +346,9 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
 
         if args.checkpoint_activations:
             interval = args.checkpoint_num_layers
+        elif args.recompute_granularity == "full" and args.recompute_method == 'uniform':
+            # deepspeed's pipeline doesn't support the block recompute method
+            interval = args.recompute_num_layers
         else:
             interval = 0
 

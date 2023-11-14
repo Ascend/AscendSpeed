@@ -163,9 +163,6 @@ def forward_step(model, tokens, **kwargs):
     position_ids = kwargs.pop("position_ids")
     attention_mask = kwargs.pop("attention_mask")
     tokentype_ids = kwargs.pop("tokentype_ids")
-    layer_past = kwargs.pop("layer_past", None)
-    get_key_value = kwargs.pop("get_key_value", None)
-    forward_method_parallel_output = kwargs.pop("forward_method_parallel_output", None)
     model_latencies = kwargs.pop("model_latencies", None)
     inference_params = kwargs.pop("inference_params", None)
 
@@ -189,30 +186,32 @@ def forward_step(model, tokens, **kwargs):
             compute_loss=False
         )
     else:
+
         output_tensor = model(
             input_ids=tokens,
             position_ids=position_ids,
             attention_mask=attention_mask,
-            tokentype_ids=tokentype_ids,
-            layer_past=layer_past,
-            get_key_value=get_key_value,
-            forward_method_parallel_output=forward_method_parallel_output
+            tokentype_ids=tokentype_ids
         )
 
-    layer_past, output_tensor = _check_forward_output(get_key_value, layer_past, output_tensor)
-
+    output_tensor = _check_forward_output(output_tensor)
     send_forward(output_tensor, config)
 
     args.seq_length = orig_seq_length
     get_accelerator().synchronize()
     model_latencies.append(time.time() - t0)
 
-    if get_key_value:
-        res = output_tensor, layer_past
-    else:
-        res = output_tensor
+    return output_tensor
 
-    return res
+
+def _check_forward_output(output_tensor):
+    if isinstance(output_tensor, (list, tuple)):
+        if output_tensor[0] is not None:
+            output_tensor = output_tensor[0]
+        else:
+            raise ValueError("Please make sure that the output of the model is 'Tensor' or '[Tensor, ...]'")
+
+    return output_tensor
 
 
 def _unwrap_and_set_input_tensor(args, input_tensor, model):
@@ -226,19 +225,6 @@ def _unwrap_and_set_input_tensor(args, input_tensor, model):
             unwrapped_model.module.set_input_tensor(input_tensor)
         else:
             unwrapped_model.set_input_tensor(input_tensor)
-
-
-def _check_forward_output(get_key_value, layer_past, output_tensor):
-    if isinstance(output_tensor, (list, tuple)):
-        if output_tensor[0] is not None and not get_key_value:
-            output_tensor = output_tensor[0]
-        elif output_tensor[0] is not None and get_key_value:
-            output_tensor = output_tensor[:2]
-        else:
-            raise ValueError("Please make sure that the output of the model is 'Tensor' or '[Tensor, ...]'")
-    if get_key_value:
-        output_tensor, layer_past = output_tensor
-    return layer_past, output_tensor
 
 
 def sample_sequence_batch(model, context_tokens, context_lengths, type_ids=None, model_latencies=None):
@@ -422,15 +408,12 @@ def _disable_recompute_forward(model, **kwargs):
         if type_ids is not None:
             types2use = type_ids[:, context_length - 1].view(
                 batch_size, -1)
-    output, layer_past = forward_step(model,
-                                      tokens2use,
-                                      position_ids=positions2use,
-                                      attention_mask=attention_mask,
-                                      layer_past=layer_past,
-                                      get_key_value=True,
-                                      tokentype_ids=types2use,
-                                      forward_method_parallel_output=False,
-                                      model_latencies=model_latencies)
+    output = forward_step(model,
+                          tokens2use,
+                          position_ids=positions2use,
+                          attention_mask=attention_mask,
+                          tokentype_ids=types2use,
+                          model_latencies=model_latencies)
     if parallel_state.is_pipeline_last_stage():
         if output is None:
             raise ValueError("In pipeline_last_stage group, the forward output should not be None")
@@ -450,8 +433,8 @@ def _recompute_forward(model, **kwargs):
                           tokens,
                           position_ids=position_ids,
                           attention_mask=attention_mask,
-                          tokentype_ids=type_ids,
-                          forward_method_parallel_output=False)
+                          tokentype_ids=type_ids)
+
     if parallel_state.is_pipeline_last_stage():
         if output is None:
             raise ValueError("In pipeline_last_stage group, the forward output should not be None")

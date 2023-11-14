@@ -29,6 +29,7 @@ from ascendspeed import get_adlr_autoresume
 from ascendspeed import get_args
 from ascendspeed import get_tensorboard_writer
 from ascendspeed.core import tensor_parallel
+from ascendspeed.arguments import parse_args, validate_args
 from ascendspeed.utils import is_rank_0
 from ascendspeed.core import parallel_state
 from ascendspeed.global_vars import set_global_variables
@@ -53,12 +54,12 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
     if not allow_no_cuda:
         # Make sure cuda is available.
         ensure_valid(get_accelerator().is_available(), error_message='AscendSpeed requires accelerator.')
-
+    # Parse arguments
+    args = parse_args(extra_args_provider, ignore_unknown_args)
+    validate_args(args, args_defaults)
     # Parse args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.
-    set_global_variables(extra_args_provider=extra_args_provider,
-                         args_defaults=args_defaults,
-                         ignore_unknown_args=ignore_unknown_args)
+    set_global_variables(args)
 
     # torch.distributed initialization
     def finish_mpu_init():
