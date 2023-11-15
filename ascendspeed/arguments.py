@@ -953,6 +953,8 @@ def _add_distributed_args(parser):
                        'initialization uses CPU')
     group.add_argument('--triangle-attn', action='store_true',
                        help="use triangle attention instead self attention")
+    group.add_argument('--triangle-block-size', type=int, default=512,
+                       help="set the size of triangle attention blocks")
     group.add_argument('--standalone-embedding-stage', action='store_true',
                        default=False, help='If set, *input* embedding layer '
                        'is placed on its own pipeline stage, without any '

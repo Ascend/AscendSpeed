@@ -17,10 +17,11 @@
 import timeit
 import math
 import unittest
+import logging
 import torch
 import torch_npu
 from wrapt_timeout_decorator import timeout
-from ascendspeed.model.triangle_attention import TriangleAttention
+from ascendspeed.core.transformer.module.triangle_attention import TriangleAttention
 
 
 class TestTriangleAttention(unittest.TestCase):
@@ -38,15 +39,16 @@ class TestTriangleAttention(unittest.TestCase):
 
     @timeout(1200)
     def test_function(self):
+        logging.getLogger().setLevel(logging.INFO)
+        logging.info("triangle attention test start")
         bsz = 8
         hn = 8
         seq = 2048
         hd = 1024
         query_layer, key_layer, value_layer, mask = self.create_data(bsz, hn, seq, hd)
-        norm_factor = math.sqrt(hd)
-        triangle_attn = TriangleAttention(norm_factor=norm_factor, block_size=512,
-                                           masked_softmax_func=None, dropout_func=None)
+        triangle_attn = TriangleAttention(block_size=512, masked_softmax_func=None, dropout_func=None)
         output = triangle_attn(query_layer, key_layer, value_layer, mask)
+        logging.info("triangle attention test end")
 
     @timeout(1200)
     def test_performance(self):
@@ -55,10 +57,8 @@ class TestTriangleAttention(unittest.TestCase):
         seq = 2048
         hd = 1024
         query_layer, key_layer, value_layer, mask = self.create_data(bsz, hn, seq, hd)
-        norm_factor = math.sqrt(hd)
         iterations = 100
-        triangle_attn = Triangle_attention(norm_factor=norm_factor, block_size=512,
-                                                masked_softmax_func=None, dropout_func=None)
+        triangle_attn = TriangleAttention(block_size=512, masked_softmax_func=None, dropout_func=None)
         # warm up
         for _ in range(iterations):
             output = triangle_attn(query_layer, key_layer, value_layer, mask)

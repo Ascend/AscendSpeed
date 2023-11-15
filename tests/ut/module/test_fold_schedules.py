@@ -21,6 +21,7 @@ import unittest
 from unittest import mock
 import torch
 import torch_npu
+from wrapt_timeout_decorator import timeout
 import ascendspeed.core.pipeline_parallel.schedules as schedule
 from ascendspeed.core.pipeline_parallel.schedules import \
                     forward_backward_pipelining_with_foldx_aiao
@@ -78,7 +79,7 @@ class TestFoldSchedule(unittest.TestCase):
             return True
 
         def allreduce_gradients(async_op):
-            return True
+            return [Handle()]
 
         model.set_input_tensor = set_input_tensor
         model.allreduce_gradients = allreduce_gradients
@@ -168,7 +169,7 @@ class TestFoldSchedule(unittest.TestCase):
             return True
 
         def allreduce_gradients(async_op):
-            return True
+            return [Handle()]
 
         model.set_input_tensor = set_input_tensor
         model.allreduce_gradients = allreduce_gradients

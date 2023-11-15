@@ -34,13 +34,13 @@ from ascendspeed.core import tensor_parallel, parallel_state, utils
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.model.module import MegatronModule, MegatronModuleForCausalLM, float16_to_fp32, fp32_to_float16
 from ascendspeed.core.enums import AttnMaskType, LayerType, AttnType
+from ascendspeed.core.transformer.module.triangle_attention import TriangleAttention
 from ascendspeed.model.utils import get_linear_layer, init_method_normal, scaled_init_method_normal, \
     attention_mask_func, \
     openai_gelu, erf_gelu
 from ascendspeed.core.tensor_parallel.mappings import scatter_to_sequence_parallel_region
 from ascendspeed.model.fused_softmax import NPUFusedScaleMaskSoftmax
 from ascendspeed.model.language_model import Pooler
-from ascendspeed.model.triangle_attention import TriangleAttention
 from ascendspeed.error_utils import check_equal, check_divisible, ensure_valid
 try:
     from einops import rearrange
@@ -436,7 +436,8 @@ class LlamaParallelAttention(MegatronModule):
 
         self.use_triangle_attn = args.triangle_attn
         if self.use_triangle_attn:
-            self.triangle_attn = TriangleAttention(block_size=1024,
+            self.block_size = args.triangle_block_size
+            self.triangle_attn = TriangleAttention(block_size=self.block_size,
                                                    masked_softmax_func=self.scale_mask_softmax)
 
         self.use_flash_attention = args.use_flash_attn
