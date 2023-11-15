@@ -285,6 +285,12 @@ def validate_args(args, defaults={}):
 
     if args.variable_seq_lengths:
         ensure_valid(args.is_instruction_dataset, 'Dynamic padding based on instruction dataset.')
+    
+    if args.release_fp32_grad:
+        if args.optimizer != "adam":
+            raise ValueError(
+                "`release_fp32_grad` only support for `Adam` optimizer now.")
+
     # Retro checks.
     if args.retro_add_retriever:
         # Sequence parallelism unsupported.
@@ -730,6 +736,9 @@ def _add_training_args(parser):
     group.add_argument('--optimizer', type=str, default='adam',
                        choices=['adam', 'sgd', 'fused_adam', 'cadam'],
                        help='Optimizer function')
+    group.add_argument('--release-fp32-grad', action='store_true',
+                       help='The distributed training optimizer frees up '
+                       'gradient copies of FP32 to save memory.')
     group.add_argument('--dataloader-type', type=str, default=None,
                        choices=['single', 'cyclic'],
                        help='Single pass vs multiple pass data loader')

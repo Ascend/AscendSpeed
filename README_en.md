@@ -57,6 +57,7 @@ Currently, the following acceleration features for LLMs have been supported:
 * [Optimizers](#jump8)
 * [Merged feed-forward network](#jump9)
 * [Gradient accumulation](#jump9)
+* [Memory overcommitment](#jump10)
 
 More novel and useful features are developing for LLMs training on Ascend ...
 
@@ -920,6 +921,41 @@ For fused optimizer, two kinds of fused adam optimizers are provided by `--optim
 ### <span id="jump9">  Merged Feed-Forward Network & Gradient Accumulation </span>
 For llama and other LLMs without bias in FFN, the linear transformation in FFN could be merged to save communication in tensor parallelism. To enable this feature, please set `--mlp-layer-fusion` flag. Gradient accumulation uses gradient of N rounds to make an optimizer step and update parameters. Here, N = global batchsize / micro batchsize / DP, and DP = device nums / tp / pp.
 
+### <span id="jump10"> Memory Overcommitment </span>
+In mix precision training, multiple state tensors, such as parameter copies, gradient copies, and optimizer states, occupy a large amount of static memory (16N, where N is the number of parameters). However, in fact, parameters and gradients (4N, N is the number of parameters) that participate in forward and reverse calculation account for a small proportion, and optimizing the preceding state tensors can bring great video memory benefits. By analyzing the actual use of each part of the state tensor, the memory reuse mechanism of the mechanism is obtained, and a multilevel optimizer memory optimization scheme integrating multiple algorithm modules is finally obtained.
+
+- Memory Overcommitment O1 ——  **Relase FP32 Gradient** 
+    - Advantages: Completely equivalent; Support for multiple optimizers; lossless performance.
+    - Algorithm principle: The static memory of the FP32 gradient copy that needs to be permanently stored is reused. The memory of the FP16 gradient is converted into the FP32 format by performing the Foreach+Cast operation when necessary, saving 4N space.
+    - Usage: This equivalent algorithm is applicable to all optimizers and can be triggered by specifying  `--release-fp32-grad` in the script.
+    - Restrictions: Currently, only the Adam optimizer is applicable. For other optimizers, see the Adam optimizer implementation.
+
+Mix precision training process:
+
+<div align=center>
+<img src="https://foruda.gitee.com/images/1700028272497165508/7fbb164b_7943704.png" height="545px" width="461px"></div>
+
+Memory overcommitment training process:
+
+<div align=center>
+<img src="https://foruda.gitee.com/images/1700028261897403802/74ba37b6_7943704.png" height="570px" width="655px"></div>
+
+Test Result Table:
+
+| Model    | Algorithm            | Performance     | Compress HBM | Performance Error | Precision Error | Hardware |
+|----------|----------------------|-----------------|---------------|-------------------|-----------------|----------|
+| LLama-7B | baseline             | 5.39s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 5.40s/iteration | ↓ 13.5%       | ↓ 0.17%           | < 0.05%         | 910B*8P  |
+| LLama-13B| baseline             | 8.95s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 8.92s/iteration | ↓ 14.90%      | ↑ 0.34%           | < 0.2%          | 910B*8P  |
+| LLama2-7B| baseline             | 6.48s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 6.48s/iteration | ↓ 10.87%      | ↓ 0.00%           | < 0.2%          | 910B*8P  |
+| Bloom-7B | baseline             | 5.45s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 5.49s/iteration | ↓ 12.68%      | ↓ 0.7%            | < 0.01%         | 910B*8P  |
+| LLama-32B| baseline             | 5.23s/iteration | --            | --                | --              | 910B*16P |
+|          | O1 argorithm         | 5.28s/iteration | ↓ 15.93%      | ↓ 0.95%           | < 0.02%         | 910B*16P |
+| LLama-7B | distributed baseline | 5.18s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 distributed algorithm | 5.19s/iteration | ↓ 9.50%       | ↓ 0.2%            | < 0.1%          | 910B*8P  |
 
 ## Acknowledgments
 

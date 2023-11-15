@@ -58,6 +58,7 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
 * [高性能优化器](#jump8)
 * [前向网络合并](#jump9)
 * [梯度累积](#jump9)
+* [混精内存复用](#jump10)
 
 更多高效的加速算法正在为昇腾芯片上的大语言模型研发中...
 
@@ -962,6 +963,41 @@ Cadam是基于谷歌提出的[Lion优化器](https://arxiv.org/abs/2302.06675)�
 
 ### <span id="jump9">  梯度累积 </span>
 梯度累积基于 N 轮梯度更新一次参数，这里的 N = global batchsize / micro batchsize / DP，DP = device nums / tp / pp。
+
+### <span id="jump10"> 混精内存复用 </span>
+混合精度训练中，需要保存参数副本、梯度副本、优化器状态等多种状态张量，占据了大量的静态内存（16N，N为参数量），而实际参与前反向计算的参数和梯度（4N，N为参数量）相比之下占比很小，优化以上状态张量可以带来极大的显存收益。本算法希望通过深入分析每部分状态张量的实际使用实现机制的显存复用，最终得到一个集成多个算法模块的多级优化器内存优化方案。
+- 内存复用O1——梯度副本去冗余
+  - 优势：完全等价、支持多种优化器、性能无损
+  - 算法原理：将原本需要持久保存的FP32梯度副本的静态内存，复用FP16梯度的内存，在需要时通过`Foreach`+`Cast`操作转换成FP32的形式，可节省4N的空间。
+  - 使用方式：该等价算法对所有优化器适用，可在脚本中通过指定`--release-fp32-grad`触发。
+  - 使用限制：当前仅适配Adam优化器，其余优化器可参考Adam实现。
+
+原始混合精度训练流程：
+
+<div align=center>
+<img src="https://foruda.gitee.com/images/1700028272497165508/7fbb164b_7943704.png" height="545px" width="461px"></div>
+
+内存复用O1训练流程：
+
+<div align=center>
+<img src="https://foruda.gitee.com/images/1700028261897403802/74ba37b6_7943704.png" height="570px" width="655px"></div>
+
+部分模型测试结果如下表：
+
+| Model    | Algorithm            | Performance     | Compress HBM | Performance Error | Precision Error | Hardware |
+|----------|----------------------|-----------------|---------------|-------------------|-----------------|----------|
+| LLama-7B | baseline             | 5.39s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 5.40s/iteration | ↓ 13.5%       | ↓ 0.17%           | < 0.05%         | 910B*8P  |
+| LLama-13B| baseline             | 8.95s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 8.92s/iteration | ↓ 14.90%      | ↑ 0.34%           | < 0.2%          | 910B*8P  |
+| LLama2-7B| baseline             | 6.48s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 6.48s/iteration | ↓ 10.87%      | ↓ 0.00%           | < 0.2%          | 910B*8P  |
+| Bloom-7B | baseline             | 5.45s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 algorithm         | 5.49s/iteration | ↓ 12.68%      | ↓ 0.7%            | < 0.01%         | 910B*8P  |
+| LLama-32B| baseline             | 5.23s/iteration | --            | --                | --              | 910B*16P |
+|          | O1 argorithm         | 5.28s/iteration | ↓ 15.93%      | ↓ 0.95%           | < 0.02%         | 910B*16P |
+| LLama-7B | distributed baseline | 5.18s/iteration | --            | --                | --              | 910B*8P  |
+|          | O1 distributed algorithm | 5.19s/iteration | ↓ 9.50%       | ↓ 0.2%            | < 0.1%          | 910B*8P  |
 
 
 ## 致谢
