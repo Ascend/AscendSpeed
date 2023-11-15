@@ -449,7 +449,7 @@ Llama2-70B model could generate with 8 NPUs, for example:
            --ffn-hidden-size 28672 \
            --load "${CHECKPOINT}"  \
            --num-attention-heads 64 \
-           --position-embedding-type rotary \
+           --position-embedding-type rope \
            --group-query-attention \
            --num-query-groups 8 \
            --max-position-embeddings 4096 \
@@ -555,7 +555,7 @@ We use MMLU benchmark to evaluate our model. Benchmark Download [here](https://h
            --ffn-hidden-size 28672 \
            --load ${CHECKPOINT}  \
            --num-attention-heads 64 \
-           --position-embedding-type rotary \
+           --position-embedding-type rope \
            --group-query-attention \
            --num-query-groups 8 \
            --tokenizer-type PretrainedFromHF  \
