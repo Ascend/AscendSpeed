@@ -728,7 +728,7 @@ def _add_training_args(parser):
                        help='Disable bias in the linear layers',
                        dest='add_bias_linear')
     group.add_argument('--optimizer', type=str, default='adam',
-                       choices=['adam', 'sgd', 'fused_adam'],
+                       choices=['adam', 'sgd', 'fused_adam', 'cadam'],
                        help='Optimizer function')
     group.add_argument('--dataloader-type', type=str, default=None,
                        choices=['single', 'cyclic'],
