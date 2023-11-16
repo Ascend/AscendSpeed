@@ -398,7 +398,7 @@ The maximum absolute error is 0.089.
 ![NPU-LOSS and NPU-Absolute-Error](../../sources/images/llama2/llama2_70b_bf16_loss_absolute.png)
 
 
-## inference-70B
+## Inference-70B
 
 
 The model weights of 64 NPUs can be converted to 8 NPUs with the follow shell.

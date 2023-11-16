@@ -90,8 +90,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 1905 tokens/p/s </td>
-      <td> 2036 tokens/p/s </td>
+      <td> 1905 </td>
+      <td> 2036 </td>
       <td> <a href="./sources/images/baichuan/7B_loss_compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">训练</a> </td>
     </tr>
@@ -99,8 +99,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>13B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 1024 tokens/p/s </td>
-      <td> 824 tokens/p/s </td>
+      <td> 1024 </td>
+      <td> 824 </td>
       <td> <a href="./sources/images/baichuan/13B-loss-compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">训练</a> </td>
     </tr>
@@ -109,8 +109,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B1</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 2611 tokens/p/s </td>
-      <td> 2525 tokens/p/s </td>
+      <td> 2611 </td>
+      <td> 2525 </td>
       <td>  <a href="sources/images/bloom7B1_loss.png">Loss</a> </td>
       <td> <a href="examples/bloom/pretrain_bloom_7b1.sh">训练</a> </td>
     </tr>
@@ -118,8 +118,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td >176B</td>
       <td >12x8</td>
       <td> BF16 </td>
-      <td> 100 tokens/p/s </td>
-      <td> 107 tokens/p/s </td>
+      <td> 100 </td>
+      <td> 107 </td>
       <td> <a href="examples/bloom/images/bloom176b_lm_loss_compare.PNG">Loss</a> </td>
       <td> <a href="examples/bloom/pretrain_bloom_176b.sh">训练</a> </td>
     </tr>
@@ -128,8 +128,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> 2777 tokens/p/s </td>
-      <td> 2800 tokens/p/s </td>
+      <td> 2777 </td>
+      <td> 2800 </td>
       <td>  <a href="sources/images/intern7b_loss.png">Loss</a>  </td>
       <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">训练</a> </td>
     </tr>
@@ -138,8 +138,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> 2862 tokens/p/s </td>
-      <td> 2859 tokens/p/s </td>
+      <td> 2862 </td>
+      <td> 2859 </td>
       <td> <a href="sources/images/llama7b_loss.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_7B_zero_8p.sh">训练</a> </td>
     </tr>
@@ -147,8 +147,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>13B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> 1800 tokens/p/s </td>
-      <td> 1734 tokens/p/s </td>
+      <td> 1800 </td>
+      <td> 1734 </td>
       <td> <a href="sources/images/llama13b_loss.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_13B_zero_8p.sh">训练</a> </td>
     </tr>
@@ -156,8 +156,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
         <td>33B</td>
         <td>4x8</td>
         <td>FP16</td>
-        <td>621 tokens/p/s</td>
-        <td>520 tokens/p/s</td>
+        <td>621</td>
+        <td>520</td>
         <td>
         <a href="./sources/images/llama/llama33B_shape_layer8.png">Loss</a> </td>
         <td><a href="examples/llama/pretrain_llama_33B_zero_32p.sh">训练</a> </td>
@@ -168,8 +168,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
     </tr>
     <tr>
       <td>BF16 </td>
-      <td> 234 tokens/p/s </td>
-      <td> 260 tokens/p/s </td>
+      <td> 234 </td>
+      <td> 260 </td>
       <td> <a href="sources/images/llama65b_bf_loss.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">训练</a> </td>
     </tr>
@@ -178,8 +178,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16 </td>
-      <td> 2460 tokens/p/s </td>
-      <td> 2348 tokens/p/s </td>
+      <td> 2460 </td>
+      <td> 2348 </td>
       <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
       <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">训练</a> </td>
     </tr>
@@ -187,8 +187,8 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>70B</td>
       <td>8x8</td>
       <td>BF16 </td>
-      <td> 350 tokens/p/s </td>
-      <td> 339 tokens/p/s </td>
+      <td> 350 </td>
+      <td> 339 </td>
       <td> <a href="sources/images/llama2/llama2_70b_bf16_loss_compare.png">Loss</a> </td>
       <td> <a href="examples/llama2/pretrain_llama2_70B_ptd.sh">训练</a> </td>
     </tr>
