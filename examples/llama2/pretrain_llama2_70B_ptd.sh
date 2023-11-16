@@ -32,7 +32,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --hidden-size 8192 \
        --ffn-hidden-size 28672 \
        --num-attention-heads 64 \
-       --position-embedding-type rotary \
+       --position-embedding-type rope \
        --group-query-attention \
        --num-query-groups 8 \
        --micro-batch-size 2 \
