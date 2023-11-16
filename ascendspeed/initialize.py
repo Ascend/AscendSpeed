@@ -100,7 +100,8 @@ def initialize_megatron(extra_args_provider=None, args_defaults=None,
 
 
 def _compile_dependencies():
-    if is_rank_0():
+    # compile helper for all node
+    if _is_rank_0():
         start_time = time.time()
         print('> compiling dataset index builder ...')
         from megatron.data.dataset_utils import compile_helper
