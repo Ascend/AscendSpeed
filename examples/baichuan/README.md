@@ -324,7 +324,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # modify script orign dataset path according to your own dataset path
 TOKENIZER_PATH=./baichuan-13B-hf  
-DATA_PATH=./dataset_baichuan13B/aplaca_text_document  
+DATA_PATH=./dataset_baichuan13B/alpaca_text_document  
 ```
 
 6. Launch Baichuan-13B pre-training script: /examples/baichuan/pretrain_baichuan_ptd_13B.sh
