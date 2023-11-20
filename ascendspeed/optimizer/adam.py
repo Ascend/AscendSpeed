@@ -22,12 +22,16 @@ def adamw(params: List[Tensor],
           lr: float,
           weight_decay: float,
           eps: float,
-          maximize: bool):
+          maximize: bool,
+          norm_coeff_scale: float):
     r"""Functional API that performs AdamW algorithm computation.
     See :class:`~torch.optim.AdamW` for details.
     """
     for i, param in enumerate(params):
-        grad = grads[i]
+        if norm_coeff_scale is not None:
+            grad = grads[i].float() * norm_coeff_scale
+        else:
+            grad = grads[i]
         exp_avg = exp_avgs[i]
         exp_avg_sq = exp_avg_sqs[i]
         step = state_steps[i]
@@ -141,7 +145,7 @@ class AdamW(Optimizer):
             group.setdefault('maximize', False)
 
     @torch.no_grad()
-    def step(self, closure=None):
+    def step(self, closure=None, norm_coeff_scale=None):
         """Performs a single optimization step.
         Args:
             closure (callable, optional): A closure that reevaluates the model
@@ -165,12 +169,13 @@ class AdamW(Optimizer):
             beta1, beta2 = group['betas']
 
             for p in group['params']:
-                if p.grad is None:
+                attr = "fp16_grad" if norm_coeff_scale is not None else "grad"
+                if getattr(p, attr) is None:
                     continue
                 params_with_grad.append(p)
-                if p.grad.is_sparse:
+                if getattr(p, attr).is_sparse:
                     raise RuntimeError('AdamW does not support sparse gradients')
-                grads.append(p.grad)
+                grads.append(getattr(p, attr))
 
                 state = self.state[p]
 
@@ -211,6 +216,6 @@ class AdamW(Optimizer):
                     lr=group['lr'],
                     weight_decay=group['weight_decay'],
                     eps=group['eps'],
-                    maximize=group['maximize'])
-
+                    maximize=group['maximize'],
+                    norm_coeff_scale=norm_coeff_scale)
         return loss

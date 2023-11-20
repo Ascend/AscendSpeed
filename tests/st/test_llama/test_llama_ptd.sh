@@ -54,4 +54,5 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --eval-interval 1000 \
        --eval-iters 10 \
        --sequence-parallel \
+       --release-fp32-grad \
        --fp16

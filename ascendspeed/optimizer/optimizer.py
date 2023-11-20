@@ -31,7 +31,7 @@ from ascendspeed.utils import unwrap_model
 from ascendspeed.model import Float16Module, DistributedDataParallel as LocalDDP
 from deepspeed.accelerator import get_accelerator
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
-from ascendspeed.error_utils import check_equal, ensure_valid
+from ascendspeed.error_utils import check_equal, ensure_valid, check_divisible_by_zero
 from .clip_grads import clip_grad_norm_fp32, count_zeros_fp32
 
 
@@ -137,6 +137,34 @@ class MegatronOptimizer(ABC):
             model_parallel_group=self.get_model_parallel_group(),
             use_global_grad_norm=use_global_grad_norm)
 
+    def get_clip_grad_norm(self, clip_grad, use_global_grad_norm=False):
+        # Norm parameters.
+        max_norm = float(clip_grad)
+        norm_type = float(2)
+        total_norm = 0.0
+        params = self.get_parameters()
+        for _, param in enumerate(params):
+            grad = param.fp16_grad
+            grad_not_none = grad is not None
+            is_not_shared = param_is_not_shared(param)
+            is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
+            if grad_not_none and is_not_shared and is_not_tp_duplicate:
+                fp32_unscale_grad = grad.float().mul_(self.grad_scaler.inv_scale)
+                grad_norm = torch.norm(fp32_unscale_grad, norm_type)
+                total_norm += grad_norm ** norm_type
+        # Sum across all model-parallel GPUs.
+        torch.distributed.all_reduce(total_norm,
+                                    op=torch.distributed.ReduceOp.SUM,
+                                    group=parallel_state.get_model_parallel_group())
+        if use_global_grad_norm:
+            torch.distributed.all_reduce(total_norm,
+                                         op=torch.distributed.ReduceOp.SUM,
+                                         group=parallel_state.get_data_parallel_group())
+       
+        total_norm = total_norm.item() ** (check_divisible_by_zero(1.0, norm_type))
+        clip_coeff = min(1.0, check_divisible_by_zero(max_norm, total_norm + 1.0e-6))
+        return total_norm, clip_coeff
+    
     def count_zeros(self):
         params = self.get_parameters()
         return count_zeros_fp32(params,
@@ -759,6 +787,92 @@ class Float16OptimizerWithFloat16Params(MegatronOptimizer):
                 state_dict[fp32_from_float16_params_key]):
             for current_param, saved_param in zip(current_group, saved_group):
                 current_param.data.copy_(saved_param.data)
+
+
+class Float16OptimizerWithoutFp32Grad(Float16OptimizerWithFloat16Params):
+    def __init__(self, optimizer, clip_grad, log_num_zeros_in_grad,
+                 params_have_main_grad, use_contiguous_buffers_in_local_ddp,
+                 fp16, bf16, params_dtype, grad_scaler, models):
+
+        super(Float16OptimizerWithoutFp32Grad, self).__init__(
+            optimizer, clip_grad, log_num_zeros_in_grad,
+            params_have_main_grad, use_contiguous_buffers_in_local_ddp, models)
+        self.inv_scale = get_accelerator().FloatTensor([1.0])
+
+    def _main_grad_check_for_nan(self):
+        fp16_grads = []
+        fp32_grads = []
+        for main_group in self.fp32_from_float16_groups:
+            for main_param in main_group:
+                if main_param.fp16_grad is not None:
+                    fp16_grads.append(main_param.fp16_grad.data)
+        self.found_inf.fill_(0.0)
+        torch._amp_foreach_non_finite_check_and_unscale_(
+            fp16_grads, self.found_inf, self.inv_scale)
+        torch.distributed.all_reduce(self.found_inf,
+                                     op=torch.distributed.ReduceOp.MAX,
+                                     group=parallel_state.get_model_parallel_group())
+       
+        found_inf_flag = (self.found_inf.item() > 0)
+        if found_inf_flag:
+            return found_inf_flag
+       
+        # Append fp32 parameters.
+        for main_group in self.fp32_from_fp32_groups:
+            for main_param in main_group:
+                if main_param.grad is not None:
+                    fp32_grads.append(main_param.grad.data)
+        self.found_inf.fill_(0.0)
+        torch._amp_foreach_non_finite_check_and_unscale_(
+            fp32_grads, self.found_inf, self.inv_scale)
+        torch.distributed.all_reduce(self.found_inf,
+                                     op=torch.distributed.ReduceOp.MAX,
+                                     group=parallel_state.get_model_parallel_group())
+        return found_inf_flag
+
+    def _copy_model_fp16_grads_to_main_grads(self):
+        # This only needs to be done for the float16 group.
+        for model_group, main_group in zip(self.float16_groups,
+                                           self.fp32_from_float16_groups):
+            for model_param, main_param in zip(model_group, main_group):
+                # if self.params_have_main_grad:
+                if self.params_have_main_grad:
+                    main_param.fp16_grad = model_param.main_grad
+                else:
+                    if model_param.grad is not None:
+                        main_param.fp16_grad = model_param.grad
+        # For fp32 grads, we need to reset the grads to main grad.
+        if self.params_have_main_grad:
+            for model_group in self.fp32_from_fp32_groups:
+                for model_param in model_group:
+                    model_param.grad = model_param.main_grad
+
+    @torch.no_grad()
+    def step(self, args, timers):
+        timers('optimizer-copy-to-main-grad', log_level=1).start()
+        self._copy_model_fp16_grads_to_main_grads()
+        timers('optimizer-copy-to-main-grad').stop()
+        if self.grad_scaler:
+            timers('optimizer-check-inf-and-nan', log_level=1).start()
+            found_inf_flag = self._main_grad_check_for_nan()
+            timers('optimizer-check-inf-and-nan').stop()
+            self.grad_scaler.update(found_inf_flag)
+            if found_inf_flag:
+                return False, None, None
+        timers('optimizer-get-clip-grad-norm', log_level=1).start()
+        grad_norm = None
+        norm_coeff_scale = self.grad_scaler.inv_scale if self.grad_scaler else self.inv_scale
+        if self.clip_grad > 0.0:
+            grad_norm, clip_coeff = self.get_clip_grad_norm(self.clip_grad)
+            norm_scale_coeff *= clip_coeff
+        timers('optimizer-get-clip-grad-norm').stop()
+        self.optimizer.step(norm_coeff_scale=norm_coeff_scale)
+        # Update params from main params.
+        timers('optimizer-copy-main-to-model-params', log_level=1).start()
+        self._copy_main_params_to_model_params()
+        timers('optimizer-copy-main-to-model-params').stop()
+        # Successful update.
+        return True, grad_norm, None
 
 
 class FP32Optimizer(MegatronOptimizer):

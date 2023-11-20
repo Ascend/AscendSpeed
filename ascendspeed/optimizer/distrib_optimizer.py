@@ -4,6 +4,7 @@
 
 import math
 import torch
+from deepspeed.accelerator import get_accelerator
 
 from ascendspeed import print_rank_0
 from ascendspeed.core import tensor_parallel, parallel_state
@@ -660,8 +661,7 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                     check_equal(param_range.size, shard_main_param.nelement())
 
                     model_grad = model_param.main_grad
-                    shard_model_grad = model_grad.view(-1) \
-                        [param_range.start:param_range.end]
+                    shard_model_grad = model_grad.view(-1)[param_range.start:param_range.end]
                     shard_main_param.grad = shard_model_grad.float()
 
         # Copy model groups to shard groups.
@@ -732,3 +732,126 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                           self.shard_fp32_from_float16_groups)
         copy_group_params(self.model_fp32_groups,
                           self.shard_fp32_groups)
+
+
+class DistributedOptimizerWithoutFP32Grad(DistributedOptimizer):
+    def __init__(
+            self,
+            optimizer,
+            clip_grad,
+            log_num_zeros_in_grad,
+            params_have_main_grad,
+            use_contiguous_buffers_in_local_ddp,
+            fp16,
+            bf16,
+            params_dtype,
+            grad_scaler,
+            models
+        ):
+        super().__init__(
+            optimizer, clip_grad, log_num_zeros_in_grad, params_have_main_grad,
+            use_contiguous_buffers_in_local_ddp, fp16, bf16, params_dtype, grad_scaler, models)
+        self.inv_scale = get_accelerator().FloatTensor([1.0])
+   
+    def _copy_model_fp16_grads_to_main_grads(self):
+        """
+        Copy model grads to main grads.
+
+        Since this step follows a reduce-scatter through the DDP's grad
+        buffer, this method is responsible for copying the updated grads
+        from the grad buffer to the main shard's grad field.
+        """
+
+        # Utility method for copying group grads.
+        def copy_group_grads(model_groups, shard_main_groups, fp16=False):
+            for model_group, shard_main_group in zip(model_groups,
+                                                     shard_main_groups):
+                for model_param, shard_main_param in zip(model_group,
+                                                         shard_main_group):
+                    param_range_map = self.get_model_param_range_map(model_param)
+                    param_range = param_range_map["param"]
+                    check_equal(param_range.size, shard_main_param.nelement())
+
+                    model_grad = model_param.main_grad
+                    shard_model_grad = model_grad.view(-1) \
+                        [param_range.start:param_range.end]
+                    if fp16:
+                        shard_main_param.fp16_grad = shard_model_grad
+                    else:
+                        print(f"fp32 shard_main_param.grad !!!")
+                        shard_main_param.grad = shard_model_grad.float()
+
+        # Copy model groups to shard groups.
+        copy_group_grads(self.model_float16_groups,
+                         self.shard_fp32_from_float16_groups, fp16=True)
+        copy_group_grads(self.model_fp32_groups,
+                         self.shard_fp32_groups)
+   
+    def _main_grads_and_check_for_nan(self):
+        def grad_check_for_nan(grad_attr="grad"):
+            main_grads = []
+            for group in self.optimizer.param_groups:
+                for param in group["params"]:
+                    if getattr(param, grad_attr) is None:
+                        continue
+                    main_grads.append(getattr(param, grad_attr).data)
+            self.found_inf.fill_(0.0)
+            torch._amp_foreach_non_finite_check_and_unscale_(
+                main_grads, self.found_inf, self.inv_scale)
+            torch.distributed.all_reduce(self.found_inf,
+                                        op=torch.distributed.ReduceOp.MAX,
+                                        group=self.get_model_parallel_group())
+            torch.distributed.all_reduce(self.found_inf,
+                                        op=torch.distributed.ReduceOp.MAX,
+                                        group=parallel_state.get_data_parallel_group())
+            found_inf_flag = (self.found_inf.item() > 0)
+            return found_inf_flag
+   
+        found_inf_flag = grad_check_for_nan(grad_attr="fp16_grad")
+        if found_inf_flag:
+            return found_inf_flag
+        else:
+            found_inf_flag += grad_check_for_nan()
+        return found_inf_flag
+
+    @torch.no_grad()
+    def step(self, args, timers):
+        # Copy gradients from model params to main params.
+        timers('optimizer-copy-to-main-grad', log_level=1).start(
+            barrier=args.barrier_with_L1_time)
+        self._copy_model_fp16_grads_to_main_grads()
+        timers('optimizer-copy-to-main-grad').stop()
+        # Do unscale, check for inf, and update grad scaler only for
+        # the case that grad scaler is provided.
+        if self.grad_scaler:
+            # Unscale and check for inf/nan.
+            timers('optimizer-unscale-and-check-inf', log_level=1).start(
+                barrier=args.barrier_with_L1_time)
+            found_inf_flag = self._main_grads_and_check_for_nan()
+            timers('optimizer-unscale-and-check-inf').stop()
+            self.grad_scaler.update(found_inf_flag)
+            if found_inf_flag:
+                return False, None, None
+        timers('optimizer-clip-main-grad', log_level=1).start(
+            barrier=args.barrier_with_L1_time)
+        grad_norm = None
+        norm_coeff_scale = self.grad_scaler.inv_scale if self.grad_scaler else self.inv_scale
+        if self.clip_grad > 0.0:
+            grad_norm, clip_coeff = self.get_clip_grad_norm(self.clip_grad, use_global_grad_norm=True)
+            norm_coeff_scale *= clip_coeff
+        timers('optimizer-clip-main-grad').stop()
+
+        # Step the optimizer.
+        timers('optimizer-inner-step', log_level=1).start(
+            barrier=args.barrier_with_L1_time)
+        self.optimizer.step(norm_coeff_scale=norm_coeff_scale)
+        timers('optimizer-inner-step').stop()
+
+        # Update params from main params.
+        timers('optimizer-copy-main-to-model-params', log_level=1).start(
+            barrier=args.barrier_with_L1_time)
+        self._copy_main_params_to_model_params()
+        timers('optimizer-copy-main-to-model-params').stop()
+
+        # Successful update.
+        return True, grad_norm, None
