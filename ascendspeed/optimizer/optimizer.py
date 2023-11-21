@@ -796,7 +796,8 @@ class Float16OptimizerWithoutFp32Grad(Float16OptimizerWithFloat16Params):
 
         super(Float16OptimizerWithoutFp32Grad, self).__init__(
             optimizer, clip_grad, log_num_zeros_in_grad,
-            params_have_main_grad, use_contiguous_buffers_in_local_ddp, models)
+            params_have_main_grad, use_contiguous_buffers_in_local_ddp,
+            fp16, bf16, params_dtype, grad_scaler, models)
         self.inv_scale = get_accelerator().FloatTensor([1.0])
 
     def _main_grad_check_for_nan(self):
@@ -864,7 +865,7 @@ class Float16OptimizerWithoutFp32Grad(Float16OptimizerWithFloat16Params):
         norm_coeff_scale = self.grad_scaler.inv_scale if self.grad_scaler else self.inv_scale
         if self.clip_grad > 0.0:
             grad_norm, clip_coeff = self.get_clip_grad_norm(self.clip_grad)
-            norm_scale_coeff *= clip_coeff
+            norm_coeff_scale *= clip_coeff
         timers('optimizer-get-clip-grad-norm').stop()
         self.optimizer.step(norm_coeff_scale=norm_coeff_scale)
         # Update params from main params.
