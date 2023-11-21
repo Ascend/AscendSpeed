@@ -167,9 +167,9 @@ Here's a software summary of pre-training  LLaMA2-7B:
 The performance of LLaMA2-7B in **Ascend NPU** and **Reference**:
 
 | Device | Model       | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
-| :------: | :-----------: | :----------------: | :-----------------------------: | :----------------------------: | :-------------------------: | :-----------------------------------: |
-| NPUs   | LLaMA2-7B | 1024             | 4.804                         | 2459.648                         | 6.66                      | 147.42                              |
-| Reference   | LLaMA2-7B | 1024             | 4.585                         | 2347.63                         | 6.99                      | 143.01                              |
+| :------: | :-----------: | :----------------: |:-----------------------------:| :----------------------------: |:-------------------------:|:-----------------------------------:|
+| NPUs   | LLaMA2-7B | 1024             |             5.297             | 2712.58                         |           6.04            |               160.20                |
+| Reference   | LLaMA2-7B | 1024             |             4.585             | 2347.63                         |           6.99            |               143.01                |
 
 
 #### Accuracy of the loss

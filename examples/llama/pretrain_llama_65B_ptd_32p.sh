@@ -52,7 +52,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --save-interval 10000 \
        --eval-interval 1000 \
        --eval-iters 10 \
-       --checkpoint-activations \
+       --auto-recompute-device-size 55296 \
        --initial-loss-scale 524288.0 \
        --sequence-parallel \
        --mlp-layer-fusion \

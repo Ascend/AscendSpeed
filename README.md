@@ -169,7 +169,7 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
     </tr>
     <tr>
       <td>BF16 </td>
-      <td> 234 </td>
+      <td> 309 </td>
       <td> 260 </td>
       <td> <a href="sources/images/llama65b_bf_loss.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">训练</a> </td>
@@ -179,7 +179,7 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16 </td>
-      <td> 2460 </td>
+      <td> 2712 </td>
       <td> 2348 </td>
       <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
       <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">训练</a> </td>
@@ -849,6 +849,12 @@ Fold3D 隐藏了 PP 中数据并行的通信时间，其基本原理如下：<di
 ### <span id="jump4"> (选择性) 重计算 </span>
 为了使用有限的显存来训练更大的模型，AscendSpeed 支持完全重计算以及选择性重计算策略，为了使能完全重计算，可以使用 `--checkpoint-activations` 标志，
 至于选择性重计算，则可以通过添加 `--checkpoint-policy` 标志来决定选择性重计算的策略。
+
+为了最大限度地利用NPU内存，同时提高模型训练的性能，我们支持通过调整训练内存大小的方式，自动获取选择重计算策略，这一特性称为[自适应选择重计算](https://gitee.com/ascend/AscendSpeed/wikis/Algorithm%20Introduction/Auto%20Selective%20Recomputing)。
+启用自适应选择重计算，请使用`--auto-recompute-device-size`标志指定自适应选择重计算策略的训练内存大小（单位：MB）。请注意，如果要使用`--auto-recompute-device-size`标志，请删除标志`--checkpoint-activations`。
+如果发生OOM，您需要重新选择一个内存值来重启模型训练。您也可以通过[二分法](https://gitee.com/ascend/AscendSpeed/wikis/Algorithm%20Introduction/Auto%20Selective%20Recomputing)的方式获得最优解。
+自适应选择重计算根据profiling前N步的训练内存信息进行策略选择，您可以通过使用`--auto-recompute-profiling-step`标志设置[停止profiling](https://gitee.com/ascend/AscendSpeed/wikis/Algorithm%20Introduction/Auto%20Selective%20Recomputing)的步数。
+默认在第10步停止profiling，最小设置为5步，建议在训练内存平稳后停止profiling，这样可以获得更佳的选择重计算策略。
 
 ### <span id="jump5"> 序列并行 </span>
 序列并行（Sequence Parallelism，SP）是一种模型并行策略，它依赖TP的实现，沿着序列轴按照TP的维度拆分了dropout层和layernorm层。

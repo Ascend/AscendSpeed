@@ -407,7 +407,7 @@ The performance of the NPUs in **Ascend** and Reference:
 | Reference | llama-33B |             520              |
 |   NPUs    | llama-33B |             621              |
 | Reference | llama-65B |             260              |
-|   NPUs    | llama-65B |             234              |
+|   NPUs    | llama-65B |             309              |
 
 
 #### Accuracy of the loss

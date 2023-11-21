@@ -168,7 +168,7 @@ Coming soon ...
     </tr>
     <tr>
       <td>BF16 </td>
-      <td> 234 </td>
+      <td> 309 </td>
       <td> 260 </td>
       <td> <a href="sources/images/llama65b_bf_loss.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">Train</a> </td>
@@ -178,7 +178,7 @@ Coming soon ...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16 </td>
-      <td> 2460</td>
+      <td> 2712</td>
       <td> 2348 </td>
       <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
       <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">Train</a> </td>
@@ -893,6 +893,13 @@ To enable pipeline model parallelism, use the `--fold-mode "aiao"` flag to choos
 To reduce NPU memory usage so deploy a large model to a training system, we support activation checkpointing and recomputation. 
 We support two levels of recompute granularity: full and selective. To enable full recomputation, please use `--checkpoint-activations` flag, and to enable selective recomputation, please use `--checkpoint-policy` flag to 
 decide the strategy of selective recomputation. Note that the selective strategy is customized and optimized for Ascend chips.
+
+To improve the performance of model training while maximizing the use of NPU memory, we support [auto selective recomputing](https://gitee.com/ascend/AscendSpeed/wikis/Algorithm%20Introduction/Auto%20Selective%20Recomputing) strategy by manually adjusting the training memory size.
+To enable auto selective recomputing, please use `--auto-recompute-device-size` flag to specify the memory size for auto selective recomputing strategy(unit: MB).
+Note that if you want to use `--auto-recompute-device-size` flag, please remove `--checkpoint-activations`.
+If OOM occurs, you need to reselect a new memory size to restart model training. You can also find the optimal solution through [dichotomy](https://gitee.com/ascend/AscendSpeed/wikis/Algorithm%20Introduction/Auto%20Selective%20Recomputing).
+Auto selective recomputing selects a strategy based on the training memory information of the first N steps of profiling. You can set the number of steps to [stop profiling](https://gitee.com/ascend/AscendSpeed/wikis/Algorithm%20Introduction/Auto%20Selective%20Recomputing) by using the `--auto-recompute-profiling-step` flag.
+By default, profiling is stopped in step 10, with a minimum setting of 5 steps. It is recommended to stop profiling after the training memory is stable, in order to obtain a better choice of recalculation strategy.
 
 ### <span id="jump5"> Sequence Parallelism </span>
 Sequence parallelism (SP) is a kind of model parallelism strategy, which splits the sequence axis in dropout and layernorm layers. SP depends on TP in our implementation. 
