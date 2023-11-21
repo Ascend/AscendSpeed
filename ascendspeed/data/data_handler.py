@@ -19,6 +19,7 @@ import time
 import glob
 import json
 import logging
+from typing import List
 
 import torch
 import numpy as np
