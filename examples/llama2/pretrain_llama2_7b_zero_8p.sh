@@ -20,7 +20,7 @@ CHECKPOINT_PATH=./ckpt
 DS_CONFIG=deepspeed_config_7B.json
 ZERO_STAGE=2
 GLOBAL_BATCH=32
-MICRO_BATCH=4
+MICRO_BATCH=2
 
 cat <<EOT > $DS_CONFIG
 {
@@ -47,7 +47,7 @@ cat <<EOT > $DS_CONFIG
         "contiguous_gradients": true
     },
 
-    "gradient_accumulation_steps": 1,
+    "gradient_accumulation_steps": 2,
     "train_batch_size": $GLOBAL_BATCH,
     "train_micro_batch_size_per_gpu":$MICRO_BATCH,
     "zero_allow_untested_optimizer": true
@@ -63,9 +63,10 @@ ds_args=" --deepspeed-activation-checkpointing ${ds_args}"
 
 # Main script
 deepspeed pretrain_llama.py \
-       --checkpoint-activations \
+       --auto-recompute-device-size 51200 \
        --use-fused-rotary-pos-emb \
        --triangle-attn \
+       --triangle-block-size 1024 \
        --DDP-impl local \
        --tensor-model-parallel-size 1 \
        --pipeline-model-parallel-size 1 \

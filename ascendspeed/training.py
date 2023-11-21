@@ -56,6 +56,7 @@ from ascendspeed.model.lora_utils import is_enable_lora, handle_model_with_lora
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_fifo
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_aiao
 from ascendspeed.core.pipeline_parallel.schedules import get_forward_backward_func, get_forward_func
+from ascendspeed.core.memory.auto_recomputing.autorecompute import autorecompute_profile
 from ascendspeed.error_utils import (
     check_equal, 
     check_type, 
@@ -544,6 +545,7 @@ def load_model_weights_only(model_provider_func):
     return model, optimizer, lr_scheduler
 
 
+@autorecompute_profile
 def setup_model_and_optimizer(model_provider_func,
                               model_type,
                               no_wd_decay_cond=None,
