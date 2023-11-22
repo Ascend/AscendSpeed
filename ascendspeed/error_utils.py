@@ -34,7 +34,7 @@ def check_divisible(denominator, molecule, error_info=None):
 
 
 def check_divisible_by_zero(dividend, divisor):
-    if divisor != 0:
+    if not isinstance(divisor, int) or divisor != 0:
         return dividend / divisor
     raise ZeroDivisionError
 
