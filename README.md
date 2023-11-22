@@ -119,7 +119,7 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td >176B</td>
       <td >12x8</td>
       <td> BF16 </td>
-      <td> 100 </td>
+      <td> 112 </td>
       <td> 107 </td>
       <td> <a href="examples/bloom/images/bloom176b_lm_loss_compare.PNG">Loss</a> </td>
       <td> <a href="examples/bloom/pretrain_bloom_176b.sh">训练</a> </td>

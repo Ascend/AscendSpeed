@@ -2,7 +2,6 @@
 
 export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
-export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # output data path
@@ -101,11 +100,6 @@ TRANSFORMERS_OFFLINE=1  \
     --save-interval $SAVE_INTERVAL \
     --eval-interval 1000 \
     --eval-iters 1 \
-    --tensorboard-dir $TENSORBOARD_PATH \
-    --tensorboard-queue-size 5 \
-    --log-timers-to-tensorboard \
-    --log-batch-size-to-tensorboard \
-    --log-validation-ppl-to-tensorboard \
     --save $CHECKPOINT_PATH \
     --load $CHECKPOINT_PATH \
     --data-impl mmap \

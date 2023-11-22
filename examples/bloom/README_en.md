@@ -355,7 +355,7 @@ The performance of Bloom-176B in **Ascend NPU** and **Reference**:
 
 | Devices | Model | total iterations | throughput rate (tokens/s/p) |
 | ------- | ----- |-----------------| ---------------------------- |
-| NPUs    | Bloom-176B | 1000            | 100                          |
+| NPUs    | Bloom-176B | 1000            | 112                          |
 | Reference | Bloom-176B | NA              | 107                          |
 
 ### Accuracy of the loss

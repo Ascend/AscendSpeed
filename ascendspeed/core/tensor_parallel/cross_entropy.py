@@ -122,7 +122,8 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
         # Add the gradient from matching classes.
         arange_1d = torch.arange(start=0, end=grad_2d.size()[0],
-                                 device=grad_2d.device)
+                                 device=grad_2d.device).long()
+        masked_target_1d = masked_target_1d.long()
 
         softmax_update = 1.0 - target_mask.view(-1).float()
 
