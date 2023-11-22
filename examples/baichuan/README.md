@@ -329,7 +329,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # 修改词表，数据集等路径
 TOKENIZER_PATH=./baichuan-13B-hf  
-DATA_PATH=./dataset_baichuan13B/aplaca_text_document  
+DATA_PATH=./dataset_baichuan13B/alpaca_text_document  
 ```
 
 6. 启动 Baichuan-13B 训练脚本: /examples/baichuan/pretrain_baichuan_ptd_13B.sh
