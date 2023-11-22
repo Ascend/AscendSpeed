@@ -118,7 +118,7 @@ Coming soon ...
       <td >176B</td>
       <td >12x8</td>
       <td> BF16 </td>
-      <td> 100 </td>
+      <td> 112 </td>
       <td> 107 </td>
       <td> <a href="examples/bloom/images/bloom176b_lm_loss_compare.PNG">Loss</a> </td>
       <td> <a href="examples/bloom/pretrain_bloom_176b.sh">Train</a> </td>

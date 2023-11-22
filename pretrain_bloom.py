@@ -194,7 +194,7 @@ def get_batch_pipe(data):
 
 def loss_func(loss_mask, output_tensor):
     args = get_args()
-    losses = output_tensor.float()
+    losses = output_tensor[0].float()
     loss_mask = loss_mask.view(-1).float()
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     # Reduce loss for logging.

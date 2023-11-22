@@ -161,6 +161,8 @@ class TransformerConfig(ModelParallelConfig):
     fp8_amax_history_len: int = 1
     fp8_amax_compute_algo: str = "most_recent"
 
+    use_flash_attn: bool = False
+
     def __post_init__(self):
         """
         Python dataclass method that is used to modify attributes after initialization.

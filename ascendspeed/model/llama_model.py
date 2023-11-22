@@ -35,6 +35,7 @@ from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.model.module import MegatronModule, MegatronModuleForCausalLM, float16_to_fp32, fp32_to_float16
 from ascendspeed.core.enums import AttnMaskType, LayerType, AttnType
 from ascendspeed.core.transformer.module.triangle_attention import TriangleAttention
+from ascendspeed.core.transformer.module.flash_attention import FlashSelfAttention
 from ascendspeed.model.utils import get_linear_layer, init_method_normal, scaled_init_method_normal, \
     attention_mask_func, \
     openai_gelu, erf_gelu
@@ -305,39 +306,6 @@ class LlamaParallelMLP(MegatronModule):
         return output
 
 
-class FlashSelfAttention(torch.nn.Module):
-    """Implement the scaled dot product attention with softmax.
-    Arguments
-    ---------
-        softmax_scale: The temperature to use for the softmax attention.
-                      (default: 1/sqrt(d_keys) where d_keys is computed at
-                      runtime)
-        attention_dropout: The dropout rate to apply to the attention
-                           (default: 0.0)
-    """
-
-    def __init__(self, causal=False, softmax_scale=1., attention_dropout=0.):
-        super().__init__()
-        self.causal = causal
-        self.softmax_scale = softmax_scale
-        self.dropout_p = attention_dropout
-
-    def forward(self, q, k, v, n, attention_mask):
-        if self.causal:
-            output = torch_npu.npu_fusion_attention(
-                q, k, v, n, "SBH",
-                pse=None,
-                padding_mask=None,
-                atten_mask=attention_mask,
-                scale=self.softmax_scale,
-                pre_tockens=k.shape[0],  # seq_len
-                next_tockens=0,  # 0
-                keep_prob=1 - self.dropout_p,
-            )[0]
-            return output
-        raise Exception("the attention type {} is not support!".format(self.attention_type))
-
-
 def repeat_interleave(inputs, repeats, dim):
     shape = inputs.shape
     new_shape = shape[:dim + 1] + (repeats, ) + shape[dim + 1:]
@@ -540,8 +508,8 @@ class LlamaParallelAttention(MegatronModule):
                 rearrange(x, 'b n s d -> s b (n d)').contiguous()
                 for x in (query_layer, key_layer, value_layer)]
             context_layer = self.core_attention_flash(
-                query_layer, key_layer, value_layer,
-                self.num_attention_heads_per_partition,
+                (query_layer, key_layer, value_layer, self.num_attention_heads_per_partition),
+                None,
                 attention_mask)
             output, _ = self.dense(context_layer)
             return output
