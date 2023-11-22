@@ -42,8 +42,7 @@ def get_batch(context_tokens):
 
 def pad_batch(batch, args):
     max_context_length = get_accelerator().LongTensor([max(len(val) for val in batch)])
-    torch.distributed.all_reduce(max_context_length)
-    max_context_length = torch.div(max_context_length, torch.distributed.get_world_size(), rounding_mode="floor")
+    torch.distributed.all_reduce(max_context_length, op=torch.distributed.ReduceOp.MAX)
 
     tokenizer = get_tokenizer()
 
@@ -55,8 +54,8 @@ def pad_batch(batch, args):
     else:
         max_length = args.text_generation_config['max_length']
 
-    # set fused_operator_contiguous_num = 32
-    max_length_padded = math.ceil(max_length / 32) * 32
+    # set fused_operator_contiguous_num = 64
+    max_length_padded = math.ceil(max_length / 64) * 64
 
     for i, tokens in enumerate(batch):
         if context_lengths[i] < max_length_padded:

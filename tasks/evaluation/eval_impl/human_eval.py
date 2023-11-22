@@ -18,6 +18,7 @@ import os
 import logging
 import stat
 import re
+import sys
 import subprocess
 from typing import Iterable, Dict
 import pandas as pd
@@ -31,7 +32,6 @@ logger = logging.getLogger(__name__)
 
 def extract_answer_code(answer, task: dict):
     """
-    从回答中提取代码
     :param answer:
     :param task:
     :return:
@@ -115,7 +115,7 @@ class HumanEval(DatasetEval):
                     logger.info('answer: ', answer)
                     test_file = extract_answer_code(answer, task)
                     result = subprocess.run([python_execute, test_file], capture_output=True, timeout=10)
-                    if result.returncode != 0:  # 如果返回值不为0，表示知晓出错
+                    if result.returncode != 0:
                         error_msg = result.stderr.decode("utf-8")
                         logger.info(error_msg)
                         answer_result[task_id] = error_msg
