@@ -192,11 +192,11 @@ class GraphSolver:
             recompute_policy_list = [int(recompute_n), 1]
         else:
             recompute_policy_list = [int(recompute_n), 0]
-            for layer in full_model[0]['layers']:
-                if layer["name"] in recompute_nodes:
-                    recompute_policy_list.append(1)
-                    continue
-                recompute_policy_list.append(0)
+        for layer in full_model[0]['layers']:
+            if layer["name"] in recompute_nodes:
+                recompute_policy_list.append(1)
+                continue
+            recompute_policy_list.append(0)
         return recompute_policy_list
 
     def get_layers_module(self, model):
