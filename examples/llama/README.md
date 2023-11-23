@@ -14,6 +14,9 @@
     - [性能](#性能)
       - [吞吐](#吞吐)
       - [精度](#精度)
+    - [推理](#推理)
+      - [脚本](#脚本)
+    - [使用基线数据集进行评估](#使用基线数据集进行评估)
 - [LLaMA-33B/65B](#LLaMA-33B/65B)
   - [训练](#训练)
     - [数据集](#数据集)
@@ -27,15 +30,16 @@
 
 LLaMA-7B/13B 训练的硬件配置如下:
 
-|  硬件 |       配置        |
-|:---:|:---------------:|
-| NPU | 8 x Ascend NPUs |
+|  硬件  |   设备   |      配置          |
+|:----:|:------:|:----------------:|
+| NPU  |  A+K   | 8 x Ascend NPUs  |
+| NPU  |  A+X   | 16 x Ascend NPUs |
 
 LLaMA-7B/13B 训练的软件配置如下:
 
 |            软件             |                                                      配置                                                      |
 |:-------------------------:|:------------------------------------------------------------------------------------------------------------:|
-|          python           |                                                    3.7.16                                                    |
+|          python           |                                                    3.7.5                                                     |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
@@ -158,6 +162,7 @@ python $SCRIPT_PATH \
 
 LLaMA-13B
 ```shell
+# 单机八卡
 mkdir model_weights
 SCRIPT_PATH=./tools/ckpt_convert/llama/convert_weights_from_huggingface.py
 python $SCRIPT_PATH \
@@ -165,6 +170,16 @@ python $SCRIPT_PATH \
     --output-model-dir ./model_weights/llama-13b \
     --tensor-model-parallel-size 1 \
     --pipeline-model-parallel-size 8 \
+    --type 13B
+    
+# 单机16卡
+mkdir model_weights
+SCRIPT_PATH=./tools/ckpt_convert/llama/convert_weights_from_huggingface.py
+python $SCRIPT_PATH \
+    --input-model-dir ./model_from_hf/llama-13b/ \
+    --output-model-dir ./model_weights/llama-13b \
+    --tensor-model-parallel-size 1 \
+    --pipeline-model-parallel-size 2 \
     --type 13B
 ```
 
@@ -185,12 +200,15 @@ CHECKPOINT=./model_weights/
 
 LLaMA-7B
 ```shell
-bash examples/intern/pretrain_llama_7B_zero_8p.sh
+bash examples/llama/pretrain_llama_7B_zero_8p.sh
 ```
 
 LLaMA-13B
 ```shell
-bash examples/intern/pretrain_llama_13B_ptd_8p.sh 
+# 单机8卡
+bash examples/llama/pretrain_llama_13B_ptd_8p.sh 
+# 单机16卡
+bash examples/llama/pretrain_llama_13B_ptd_16p.sh
 ```
 
 ### 性能
@@ -199,12 +217,14 @@ bash examples/intern/pretrain_llama_13B_ptd_8p.sh
 
 LLaMA-7B/13B 在 **昇腾芯片** 和 **参考芯片** 上的性能对比：
 
-| 设备 | 模型  | 迭代数 | 样本吞吐 (samples/p/s) | token吞吐 (tokens/p/s) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
-|----|-----|-----|--------------------|----------------------|-----------------|------------------|
-| NPUs | LLaMA-7B | 2048 | 1.398              | 2862                 | 5.725           | 162.2            |
-| 参考 | LLaMA-7B | 2048 | 1.395              | 2859                 | 5.73            | 161.8            |
-| NPUs | LLaMA-13B | 2048 | 0.879              | 1800                 | 18.20           | 146.1            |
-| 参考 | LLaMA-13B | 2048 | 0.847              | 1734                 | 18.89           | 141.0            |
+| 设备   | 硬件        | 模型        | 迭代数  | 样本吞吐 (samples/p/s) | token吞吐 (tokens/p/s) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
+|------|-----------|-----------|------|------------------|----------------------|-----------------|------------------|
+| NPUs      | 910 1*8p  | LLaMA-7B  | 2048             | 1.80                          | 3686                         | 4.44                      | 156.5                               |
+| 参考 | -        | LLaMA-7B  | 2048             | 1.85                          | 3788                         | 4.31                      | 161.1                               |
+| NPUs      | 910 1*8p  | LLaMA-13B | 2048             | 0.956                         | 1958                         | 16.70                     | 212.25                              |
+| NPUs      | 910 1*16p | LLaMA-13B | 2048             | 0.88                          | 1800                         | 36.32                     | 195.58                              |
+| 参考 | -        | LLaMA-13B | 2048             | 0.98                          | 2012                         | 16.33                     | 217.37                              |
+
 
 
 
@@ -218,7 +238,115 @@ LLama-13b NPU vs 参考 loss.
 
 ![NPU-Loss-with-weight-and-Relative-Error](../../sources/images/llama/llama13b-loss-with-weight.png)
 
+## 推理
 
+我们支持使用 LLaMA-7B 和 LLaMA-13B 进行文本生成的推理。
+推理与预训练不同，比如我们需要加载预训练权重和输出样本的长度：
+
+配置LLaMA-7B推理脚本`examples/llama/generate_llama_7B_deepspeed.sh`和LLaMA-13B推理脚本`examples/llama/generate_llama_13B_tp8_pp1.sh`。
+
+```shell
+# 修改模型权重路径和分词器路径
+CHECKPOINT=<checkpoint-path>
+VOCAB_FILE=<vocabfile-path>
+```
+
+LLaMA-7B:
+```shell
+bash ./examples/llama/generate_llama_7B_deepspeed.sh
+```
+
+LLaMA-13B:
+```shell
+bash ./examples/llama/generate_llama_13B_tp8_pp1.sh
+```
+
+部分推理样本如下：
+
+LLaMA-7B:
+
+![llama-7B_generate.png](../../sources/images/llama/llama-7B_generate.png)
+
+LLaMA-13B:
+
+![llama-13B_generate.png](../../sources/images/llama/llama-13B_generate.png)
+
+
+## 使用基线数据集进行评估
+
+我们使用 BBH benchmark 来评估我们的模型。Benchmark下载[此处](https://huggingface.co/datasets/lukaemon/bbh)。
+
+配置LLaMA-7B评估脚本：
+
+```shell
+    CHECKPOINT=./llama-7b-tp4-pp2/
+    VOCAB_FILE=./llama-7b-hf/
+    # 配置任务和数据路径
+    DATA_PATH="./bbh/data/test/"
+    TASK="bbh"
+    # 配置生成参数
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation.py   \
+           --task-data-path $DATA_PATH \
+           --task $TASK\
+           --seq-length 2048 \
+           --max-new-tokens 32 \
+           --max-position-embeddings 2048 \
+           --tensor-model-parallel-size 4  \
+           --pipeline-model-parallel-size 2  \
+           --num-layers 32  \
+           --hidden-size 4096  \
+           --ffn-hidden-size 11008 \
+           --load ${CHECKPOINT}  \
+           --num-attention-heads 32 \
+           --tokenizer-type PretrainedFromHF  \
+           --tokenizer-name-or-path $VOCAB_FILE \
+           --tokenizer-not-use-fast \
+           --fp16  \
+           --micro-batch-size 1  \
+           --seed 42 | tee logs/evaluation.log
+```
+
+配置LLaMA-13B评估脚本：
+
+```shell
+    CHECKPOINT=./llama-13b-tp1-pp8/
+    VOCAB_FILE=./llama-13b-hf/
+    # 配置任务和数据路径
+    DATA_PATH="./bbh/data/test/"
+    TASK="bbh"
+    # 配置参数
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation.py   \
+           --task-data-path $DATA_PATH \
+           --task $TASK\
+           --seq-length 2048 \
+           --max-new-tokens 32 \
+           --max-position-embeddings 2048 \
+           --tensor-model-parallel-size 1  \
+           --pipeline-model-parallel-size 8  \
+           --num-layers 40  \
+           --hidden-size 5120  \
+           --ffn-hidden-size 13824 \
+           --load ${CHECKPOINT}  \
+           --num-attention-heads 40 \
+           --tokenizer-type PretrainedFromHF  \
+           --tokenizer-name-or-path $VOCAB_FILE \
+           --tokenizer-not-use-fast \
+           --fp16  \
+           --micro-batch-size 1  \
+           --seed 42 | tee logs/evaluation.log
+```
+
+```shell
+# 开始评估
+bash tasks/evaluation/eval.sh
+```
+
+LLaMA-7B/13B在**Ascend NPU**中的评测表现：
+
+| 任务                                                  | 模型        | 昇腾值  | 社区值  |
+|-----------------------------------------------------|-----------|------|------|
+| [BBH](https://huggingface.co/datasets/lukaemon/bbh) | LLaMA-7B  | 33.7 | [33.5](https://opencompass.org.cn/dataset-detail/BBH) | 
+| [BBH](https://huggingface.co/datasets/lukaemon/bbh) | LLaMA-13B | 38.7 | [37.9](https://opencompass.org.cn/dataset-detail/BBH) |
 
 # LLaMA-33B/65B
 

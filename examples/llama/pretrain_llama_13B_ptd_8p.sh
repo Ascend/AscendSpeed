@@ -55,4 +55,5 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --triangle-attn \
        --use-fused-rotary-pos-emb \
        --release-fp32-grad \
+       --use-flash-attn \
        --fp16 | tee logs/train_13B.log

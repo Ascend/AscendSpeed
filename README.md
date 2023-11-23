@@ -139,19 +139,19 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> 2862 </td>
-      <td> 2859 </td>
-      <td> <a href="sources/images/llama7b_loss.png">Loss</a> </td>
+      <td> 3689 </td>
+      <td> 3788 </td>
+      <td> <a href="sources/images/llama7b-loss-with-weight.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_7B_zero_8p.sh">训练</a> </td>
     </tr>
     <tr>
       <td>13B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> 1800 </td>
-      <td> 1734 </td>
-      <td> <a href="sources/images/llama13b_loss.png">Loss</a> </td>
-      <td> <a href="examples/llama/pretrain_llama_13B_zero_8p.sh">训练</a> </td>
+      <td> 1958 </td>
+      <td> 2012 </td>
+      <td> <a href="sources/images/llama13b-loss-with-weight.png">Loss</a> </td>
+      <td> <a href="examples/llama/pretrain_llama_13B_ptd_8p.sh">训练</a> </td>
     </tr>
     <tr>
         <td>33B</td>
