@@ -149,7 +149,8 @@ class MegatronOptimizer(ABC):
             is_not_shared = param_is_not_shared(param)
             is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
             if grad_not_none and is_not_shared and is_not_tp_duplicate:
-                fp32_unscale_grad = grad.float().mul_(self.grad_scaler.inv_scale)
+                inv_scale = self.grad_scaler.inv_scale if self.grad_scaler else self.inv_scale
+                fp32_unscale_grad = grad.float().mul_(inv_scale)
                 grad_norm = torch.norm(fp32_unscale_grad, norm_type)
                 total_norm += grad_norm ** norm_type
         # Sum across all model-parallel GPUs.
