@@ -19,7 +19,7 @@ CHECKPOINT=./ckpt
 DS_CONFIG=deepspeed_config_7B.json
 ZERO_STAGE=2
 GLOBAL_BATCH=64
-MICRO_BATCH=8
+MICRO_BATCH=2
 
 cat <<EOT > $DS_CONFIG
 {
@@ -46,7 +46,7 @@ cat <<EOT > $DS_CONFIG
         "contiguous_gradients": true
     },
 
-    "gradient_accumulation_steps": 1,
+    "gradient_accumulation_steps": 4,
     "train_batch_size": $GLOBAL_BATCH,
     "train_micro_batch_size_per_gpu":$MICRO_BATCH,
     "zero_allow_untested_optimizer": true
@@ -73,26 +73,30 @@ deepspeed pretrain_llama.py \
        --seq-length 2048 \
        --max-position-embeddings 2048 \
        --train-iters 500000 \
-       --lr-decay-iters 320000 \
        --save $CHECKPOINT \
        --data-path $DATA \
        --tokenizer-name-or-path ./dataset/llama/ \
        --tokenizer-not-use-fast \
-       --data-impl mmap \
-       --split 949,50,1 \
+       --attention-softmax-in-fp32 \
+       --attention-dropout 0.0 \
+       --hidden-dropout 0.0 \
+       --init-method-std 0.01 \
+       --split 900,50,50 \
        --distributed-backend nccl \
-       --lr 0.000015 \
+       --lr 1.0e-6 \
        --lr-decay-style cosine \
+       --lr-warmup-fraction .01 \
        --min-lr 1.0e-6 \
        --weight-decay 1e-2 \
        --clip-grad 1.0 \
-       --lr-warmup-fraction .01 \
-       --checkpoint-activations \
+       --adam-beta1 0.9 \
+       --adam-beta2 0.95 \
        --log-interval 1 \
        --save-interval 10000 \
-       --eval-interval 1000 \
-       --eval-iters 10 \
-       --triangle-attn \
-       --use-fused-rotary-pos-emb \
+       --no-load-optim \
+       --no-load-rng \
+       --no-bias-gelu-fusion \
+       --no-query-key-layer-scaling \
+       --use-flash-attn \
        $ds_args \
        --fp16 | tee logs/train_7B.log
