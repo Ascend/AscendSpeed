@@ -27,7 +27,12 @@
 #include "atb_speed/utils/timer.h"
 #include "model_torch.h"
 
-#include "bloom/7b/model/quant_model_fa.h"
+#include "llama/7b/model/decoder_without_fusion_model.h"
+#include "llama/7b/model/encoder_without_fusion_model.h"
+#include "llama/7b/model/flashattention_model.h"
+#include "llama/7b/model/fusion_model.h"
+#include "llama/7b/model/rope_model.h"
+#include "llama/7b/model/quant_flashattention_model.h"
 
 uint64_t GetNewModelId()
 {
@@ -48,8 +53,20 @@ ModelTorch::~ModelTorch() = default;
 void ModelTorch::SetParam(std::string param)
 {
     ATB_LOG(INFO) << "ModelTorch set param start, modelName:" << modelName_ << ", param:" << param;
-    if (modelName_ == "bloom_7b_quant_model_fa") {
-        model_ = std::make_shared<atb_speed::bloom_7b::QuantFAModel>(param);
+    if (modelName_ == "llama_7b_decoder_without_fusion_model") {
+        model_ = std::make_shared<atb_speed::llama_7b::DecoderWithoutFusionModel>(param);
+    } else if (modelName_ == "llama_7b_encoder_without_fusion_model") {
+        model_ = std::make_shared<atb_speed::llama_7b::EncoderWithoutFusionModel>(param);
+    } else if (modelName_ == "llama_7b_decoder_rope_model") {
+        model_ = std::make_shared<atb_speed::llama_7b::DecoderRopeModel>(param);
+    } else if (modelName_ == "llama_7b_encoder_rope_model") {
+        model_ = std::make_shared<atb_speed::llama_7b::EncoderRopeModel>(param);
+    } else if (modelName_ == "llama_7b_fusion_model") {
+        model_ = std::make_shared<atb_speed::llama_7b::FusionModel>(param);
+    } else if (modelName_ == "llama_quant_flashattention_model") {
+        model_ = std::make_shared<atb_speed::llama_7b::QuantFlashAttentionModel>(param);
+    } else if (modelName_ == "llama_7b_flashattention_model") {
+        model_ = std::make_shared<atb_speed::llama_7b::FlashAttentionModel>(param);
     } else {
     ATB_LOG(FATAL) << "not support modelName:" << modelName_;
         return;

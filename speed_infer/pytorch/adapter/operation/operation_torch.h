@@ -51,6 +51,7 @@ private:
     std::string param_;
     std::unique_ptr<atb::Operation> operation_;
     uint64_t executeCount_ = 0;
+    bool isTaskQueueEnable_ = false;
     std::unique_ptr<atb_speed::HostTensorBinder> hostTensorBinder_;
 };
 #endif

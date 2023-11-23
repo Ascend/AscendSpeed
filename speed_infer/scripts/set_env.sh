@@ -13,33 +13,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-path = "${BASH_SOURCE[0]}"
+path="${BASH_SOURCE[0]}"
 
-if [[ -f "$path" ]] && [[ "$path" =~ 'set_env.sh']];then
-    atb_speed_path=$(cd $(dirname $path); pwd)
-    export ATB_SPEED_HOME_PATH="${atb_speed_path}"
-    export LD_LIBRARY_PATH=$ATB_SPEED_HOME_PATH/lib:$LD_LIBRARY_PATH
+if [[ -f "$path" ]] && [[ "$path" =~ 'set_env.sh' ]];then
+  atb_speed_path=$(cd $(dirname $path); pwd )
+  export ATB_SPEED_HOME_PATH="${atb_speed_path}"
+  export LD_LIBRARY_PATH=$ATB_SPEED_HOME_PATH/lib:$LD_LIBRARY_PATH
 
-    export PYTORCH_INSTALL_PATH="$(python3 -c 'import torch, os; print(os.path.dirname(os.path.abspath(torch.__file__)))')"
-    export LD_LIBRARY_PATH=$PYTORCH_INSTALL_PATH/lib:$LD_LIBRARY_PATH
-    export PYTORCH_NPU_INSTALL_PATH="$(python3 -c 'import torch, torch_npu, os; print(os.path.dirname(os.path.abspath(torch_npu.__file__)))')"
-    export LD_LIBRARY_PATH=$PYTORCH_NPU_INSTALL_PATH/lib:$LD_LIBRARY_PATH
+  export PYTORCH_INSTALL_PATH="$(python3 -c 'import torch, os; print(os.path.dirname(os.path.abspath(torch.__file__)))')"
+  export LD_LIBRARY_PATH=$PYTORCH_INSTALL_PATH/lib:$LD_LIBRARY_PATH
+  export PYTORCH_NPU_INSTALL_PATH="$(python3 -c 'import torch, torch_npu, os; print(os.path.dirname(os.path.abspath(torch_npu.__file__)))')"
+  export LD_LIBRARY_PATH=$PYTORCH_NPU_INSTALL_PATH/lib:$LD_LIBRARY_PATH
 
-    export TASK_QUEUE_ENABLE=0 #是否开启TaskQueue, 该环境变量是PyTorch的
+  export TASK_QUEUE_ENABLE=0 #是否开启TaskQueue，该环境变量是PyTorch的
 
-    export ATB_OPERATION_EXECUTE_ASYNC=0 # Operation 是否异步运行
-    export ATB_CONTEXT_HOSTTILING_RING=1
-    export ATB_CONTEXT_HOSTTILING_SIZE=102400
-    export ATB_CONTEXT_TILING_RING=1
-    export ATB_CONTEXT_TILING_SIZE=102400
-    export ATB_CONTEXT_WORKSPACE_RING=3
-    export ATB_CONTEXT_WORKSPACE_SIZE=629145600
-    export ATB_CONTEXT_INTERMEDIATE_RING=0
-    export ATB_CONTEXT_INTERMEDIATE_SIZE=0
-    export ATB_TORCH_TENSOR_FORMAT_CAST=1
-    export ATB_CONVERT_NCHW_TO_ND=1
-    export ATB_USE_TILING_COPY_STREAM=0 #是否开启双stream功能
-    export ATB_LAYER_INTERNAL_TENSOR_REUSE=0 # model 调用layer时，layer间的中间tensor是否复用
+  export ATB_OPERATION_EXECUTE_ASYNC=0 # Operation是否异步运行
+  export ATB_CONTEXT_HOSTTILING_RING=1
+  export ATB_CONTEXT_HOSTTILING_SIZE=102400
+  export ATB_CONTEXT_TILING_RING=1
+  export ATB_CONTEXT_TILING_SIZE=102400
+  export ATB_CONTEXT_WORKSPACE_RING=1
+  export ATB_CONTEXT_WORKSPACE_SIZE=629145600
+  export ATB_CONTEXT_INTERMEDIATE_RING=0
+  export ATB_CONTEXT_INTERMEDIATE_SIZE=0
+  export ATB_TORCH_TENSOR_FORMAT_CAST=1
+  export ATB_CONVERT_NCHW_TO_ND=1
+  export ATB_USE_TILING_COPY_STREAM=0 #是否开启双stream功能
+  export ATB_LAYER_INTERNAL_TENSOR_REUSE=0 #model调用layer时，layer间的中间tensor是否复用
+  export PYTHONPATH=$ATB_SPEED_HOME_PATH/pytorch/common:$PYTHONPATH #在PYTHONPATH中添加后处理sample自定义包查找路径
 else
     echo "There is no 'set_env.sh' to import"
 fi
+

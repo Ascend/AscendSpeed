@@ -41,11 +41,7 @@ void *Utils::GetCurrentStream()
 
 int64_t Utils::GetTensorNpuFormat(const at::Tensor &tensor)
 {
-#ifdef TORCH_GET_TENSOR_NPU_FORMAT_OLD
-    return at_npu::native::CalcuOpUtil::get_tensor_npu_format(tensor);
-#else
-    return at_npu::native::CalcuOpUtil::GetTensorNpuFormat(tensor);
-#endif
+    return at_npu::native::NPUNativeFunctions::get_npu_format(tensor);
 }
 
 at::Tensor Utils::NpuFormatCast(const at::Tensor &tensor)
@@ -111,21 +107,22 @@ at::Tensor Utils::CreateAtTensorFromTensorDesc(const atb::TensorDesc &tensorDesc
 
     options = options.layout(torch::kStrided).requires_grad(false).device(at::DeviceType::XLA);
 
-    ATB_LOG(INFO) << "ApplyTensorWithFormat stat, " << atb_speed::TensorUtil::TensorDescToString(tensorDesc);
-    ATB_LOG(INFO) << "options" << options;
-    at::Tensor newTensor = at_npu::native::OpPreparation::ApplyTensorWithFormat(
+    ATB_LOG(INFO) << "tensor_with_format stat, " << atb_speed::TensorUtil::TensorDescToString(tensorDesc);
+    
+    at::Tensor newTensor =  at_npu::native::NPUNativeFunctions::tensor_with_format(
         at::IntArrayRef(tensorDesc.shape.dims, tensorDesc.shape.dimNum), options, tensorDesc.format);
-    ATB_LOG(INFO) << "ApplyTensorWithFormat end, newTensor.format:" << GetTensorNpuFormat(newTensor)
+        
+    ATB_LOG(INFO) << "tensor_with_format end, newTensor.format:" << GetTensorNpuFormat(newTensor)
                   << ", is_contiguous:" << newTensor.is_contiguous();
     if (GetTensorNpuFormat(newTensor) != tensorDesc.format) {
-        ATB_LOG(WARN) << "ApplyTensorWithFormat newTensor.format:" << GetTensorNpuFormat(newTensor)
+        ATB_LOG(WARN) << "tensor_with_format newTensor.format:" << GetTensorNpuFormat(newTensor)
                       << " != " << tensorDesc.format;
     }
     if (!newTensor.is_contiguous()) {
         newTensor = newTensor.contiguous();
     }
 
-    ATB_LOG(INFO) << "ApplyTensorWithFormat success, newTensor.options:" << newTensor.options()
+    ATB_LOG(INFO) << "tensor_with_format success, newTensor.options:" << newTensor.options()
                   << ", format:" << GetTensorNpuFormat(newTensor) << ", is_contiguous:" << newTensor.is_contiguous();
 
     return newTensor;

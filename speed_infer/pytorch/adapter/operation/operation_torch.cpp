@@ -42,10 +42,16 @@ OperationTorch::OperationTorch(std::string opName) : opName_(opName), name_(opNa
 {
     opId_ = GetNewOpId();
     nodeId_ = std::to_string(opId_);
-    ATB_LOG(INFO) << "OperationTorch::OperationTorch, TASK_QUEUE_ENABLE:" 
-    << c10_npu::option::OptionsManager().CheckQueueEnable() << ", opName:" << opName 
-    << ", opId:" << opId_;
-    atb_speed::InitLocalContext();
+    const char *taskQueueEnv = std::getenv("TASK_QUEUE_ENABLE");
+    const char *blockingEnv = std::getenv("ASCEND_LAUNCH_BLOCKING");
+    isTaskQueueEnable_ = !((taskQueueEnv != nullptr && std::string(taskQueueEnv) == "0") ||
+                           (blockingEnv != nullptr && std::string(blockingEnv) == "1"));
+    ATB_LOG(INFO) << "OperationTorch::OperationTorch, TASK_QUEUE_ENABLE:"
+                  << isTaskQueueEnable_ << ", opName:" << opName
+                  << ", opId:" << opId_;
+    if (atb_speed::localHandle.contextPtr_ == nullptr) {
+        atb_speed::InitLocalContext();
+    }
 }
 
 OperationTorch::~OperationTorch() {}
