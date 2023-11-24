@@ -2,7 +2,6 @@
 <p align="left">
         <b>简体中文</b> |
         <b><a href="https://gitee.com/ascend/AscendSpeed/blob/master/examples/bloom/README_en.md">English</a> </b> 
-    </p>
 </p>
 
 
@@ -15,7 +14,9 @@
       - [吞吐](#吞吐)
       - [精度](#精度)
   - [推理](#推理)
-    - [脚本](#脚本)
+    - [deepspeed_pipeline](#deepspeed_pipeline)
+    - [megatron](#megatron)
+  - [评估](#评估)
 - [Bloom-176B](#Bloom-176B)
   - [训练](#训练)
     - [脚本](#脚本)
@@ -23,8 +24,10 @@
       - [吞吐](#吞吐)
       - [精度](#精度)
   - [推理](#推理)
-    - [脚本](#脚本)
-
+    - [deepspeed_pipeline](#deepspeed_pipeline)
+    - [megatron](#megatron)
+  - [评估](#评估)
+  - [举例](#举例)
 # Bloom-7B
 
 ## 训练
@@ -179,6 +182,21 @@ NPU vs 参考 loss 相对误差
 
 AscendSpeed 支持 BLOOM 7B 的文本生成推理.
 
+### deepspeed_pipeline
+
+```shell
+# 修改 model weight 路径和 tokenizer 路径
+CHECKPOINT=/home/model/bloom_7B
+VOCAB_FILE=/home/bloom_data/vocab_file/
+```
+
+```shell
+bash ./examples/bloom/generate_bloom_7b_deepspeed_pipeline.sh
+```
+
+
+### megatron
+
 使用 [convert_weights_from_gptmodelpipe_to_gptmodel.sh](../../tools/ckpt_convert/bloom/convert_weights_from_gptmodelpipe_to_gptmodel.sh) 将bloom-7B的权重转换为推理格式
 
 ```bash
@@ -190,19 +208,71 @@ python $SCRIPT_PATH \
     --pipeline-model-parallel-size 1 \
     --type 7B
 ```
-### 脚本
 
 配置 Bloom-7B 推理脚本: examples/bloom/generate_bloom_7B_tp8_pp1.sh
 
 ```shell
 # 修改 model weight 路径和 tokenizer 路径
-CHECKPOINT=/home/bloom_data/enwiki_100k/enwiki-100k_text_document
+CHECKPOINT=/home/model/bloom_7B
 VOCAB_FILE=/home/bloom_data/vocab_file/
 ```
 
 ```shell
 bash ./examples/bloom/generate_bloom_7B_tp8_pp1.sh
 ```
+
+## 评估 
+配置 Bloom-7B 评估脚本: tasks/evaluation/eval_bloom.sh
+
+```shell
+# 修改 model weight 路径和 tokenizer 路径和数据集任务路径
+CHECKPOINT=/home/model/bloom_7B
+VOCAB_FILE=/home/bloom_data/vocab_file/
+DATA_PATH="/dataset/boolq/test"
+TASK="boolq"
+```
+
+除此之外你还需要根据模型大小设置参数:
+```shell
+--num-layers 30 
+--hidden-size 4096 
+--num-attention-heads 32 
+```
+
+```shell
+bash ./tasks/evaluation/eval_bloom.sh
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>任务</th>
+      <th>验证集</th>
+      <th>模型</th>
+      <th>昇腾值</th>
+      <th>社区值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://huggingface.co/datasets/boolq">Boolq</a></td>
+      <td>Test</td>
+      <th>bloom 7b</th>
+      <td>0.614</td>
+      <td>--</td>
+    </tr>
+  </tbody>
+  <tbody>
+    <tr>
+      <td><a href="https://huggingface.co/datasets/cais/mmlu">mmlu</a></td>
+      <td>Test</td>
+      <th>bloom 7b</th>
+      <td>0.251</td>
+      <td><a href="https://www.hayo.com/article/648ace24409528db3186ef1c">0.254</a></td>
+    </tr>
+  </tbody>
+</table>
+
 
 # Bloom-176B
 
@@ -367,6 +437,21 @@ NPU vs 参考 loss
 ## 推理
 
 AscendSpeed 支持 BLOOM 176B的在线文本生成推理
+We support AscendSpeed Inference for text generation with BLOOM 176B (deepspeed or megatron).
+
+### deepspeed_pipeline
+
+```shell
+# # 修改 model weight 路径和 tokenizer 路径
+CHECKPOINT=/home/model/bloom_176B
+VOCAB_FILE=/home/bloom_data/vocab_file/
+```
+
+```shell
+bash ./examples/bloom/generate_bloom_176b_deepspeed_pipeline.sh
+```
+
+### megatron
 
 使用 [convert_weights_from_gptmodelpipe_to_gptmodel.sh](../../tools/ckpt_convert/bloom/convert_weights_from_gptmodelpipe_to_gptmodel.sh) 脚本将权重转化为推理格式。
 推理需要两节点运行，需要我们手工将权重同步到两节点下，0号节点需要 1-37 层权重，1号节点需要 38-74 层权重，执行脚本如下：
@@ -391,13 +476,57 @@ MASTER_ADDR=localhost
 NODE_RANK=0
 
 # 修改数据集路径和词表路径
-CHECKPOINT=/home/bloom_data/enwiki_100k/enwiki-100k_text_document
+CHECKPOINT=/home/model/bloom_176B
 VOCAB_FILE=/home/bloom_data/vocab_file/
 ```
 
 ```shell
 bash ./examples/bloom/generate_bloom_176b_2nodes.sh
 ```
+
+
+## 评估 
+配置 Bloom-176B 评估脚本: tasks/evaluation/eval_bloom.sh
+
+```shell
+# 修改 model weight 路径和 tokenizer 路径和数据集任务路径
+CHECKPOINT=/home/model/bloom_176B
+VOCAB_FILE=/home/bloom_data/vocab_file/
+DATA_PATH="/dataset/boolq/test"
+TASK="boolq"
+```
+
+除此之外你还需要根据模型大小设置参数:
+
+```shell
+--num-layers 70 
+--hidden-size 14336 
+--num-attention-heads 112 
+```
+
+```shell
+bash ./tasks/evaluation/eval_bloom.sh
+```
+<table>
+  <thead>
+    <tr>
+      <th>任务</th>
+      <th>验证集</th>
+      <th>模型</th>
+      <th>昇腾值</th>
+      <th>社区值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://huggingface.co/datasets/boolq">Boolq</a></td>
+      <td>Test</td>
+      <th>bloom 176b</th>
+      <td>0.657</td>
+      <td>--</td>
+    </tr>
+  </tbody>
+</table>
 
 ## 举例
 1. bloom 7b
@@ -409,9 +538,11 @@ bash ./examples/bloom/generate_bloom_176b_2nodes.sh
 
 ## 引用
 
+```
 @article{scao2022bloom,
   title={Bloom: A 176b-parameter open-access multilingual language model},
   author={Scao, Teven Le and Fan, Angela and Akiki, Christopher and Pavlick, Ellie and Ili{\'c}, Suzana and Hesslow, Daniel and Castagn{\'e}, Roman and Luccioni, Alexandra Sasha and Yvon, Fran{\c{c}}ois and Gall{\'e}, Matthias and others},
   journal={arXiv preprint arXiv:2211.05100},
   year={2022}
 }
+```

@@ -104,7 +104,7 @@ class LoraParallelLinear(ColumnParallelLinear, RowParallelLinear, LoraParalleLay
         else:
             parallel_linear_kwargs['gather_output'] = parallel_linear.gather_output
         type(parallel_linear).__init__(self, input_size=parallel_linear.input_size,
-                                       output_size=parallel_linear.output_size, bias=parallel_linear.bias,
+                                       output_size=parallel_linear.output_size, bias=parallel_linear.bias is not None,
                                        skip_bias_add=parallel_linear.skip_bias_add,
                                        **parallel_linear_kwargs)
         LoraParalleLayer.__init__(self, in_features=parallel_linear.input_size,
