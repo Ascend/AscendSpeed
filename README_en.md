@@ -759,7 +759,7 @@ VOCAB_FILE=../models/llama7b-hf/
 DATA_PATH="dataset/boolq/test"
 TASK="boolq"
 # configure generation parameters 
-python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
+python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
        --seq-length 512 \
@@ -786,7 +786,7 @@ bash tasks/evaluation/eval_llama.sh
 The most important evaluation parameters must be `--max-new-tokens`, which means the output length of model generation. For example, multiple-choice
 questions' output length is obviously shorter than coding tasks. Besides, this parameter largely decides the speed of model generation.
 ```bash
-python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
+python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
        --seq-length 512 \

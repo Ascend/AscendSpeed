@@ -285,7 +285,7 @@ LLaMA-13B:
     DATA_PATH="./bbh/data/test/"
     TASK="bbh"
     # 配置生成参数
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation.py   \
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation_llama.py   \
            --task-data-path $DATA_PATH \
            --task $TASK\
            --seq-length 2048 \
@@ -315,7 +315,7 @@ LLaMA-13B:
     DATA_PATH="./bbh/data/test/"
     TASK="bbh"
     # 配置参数
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation.py   \
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation_llama.py   \
            --task-data-path $DATA_PATH \
            --task $TASK\
            --seq-length 2048 \
