@@ -52,7 +52,7 @@ from ascendspeed.data.data_samplers import build_pretraining_data_loader
 from ascendspeed.utils import calc_params_l2_norm
 from ascendspeed.utils import report_memory, throughput_calculator, checkpoint_throughput_calculator
 from ascendspeed.model.transformer import ParallelTransformerLayer
-from ascendspeed.model.lora_utils import is_enable_lora, handle_model_with_lora
+from ascendspeed.model.lora_utils import is_enable_lora, handle_model_with_lora, get_lora_model_classes
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_fifo
 from ascendspeed.core.pipeline_parallel.schedules import forward_backward_pipelining_with_foldx_aiao
 from ascendspeed.core.pipeline_parallel.schedules import get_forward_backward_func, get_forward_func
@@ -582,8 +582,10 @@ def setup_model_and_optimizer(model_provider_func,
         model = [model]
         model = [init_compression(model[0].module, args.deepspeed_config, tensor_parallel)]
 
-    unwrapped_model = unwrap_model(model,
-                                   (torchDDP, LocalDDP, Float16Module))
+    unwrap_model_classes = (torchDDP, LocalDDP, Float16Module)
+    if is_enable_lora():
+        unwrap_model_classes += get_lora_model_classes()
+    unwrapped_model = unwrap_model(model, unwrap_model_classes)
 
     if args.inference:
         optimizer = None
@@ -624,7 +626,7 @@ def setup_model_and_optimizer(model_provider_func,
                 train_ds, _, _ = build_train_valid_test_datasets_provider(
                     train_val_test_num_samples)
             model, optimizer, args.deepspeed_dataloader, lr_scheduler = deepspeed.initialize(
-                model=model[0],
+                model=unwrapped_model[0],
                 optimizer=optimizer,
                 args=args,
                 lr_scheduler=lr_scheduler,
@@ -634,7 +636,7 @@ def setup_model_and_optimizer(model_provider_func,
             model.set_data_post_process_func(data_post_process)
         else:
             model, optimizer, _, lr_scheduler = deepspeed.initialize(
-                model=model[0],
+                model=unwrapped_model[0],
                 optimizer=optimizer,
                 args=args,
                 lr_scheduler=lr_scheduler,

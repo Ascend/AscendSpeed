@@ -33,7 +33,6 @@ from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_model_classes
 from ascendspeed.error_utils import ensure_valid
 
-
 _FLOAT_TYPES = (torch.FloatTensor, get_accelerator().FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, get_accelerator().HalfTensor)
 _BF16_TYPES = (torch.BFloat16Tensor)
@@ -154,6 +153,7 @@ def conversion_helper(val, conversion):
 
 def fp32_to_float16(val, float16_convertor):
     """Convert fp32 `val` to fp16/bf16"""
+
     def half_conversion(val):
         val_typecheck = val
         if isinstance(val_typecheck, (torch.nn.parameter.Parameter, torch.autograd.Variable)):
@@ -167,6 +167,7 @@ def fp32_to_float16(val, float16_convertor):
 
 def float16_to_fp32(val):
     """Convert fp16/bf16 `val` to fp32"""
+
     def float_conversion(val):
         if val is None:
             return val
@@ -429,7 +430,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
         checked_ids = []
         for per_ids in ids:
             if per_ids == torch.Size([]) and torch.max(per_ids) >= len(tokenizer):
-                warning_info = "The output ids exceeds the tokenizer length, "\
+                warning_info = "The output ids exceeds the tokenizer length, " \
                                "the clamp operation is enforced, please check!!"
                 logging.warning(warning_info)
                 checked_ids.append(torch.clamp(per_ids, min=0, max=len(tokenizer)) - 1)
@@ -459,18 +460,20 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
             args.load = pretrained_model_name_or_path
 
         if args.deepspeed:
+            if is_enable_lora():
+                unwrap_classes = get_lora_model_classes()
+                # The deepspeed pipeline needs to verify the model base class. Therefore, the peft package needs to be unpacked.
+                args.model = unwrap_model(args.model, unwrap_classes)
             args.model[0] = cls._init_deepspeed_inference(args.model[0], args)
 
         if args.load:
             load_checkpoint(args.model, None, None)
 
-        if not args.deepspeed:
-            unwrap_classes = (torchDDP, LocalDDP, Float16Module)
-            if is_enable_lora():
-                unwrap_classes += get_lora_model_classes()
-        else:
-            unwrap_classes = (torchDDP, LocalDDP, Float16Module, deepspeed.DeepSpeedEngine)
+        unwrap_classes = (torchDDP, LocalDDP, Float16Module)
 
+        if args.deepspeed:
+            unwrap_classes += (deepspeed.DeepSpeedEngine,)
+        # The returned model provides the MegatronModuleForCausalLM class identifier. In actual inference, args.model is still used.
         return unwrap_model(args.model, unwrap_classes)[0]
 
     def generate(self, input_ids=None, **kwargs):
@@ -610,7 +613,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
                 output_checked = self._ids_check(output, self.tokenizer)
                 output = self.tokenizer.batch_decode(output_checked, skip_special_tokens=True)
             except Exception as e:
-                error_info = "Meet errors when trying to decode the tokens. "\
+                error_info = "Meet errors when trying to decode the tokens. " \
                              "Please handle it by yourself."
                 logging.error(error_info)
                 logging.error(e)

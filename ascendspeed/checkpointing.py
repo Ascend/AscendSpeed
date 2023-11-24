@@ -19,6 +19,7 @@ import os
 import random
 import sys
 import numpy as np
+from deepspeed import PipelineEngine
 from deepspeed.accelerator import get_accelerator
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
@@ -26,12 +27,11 @@ from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.utils import WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
 
-
 from ascendspeed import (get_args,
-                      is_rank_0,
-                      print_rank_0,
-                      update_num_microbatches,
-                      utils)
+                         is_rank_0,
+                         print_rank_0,
+                         update_num_microbatches,
+                         utils)
 from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.model import DistributedDataParallel as LocalDDP, Float16Module
 from ascendspeed.model.lora_utils import is_enable_lora, get_lora_state_dict, lora_custom_load_fn_for_deepspeed, \
@@ -69,8 +69,8 @@ def check_checkpoint_args(checkpoint_args):
             checkpoint_value = getattr(checkpoint_args, arg_name)
         args_value = getattr(args, arg_name)
         error_info = '{} value from checkpoint ({}) is not equal to the ' \
-                        'input argument value ({}).'.format(
-                            arg_name, checkpoint_value, args_value)
+                     'input argument value ({}).'.format(
+            arg_name, checkpoint_value, args_value)
         check_equal(checkpoint_value, args_value, error_info)
 
     if not args.mos and not args.kd:
@@ -144,7 +144,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
         iteration, args.save))
 
     if not torch.distributed.is_initialized() or parallel_state.get_data_parallel_rank() == 0 \
-        or args.deepspeed:
+            or args.deepspeed:
 
         # Arguments, iteration, and model.
         state_dict = {}
@@ -266,8 +266,8 @@ def _transpose_first_dim(t, num_splits, num_splits_first, model):
 
         intermediate_shape = \
             (num_attention_heads_per_partition,
-             hidden_size_per_attention_head, num_splits) +\
-             input_shape[1:]
+             hidden_size_per_attention_head, num_splits) + \
+            input_shape[1:]
 
         t = t.view(*intermediate_shape)
         t = t.transpose(1, 2).contiguous()
@@ -304,7 +304,7 @@ def fix_query_key_value_ordering(model, checkpoint_version):
                     sys.exit()
                 param.data.copy_(fixed_param)
         print_rank_0(" succesfully fixed query-key-values ordering for"
-                    " checkpoint version {}".format(checkpoint_version))
+                     " checkpoint version {}".format(checkpoint_version))
 
 
 def read_tracker(load_dir):
@@ -404,11 +404,15 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
             print_rank_0(f" will not load any checkpoints and will start from random")
             return 0
         custom_load_fn, load_dir = get_custom_load_fn(model=model[0], load_dir=load_dir, lora_load_dir=lora_load_dir)
-        load_zero_optim = sum(['zero' in file for file in os.listdir(load_dir)]) > 0
+        if args.no_pipeline_parallel:
+            load_zero_optim = sum(['zero' in file for file in os.listdir(load_dir)]) > 0
+        else:
+            load_zero_optim = sum(['global' in file for file in os.listdir(load_dir)]) > 0
         release = not load_zero_optim
         loaded_dir, state_dict = model[0].load_checkpoint(
             load_dir,
-            load_module_strict=strict,
+            # It is only loaded not strictly when lora is turned on and the original model is loaded.
+            load_module_strict=not (release and is_enable_lora()),
             load_module_only=not load_zero_optim,
             load_optimizer_states=load_zero_optim,
             load_lr_scheduler_states=load_zero_optim,
@@ -452,10 +456,10 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
             checkpoint_args = state_dict['args']
             check_checkpoint_args(checkpoint_args)
             args.consumed_train_samples = getattr(checkpoint_args,
-                                                'consumed_train_samples', 0)
+                                                  'consumed_train_samples', 0)
             update_num_microbatches(consumed_samples=args.consumed_train_samples)
             args.consumed_valid_samples = getattr(checkpoint_args,
-                                                'consumed_valid_samples', 0)
+                                                  'consumed_valid_samples', 0)
         else:
             print_rank_0('could not find arguments in the checkpoint ...')
 
@@ -512,6 +516,10 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
 
 def get_custom_load_fn(model, load_dir, lora_load_dir=None):
     custom_load_fn = None
+
+    if isinstance(model, PipelineEngine):
+        return custom_load_fn, load_dir
+
     if is_enable_lora():
         if lora_load_dir:
             custom_load_fn = get_lora_load_fn_with_deepspeed(model=model, base_model_load_dir=load_dir)
@@ -566,7 +574,7 @@ def load_state_dict_from_checkpoint_with_megatron(checkpoint_name, model_checkpo
 
 
 def load_biencoder_checkpoint(model, only_query_model=False,
-        only_context_model=False, custom_load_path=None):
+                              only_context_model=False, custom_load_path=None):
     """
     selectively load retrieval models for indexing/retrieving
     from saved checkpoints

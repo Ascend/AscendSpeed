@@ -29,8 +29,8 @@ def beam_search(model, tokens, **kwargs):
     # ==========================
     # Pad tokens
     # ==========================
-    final_sequence_length = args.max_length_ori
     prompt_length, context_lengths, tokens = _pad_tokens(args, tokens, beam_size, num_return_gen)
+    final_sequence_length = args.max_length_ori
 
     # ==========================
     # Forward step
