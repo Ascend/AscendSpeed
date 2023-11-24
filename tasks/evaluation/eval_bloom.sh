@@ -29,7 +29,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE \
 
 # Real script
 python -m torch.distributed.run $DISTRIBUTED_ARGS \
-       ./tasks/evaluation/evaluation.py \
+       ./tasks/evaluation/evaluation_bloom.py \
        --no-contiguous-buffers-in-local-ddp \
        --task-data-path $DATA_PATH \
        --task $TASK\

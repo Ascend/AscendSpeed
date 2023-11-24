@@ -45,7 +45,7 @@ def extract_answer_code(answer, task: dict):
     target_func_flag = False
     if not os.path.exists(CODE_TEST_LOG_DIR):
         os.makedirs(CODE_TEST_LOG_DIR)
-    test_code_path = "{}{}".format(CODE_TEST_LOG_DIR, save_file)
+    test_code_path = "{}/{}".format(CODE_TEST_LOG_DIR, save_file)
     with os.fdopen(os.open(test_code_path, WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES), 'w') as f:
         f.write("from typing import List\n")
         f.write("import math\n")

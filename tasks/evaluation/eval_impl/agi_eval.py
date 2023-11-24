@@ -80,8 +80,9 @@ class AGIEvalExam(DatasetEval):
                     answer = chat_result[0]
                 try:
                     if rank == 0:
-                        logger.info("correct: %s, AI: %s", correct, answer.splitlines()[0].replace('$', ''))
-                        subject_result[str(idx)] = answer.splitlines()[0].replace('$', '')
+                        final_result = answer.splitlines()[0].replace('$', '').replace('(', '').replace(')', '')
+                        logger.info("correct: %s, AI: %s", correct, final_result)
+                        subject_result[str(idx)] = final_result
                         if subject_result[str(idx)] == correct:
                             acc_n += 1
                 except Exception as e:

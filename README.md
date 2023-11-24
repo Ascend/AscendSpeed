@@ -744,7 +744,7 @@ VOCAB_FILE=../models/llama7b-hf/
 DATA_PATH="dataset/boolq/test"
 TASK="boolq"
 # 配置生成参数 
-python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
+python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
        --seq-length 512 \
@@ -771,7 +771,7 @@ bash tasks/evaluation/eval_llama.sh
 最重要的评估参数是 `--max-new-tokens`, 它表示模型输出的生成长度，比如，多项选择问题的输出长度就会明显比编码任务的输出长度小，该参数也很大程度上影响了模型的生成速度。
 
 ```bash
-python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
+python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
        --seq-length 512 \

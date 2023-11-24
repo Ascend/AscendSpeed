@@ -286,7 +286,7 @@ Config LLaMA-7B evaluation script:
     DATA_PATH="./bbh/data/test/"
     TASK="bbh"
     # configure generation parameters 
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation.py   \
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation_llama.py   \
            --task-data-path $DATA_PATH \
            --task $TASK\
            --seq-length 2048 \
@@ -316,7 +316,7 @@ Config LLaMA-13B evaluation script:
     DATA_PATH="./bbh/data/test/"
     TASK="bbh"
     # configure generation parameters 
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation.py   \
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/evaluation/evaluation_llama.py   \
            --task-data-path $DATA_PATH \
            --task $TASK\
            --seq-length 2048 \
