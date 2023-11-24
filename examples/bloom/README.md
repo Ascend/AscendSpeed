@@ -13,6 +13,9 @@
     - [性能](#性能)
       - [吞吐](#吞吐)
       - [精度](#精度)
+  - [微调](#微调)
+    - [全参微调](#全参微调)
+    - [低参微调](#低参微调)
   - [推理](#推理)
     - [deepspeed_pipeline](#deepspeed_pipeline)
     - [megatron](#megatron)
@@ -27,7 +30,8 @@
     - [deepspeed_pipeline](#deepspeed_pipeline)
     - [megatron](#megatron)
   - [评估](#评估)
-  - [举例](#举例)
+- [举例](#举例)
+
 # Bloom-7B
 
 ## 训练
@@ -152,6 +156,26 @@ DATA_PATH=/home/bloom_data/enwiki_100k/enwiki-100k_text_document
 
 ```shell
 bash examples/bloom/pretrain_bloom_7b1.sh
+```
+
+## 微调
+
+### 全参微调
+执行流程与预训练一致，配置训练权重路径如下：
+```shell
+# 修改预训练权重路径
+CHECKPOINT_PATH='./ckpt'
+```
+
+### 低参微调
+执行流程与预训练一致，参数修改配置如下：
+```shell
+# 修改预训练权重路径
+CHECKPOINT_PATH='./ckpt'
+
+# 增加配置参数
+pretrain_bloom.py
+--lora-target-modules query_key_value dense \
 ```
 
 ## 性能
@@ -486,6 +510,7 @@ bash ./examples/bloom/generate_bloom_176b_2nodes.sh
 
 
 ## 评估 
+
 配置 Bloom-176B 评估脚本: tasks/evaluation/eval_bloom.sh
 
 ```shell
@@ -502,6 +527,12 @@ TASK="boolq"
 --num-layers 70 
 --hidden-size 14336 
 --num-attention-heads 112 
+```
+
+```text
+    # 请注意，评估时需要修改一个deepspeed的bug：
+    # 将 `<deepspeed-installed-path>/runtime/pipe/engine.py` 文件里的第671行注释掉：
+    # self.total_loss += self.loss.detach()
 ```
 
 ```shell
@@ -528,7 +559,7 @@ bash ./tasks/evaluation/eval_bloom.sh
   </tbody>
 </table>
 
-## 举例
+# 举例
 1. bloom 7b
 
 ![bloom_7b_generate.png](..%2F..%2Fsources%2Fimages%2Fbloom_7b_generate.png)
@@ -536,7 +567,7 @@ bash ./tasks/evaluation/eval_bloom.sh
 
 ![bloom_176b_generate.png](..%2F..%2Fsources%2Fimages%2Fbloom_176b_generate.png)
 
-## 引用
+# 引用
 
 ```
 @article{scao2022bloom,
