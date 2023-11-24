@@ -9,21 +9,31 @@
 # Contents
 
 - [Bloom-7B](#contents)
-  - [Training](#pre-training)
+  - [Training](#training)
     - [Script](#script)
     - [Performance](#performance)
-      - [Machine performance](#machine-performance)
-      - [Accuracy of the loss](#accuracy-of-the-loss)
-  - [Inference](#Inference)
-    - [Script](#script)
+      - [Machine performance](#Machine-performance)
+      - [Accuracy of the loss](#Accuracy-of-the-loss)
+  - [Fine-tune](#fine-tune)
+    - [Full parameter fine-tuning](#Full-parameter-fine-tuning)
+    - [LORA fine-tuning](#LORA-fine-tuning)
+  - [Inference](#inference)
+    - [deepspeed pipeline](#deepspeed-pipeline)
+    - [megatron](#megatron)
+  - [Evaluation](#evaluation)
+
 - [Bloom-176B](#contents)
-  - [Training](#pre-training)
+  - [Training](#training)
     - [Script](#script)
     - [Performance](#performance)
       - [Machine performance](#machine-performance)
       - [Accuracy of the loss](#accuracy-of-the-loss)
-  - [Inference](#Inference)
-    - [Script](#script)
+  - [Inference](#inference)
+    - [deepspeed pipeline](#deepspeed-pipeline)
+    - [megatron](#megatron)
+  - [Evaluation](#evaluation)
+- [Example](#example)
+
 
 # Bloom-7B
 
@@ -154,6 +164,30 @@ Run the examples/bloom/pretrain_bloom_7b1.sh on all nodes in the cluster.
 bash examples/bloom/pretrain_bloom_7b1.sh
 ```
 
+## Fine-tune
+
+### Full parameter fine-tuning
+
+The execution process is the same as the pre-training. Config training weight path is as follows:
+
+```shell
+# modify the model weight path
+CHECKPOINT_PATH='./ckpt'
+```
+
+### LORA fine-tuning
+
+The execution process is consistent with the pre-training, and the parameters are modified as follows:
+
+```shell
+# modify the model weight path
+CHECKPOINT_PATH='./ckpt'
+
+# Add configuration parameters
+pretrain_bloom.py
+--lora-target-modules query_key_value dense 
+```
+
 ## Performance
 
 ### Machine Performance
@@ -183,7 +217,7 @@ NPU vs GPU loss relative error.
 
 We support AscendSpeed Inference for text generation with BLOOM 7B (deepspeed or megatron).
 
-### deepspeed_pipeline
+### deepspeed pipeline
 
 ```shell
 # modify the model weight path and tokenizer path
@@ -440,7 +474,7 @@ and GPU on a single-node system. The average relative error is 0.1%, less than 2
 
 We support AscendSpeed Inference for text generation with BLOOM 176B (deepspeed or megatron).
 
-### deepspeed_pipeline
+### deepspeed pipeline
 
 ```shell
 # modify the model weight path and tokenizer path
@@ -504,6 +538,12 @@ In addition, you need to set the corresponding parameters according to the model
 --num-layers 70 
 --hidden-size 14336 
 --num-attention-heads 112 
+```
+
+```text
+    # Note that, a deepspeed bug needs to be fixed during evaluation：
+    # Comment out line 671 in the file `<deepspeed-installed-path>/runtime/pipe/engine.py`：
+    # self.total_loss += self.loss.detach()
 ```
 
 ```shell
