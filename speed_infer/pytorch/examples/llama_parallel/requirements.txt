@@ -1,0 +1,4 @@
+transformers==4.30.2
+sentencepiece==0.1.99
+torchvision==0.14.1
+attrs==23.1.0
