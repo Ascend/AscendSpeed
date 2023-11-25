@@ -625,8 +625,9 @@ def setup_model_and_optimizer(model_provider_func,
                 # Build the datasets.
                 train_ds, _, _ = build_train_valid_test_datasets_provider(
                     train_val_test_num_samples)
+            # deepspeed pipeline需要传入原始模型，deepspeed里面会判断模型类型
             model, optimizer, args.deepspeed_dataloader, lr_scheduler = deepspeed.initialize(
-                model=unwrapped_model[0],
+                model=model[0] if args.no_pipeline_parallel else unwrapped_model[0],
                 optimizer=optimizer,
                 args=args,
                 lr_scheduler=lr_scheduler,
@@ -636,7 +637,7 @@ def setup_model_and_optimizer(model_provider_func,
             model.set_data_post_process_func(data_post_process)
         else:
             model, optimizer, _, lr_scheduler = deepspeed.initialize(
-                model=unwrapped_model[0],
+                model=model[0] if args.no_pipeline_parallel else unwrapped_model[0],
                 optimizer=optimizer,
                 args=args,
                 lr_scheduler=lr_scheduler,
