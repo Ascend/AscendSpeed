@@ -18,7 +18,6 @@
 #include "common.h"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("npu_flash_attention", &npu_flash_attention, "flash attention forward");
-    m.def("npu_flash_attention_grad", &npu_flash_attention_grad, "flash attention backward");
-    m.def("npu_add", &add, "test transformer boost add op");
+    m.def("npu_fusion_attention", &npu_flash_attention, "fusion attention forward");
+    m.def("npu_fusion_attention_grad", &npu_flash_attention_grad, "fusion attention backward");
 }
