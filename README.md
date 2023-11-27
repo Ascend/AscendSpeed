@@ -32,9 +32,9 @@ AscendSpeed旨在为华为 [昇腾芯片](https://open.codehub.huawei.com/OpenBa
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[使用说明: 7B/176B]](examples/bloom/README.md)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[使用说明: 7B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[使用说明: 7B/13B/33B/65B]](examples/llama/README.md)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[使用说明: 7B/70B]](examples/llama2/README.md)
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[使用说明: 7B/13B/70B]](examples/llama2/README.md)
 
-LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
+LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
 
 ### 下游任务
 当前AscendSpeed为大模型提供以下周边应用:
@@ -183,6 +183,15 @@ LLaMA2-13B/34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td> 2348 </td>
       <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
       <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">训练</a> </td>
+    </tr>
+    <tr>
+      <td>13B</td>
+      <td>1x8</td>
+      <td>BF16 </td>
+      <td> 1468 </td>
+      <td> 1750 </td>
+      <td> <a href="/sources/images/llama2/llama2_13b_bf16_loss_absolute.png">Loss</a> </td>
+      <td> <a href="examples/llama2/pretrain_llama2_13B_ptd_8p.sh">训练</a> </td>
     </tr>
     <tr>
       <td>70B</td>
