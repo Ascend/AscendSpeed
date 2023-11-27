@@ -16,27 +16,19 @@
 #ifndef ASCENDSPEED_TE_OPS_CSRC_COMMON_H
 #define ASCENDSPEED_TE_OPS_CSRC_COMMON_H
 
-#include <torch/csrc/autograd/custom_function.h>
-
-#include "torch_npu/csrc/core/npu/SecondaryStreamGuard.h"
-#include "torch_npu/csrc/core/npu/NPUCachingAllocator.h"
-#include "torch_npu/csrc/framework/utils/OpAdapter.h"
-#include "torch_npu/csrc/aten/NPUNativeFunctions.h"
-#include "torch_npu/csrc/aten/ops/op_api/op_api_common.h"
-#include "torch_npu/csrc/aten/NPUGeneratorImpl.h"
-#include "torch_npu/csrc/framework/OpCommand.h"
-#include "torch_npu/csrc/framework/utils/OpPreparation.h"
-
+#include <torch_npu/csrc/core/npu/NPUStream.h>
+#include <torch_npu/csrc/core/npu/DeviceUtils.h>
+#include <torch_npu/csrc/framework/OpCommand.h>
 #include <torch/script.h>
 #include <torch/custom_class.h>
 
 std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor, int64_t, int64_t, int64_t> npu_flash_attention(
     const at::Tensor &query, const at::Tensor &key,
-    const at::Tensor &value, int64_t head_num, c10::string_view input_layout,
+    const at::Tensor &value, int64_t head_num, std::string input_layout,
     const c10::optional<at::Tensor> &pse_opt, const c10::optional<at::Tensor> &padding_mask_opt,
     const c10::optional<at::Tensor> &atten_mask_opt,
     double scale, double keep_prob, int64_t pre_tockens, int64_t next_tockens, int64_t inner_precise,
-    bool gen_mask_parallel, bool sync);
+    c10::optional<at::IntArrayRef> prefix_opt, int64_t sparse_mode, bool gen_mask_parallel, bool sync);
 
 std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> npu_flash_attention_grad(
     const at::Tensor &query,
@@ -44,7 +36,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> npu_flash_attention_g
     const at::Tensor &value,
     const at::Tensor &dy,
     int64_t head_num,
-    c10::string_view input_layout,
+    std::string input_layout,
     const c10::optional<at::Tensor> &pse,
     const c10::optional<at::Tensor> &padding_mask,
     const c10::optional<at::Tensor> &atten_mask,
@@ -60,9 +52,9 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> npu_flash_attention_g
     int64_t seed,
     int64_t offset,
     int64_t numels,
+    c10::optional<at::IntArrayRef> prefix,
+    int64_t sparse_mode,
     bool gen_mask_parallel,
     bool sync);
-
-torch::Tensor add(const torch::Tensor &input1, const torch::Tensor &input2);
 
 #endif
