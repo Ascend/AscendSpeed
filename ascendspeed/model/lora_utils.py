@@ -37,18 +37,23 @@ def get_lora_state_dict(state_dict):
     args = get_args()
     original_module_key = 'original_module.weight'
     modules_to_save_key = f'modules_to_save.{args.lora_adapter_name}.weight'
-    state_dict_ = {}
-    for key in state_dict.keys():
-        if "lora_" in key or key.endswith(original_module_key) or key.endswith(modules_to_save_key):
-            state_dict_[key] = state_dict[key]
-    return state_dict_
+
+    @unwarp_dict
+    def func_(key_name, state_dict_temp, state_dict):
+        if "lora_" in key_name or key_name.endswith(original_module_key) or key_name.endswith(modules_to_save_key):
+            state_dict_temp[key_name] = state_dict[key_name]
+
+    return func_(state_dict)
 
 
 def is_lora_state_dict(state_dict):
-    for key in state_dict.keys():
+    @judge_unwarp_dict
+    def func_(key):
         if "lora_" in key:
             return True
-    return False
+        return False
+
+    return func_(state_dict)
 
 
 def is_lora_modules_to_save_state_dict(state_dict):
@@ -65,28 +70,31 @@ def handle_lora_modules_to_save_key(state_dict):
     if not is_enable_lora_modules_to_save():
         return state_dict
     if is_lora_modules_to_save_state_dict(state_dict):
-        state_dict_ = {}
-        for module_name in state_dict.keys():
-            if not is_module_name_in_lora_modules_to_save(module_name):
-                state_dict_[module_name] = state_dict[module_name]
-        return state_dict_
+        @unwarp_dict
+        def func_(key_name, state_dict_temp, state_dict):
+            if not is_module_name_in_lora_modules_to_save(key_name):
+                state_dict_temp[key_name] = state_dict[key_name]
+
+        return func_(state_dict)
+
     from ascendspeed import get_args
     args = get_args()
     original_module_key = 'original_module'
     modules_to_save_key = f'modules_to_save.{args.lora_adapter_name}'
-    state_dict_ = {}
-    for module_name in state_dict.keys():
-        state_dict_[module_name] = state_dict[module_name]
-        if not is_module_name_in_lora_modules_to_save(module_name):
-            continue
-        _module_name = module_name.split('.')
-        if original_module_key not in module_name:
-            original_module_name = '.'.join(_module_name[:-1] + [original_module_key] + [_module_name[-1]])
-            state_dict_[original_module_name] = state_dict[module_name]
-        if modules_to_save_key not in module_name:
-            modules_to_save_name = '.'.join(_module_name[:-1] + [modules_to_save_key] + [_module_name[-1]])
-            state_dict_[modules_to_save_name] = state_dict[module_name]
-    return state_dict_
+
+    @unwarp_dict
+    def func__(key_name, state_dict_temp, state_dict):
+        state_dict_temp[key_name] = state_dict[key_name]
+        if is_module_name_in_lora_modules_to_save(key_name):
+            _key_name_list = key_name.split('.')
+            if original_module_key not in key_name:
+                original_module_name = '.'.join(_key_name_list[:-1] + [original_module_key] + [_key_name_list[-1]])
+                state_dict_temp[original_module_name] = state_dict[key_name]
+            if modules_to_save_key not in key_name:
+                modules_to_save_name = '.'.join(_key_name_list[:-1] + [modules_to_save_key] + [_key_name_list[-1]])
+                state_dict_temp[modules_to_save_name] = state_dict[key_name]
+
+    return func__(state_dict)
 
 
 def lora_custom_load_fn_for_deepspeed(src, dst):
@@ -182,15 +190,60 @@ def handle_model_with_lora(model):
     return model
 
 
+def merge_dict(d1, d2):
+    temp = {}
+    for key in d1:
+        temp[key] = d1[key]
+    for key in d2:
+        if key in d1:
+            if isinstance(d2[key], dict):
+                temp[key] = merge_dict(d1[key], d2[key])
+            else:
+                temp[key] = d2[key]
+        else:
+            temp[key] = d2[key]
+    return temp
+
+
 def update_model_state_dict_with_megatron(model_state_dict, state_dict):
     state_dict_ = {}
     for key in state_dict:
         if key.startswith('model'):
-            state_dict_[key] = model_state_dict[key]
-            state_dict_[key].update(state_dict[key])  # 更新model的权重
+            state_dict_[key] = merge_dict(model_state_dict[key], state_dict[key])  # 更新model的权重
+
         else:
             state_dict_[key] = state_dict[key]
     return state_dict_
+
+
+def unwarp_dict(func):
+    def wrapper(state_dict):
+        state_dict_temp = {}
+        for key in state_dict:
+            if isinstance(state_dict[key], dict):
+                state_dict_temp[key] = wrapper(state_dict[key])
+            else:
+                # 对于tensor，可以改名，删除，增加
+                func(key, state_dict_temp, state_dict)
+        return state_dict_temp
+
+    return wrapper
+
+
+def judge_unwarp_dict(func):
+    def wrapper(state_dict):
+        for key in state_dict:
+            if isinstance(state_dict[key], dict):
+                r = wrapper(state_dict[key])
+                if r:
+                    return True
+            else:
+                r = func(key)
+                if r:
+                    return True
+        return False
+
+    return wrapper
 
 
 def handle_lora_modules_to_save_key_with_megatron(state_dict):

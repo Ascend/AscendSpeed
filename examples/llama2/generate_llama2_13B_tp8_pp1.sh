@@ -34,4 +34,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --micro-batch-size 1 \
        --seq-length 4096 \
        --max-new-tokens 256 \
-       --seed 42
+       --seed 42 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \

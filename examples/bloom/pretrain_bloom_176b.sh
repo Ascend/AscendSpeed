@@ -70,8 +70,6 @@ TRANSFORMERS_OFFLINE=1  \
     --embed-layernorm \
     --tokenizer-name-or-path $TOKENIZER_NAME_OR_PATH \
     --data-path $DATA_PATH \
-    --attention-dropout 0 \
-    --hidden-dropout 0 \
     --pad-vocab-size-to 250880 \
     --tensor-model-parallel-size $TP_SIZE \
     --pipeline-model-parallel-size $PP_SIZE \
@@ -84,6 +82,7 @@ TRANSFORMERS_OFFLINE=1  \
     --rampup-batch-size 192 16 9_765_625 \
     --global-batch-size $GLOBAL_BATCH_SIZE \
     --train-samples $TRAIN_SAMPLES \
+    --normalization LayerNorm \
     --init-method-std 0.0048 \
     --bf16 \
     --seed 42 \
@@ -114,5 +113,9 @@ TRANSFORMERS_OFFLINE=1  \
     --sequence-parallel \
     --checkpoint-activations \
     --use-manual-layer-allocation \
-    --manual-layers 5,6,6,6,6,6,6,6,6,6,6,5
-
+    --manual-layers 5,6,6,6,6,6,6,6,6,6,6,5 \
+    --no-add-gate \
+    --add-bias-linear \
+    --query-key-layer-scaling \
+    --no-attention-softmax-in-fp32 \
+    --no-untie-embeddings-and-output-weights

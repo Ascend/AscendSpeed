@@ -33,7 +33,8 @@ from ascendspeed import get_tokenizer
 from ascendspeed.core import parallel_state
 from ascendspeed.core.enums import ModelType
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets
-from ascendspeed.model.llama_model import LlamaModel, LlamaModelPipe
+from ascendspeed.model.gpt_model import GPTModel
+from ascendspeed.model.gpt_model import GPTModelPipe
 from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids
 from ascendspeed.utils import average_losses_across_data_parallel_group
@@ -62,7 +63,7 @@ def model_provider(pre_process=True, post_process=True):
                              enabled=args.zero_stage == 3,
                              mpu=parallel_state):
         if args.deepspeed and not args.no_pipeline_parallel:
-            model = LlamaModelPipe(config, parallel_output=True)
+            model = GPTModelPipe(config, parallel_output=True)
             # This is a hack to give us a reference to get_batch_pipe from within training.py
             # We need to call model.set_batch_fn after deepspeed.initialize
             model._megatron_batch_fn = get_batch_pipe
@@ -85,10 +86,9 @@ def model_provider(pre_process=True, post_process=True):
             # Attention mask must be bool.
             args.attn_mask = attention_mask.to(torch.bool)
         else:
-            model = LlamaModel(
+            model = GPTModel(
                 config=config,
                 parallel_output=True,
-                add_pooler=False,
                 pre_process=pre_process,
                 post_process=post_process
             )

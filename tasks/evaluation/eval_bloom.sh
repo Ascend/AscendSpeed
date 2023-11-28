@@ -50,8 +50,6 @@ python -m torch.distributed.run $DISTRIBUTED_ARGS \
        --tokenizer-not-use-fast \
        --fp16 \
        --micro-batch-size $MICRO_BATCH_SIZE  \
-       --attention-dropout 0 \
-       --hidden-dropout 0 \
        --init-method-std 0.0048 \
        --layernorm-epsilon 1e-6 \
        --fp16 \

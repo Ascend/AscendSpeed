@@ -1,6 +1,6 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2023. All rights reserved.
 from ascendspeed import get_args
-from ascendspeed.model.llama_model import LlamaModel
+from ascendspeed.model.gpt_model import GPTModel
 from ascendspeed.initialize import initialize_megatron
 from ascendspeed.arguments import core_transformer_config_from_args
 from tasks.inference.infer_base import task_greedy_search, task_do_sample, task_beam_search, add_text_generate_args
@@ -10,10 +10,9 @@ from tasks.inference.infer_base import task_beam_search_with_sampling, task_retu
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
     config = core_transformer_config_from_args(get_args())
-    init_model = LlamaModel(
+    init_model = GPTModel(
         config,
         parallel_output=False,
-        add_pooler=False,
         pre_process=pre_process,
         post_process=post_process
     )
@@ -27,7 +26,7 @@ if __name__ == "__main__":
 
     args = get_args()
 
-    model = LlamaModel.from_pretrained(
+    model = GPTModel.from_pretrained(
         model_provider=model_provider,
         pretrained_model_name_or_path=args.load
     )

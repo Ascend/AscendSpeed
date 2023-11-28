@@ -57,4 +57,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --sequence-parallel \
        --mlp-layer-fusion \
        --use-distributed-optimizer \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --fp16 | tee logs/train.log

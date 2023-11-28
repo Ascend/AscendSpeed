@@ -21,7 +21,8 @@ from dataclasses import dataclass
 class MergeWeightConfig:
     entire_model_dic: dict
     tp_models: list
-    k: int
+    src_k: str
+    k: str
     pp_i: int
     tot_i: int
     dim: int

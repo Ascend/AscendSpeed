@@ -40,3 +40,5 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --lora-r 16 \
        --lora-alpha 32 \
        --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
+       --position-embedding-type rope \
+       --normalization RMSNorm \

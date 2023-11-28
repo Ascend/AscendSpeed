@@ -31,6 +31,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --sequence-parallel \
        --num-layers 32 \
        --hidden-size 4096 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --ffn-hidden-size 11008 \
        --num-attention-heads 32 \
        --attention-dropout 0.0 \
@@ -60,8 +62,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --eval-interval 10000 \
        --eval-iters 0 \
        --use-fused-rotary-pos-emb \
-       --no-query-key-layer-scaling \
-       --attention-softmax-in-fp32 \
        --no-masked-softmax-fusion \
        --no-load-optim \
        --no-load-rng \

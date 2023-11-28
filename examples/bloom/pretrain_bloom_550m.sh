@@ -66,8 +66,6 @@ TRANSFORMERS_OFFLINE=1  \
     --embed-layernorm \
     --tokenizer-name-or-path $TOKENIZER_NAME_OR_PATH \
     --data-path $DATA_PATH \
-    --attention-dropout 0 \
-    --hidden-dropout 0 \
     --pad-vocab-size-to 250880 \
     --tensor-model-parallel-size $TP_SIZE \
     --pipeline-model-parallel-size $PP_SIZE \
@@ -109,4 +107,9 @@ TRANSFORMERS_OFFLINE=1  \
     --deepspeed_config ${config_json} \
     --zero-stage ${ZERO_STAGE} \
     --deepspeed-activation-checkpointing  \
+    --no-add-gate \
+    --add-bias-linear \
+    --query-key-layer-scaling \
+    --no-attention-softmax-in-fp32 \
+    --no-untie-embeddings-and-output-weights \
     --distributed-backend nccl | tee $LOGS_PATH/train.log

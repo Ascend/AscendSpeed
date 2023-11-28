@@ -72,12 +72,13 @@ deepspeed pretrain_llama.py \
        --global-batch-size $GLOBAL_BATCH \
        --seq-length 2048 \
        --max-position-embeddings 2048 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --train-iters 500000 \
        --save $CHECKPOINT \
        --data-path $DATA \
        --tokenizer-name-or-path ./dataset/llama/ \
        --tokenizer-not-use-fast \
-       --attention-softmax-in-fp32 \
        --attention-dropout 0.0 \
        --hidden-dropout 0.0 \
        --init-method-std 0.01 \
@@ -96,7 +97,6 @@ deepspeed pretrain_llama.py \
        --no-load-optim \
        --no-load-rng \
        --no-bias-gelu-fusion \
-       --no-query-key-layer-scaling \
        --use-flash-attn \
        $ds_args \
        --fp16 | tee logs/train_7B.log

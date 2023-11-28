@@ -182,6 +182,11 @@ def validate_args(args, defaults={}):
             args.num_layers_per_virtual_pipeline_stage
     else:
         args.virtual_pipeline_model_parallel_size = None
+        # Overlap P2P communication is disabled if not using the interleaved schedule.
+        args.overlap_p2p_comm = False
+        if args.rank == 0:
+            print('WARNING: Setting args.overlap_p2p_comm to False since non-interleaved '
+                  'schedule does not support overlapping p2p communication')
 
     # Parameters dtype.
     args.params_dtype = torch.float
@@ -267,7 +272,15 @@ def validate_args(args, defaults={}):
 
     # Checks.
     if args.ffn_hidden_size is None:
-        args.ffn_hidden_size = 4 * args.hidden_size
+        if args.swiglu:
+            # reduce the dimnesion for MLP since projections happens on
+            # two linear layers. this keeps the number of paramters in
+            # the same ballpark as the counterpart with 4*h size
+            # we keep it a multiple of 64, which means the actual tensor size
+            # will be a multiple of 64 / tp_size
+            args.ffn_hidden_size = int((4 * args.hidden_size * 2 / 3) / 64) * 64
+        else:
+            args.ffn_hidden_size = 4 * args.hidden_size
 
     if args.kv_channels is None:
         check_divisible(args.hidden_size, args.num_attention_heads)
@@ -309,10 +322,12 @@ def validate_args(args, defaults={}):
                 args.retro_num_retrieved_chunks * \
                 retro_args.retro_gpt_chunk_length
             set_retro_args(retro_args)
-
+    # Disable bias gelu fusion if we are disabling bias altogether
+    if not args.add_bias_linear:
+        args.bias_gelu_fusion = False
     # Legacy RoPE arguments
     if args.use_rotary_position_embeddings:
-        args.position_embedding_type = 'rope'
+        args.position_embedding_type = PositionEmbeddingType.rope
 
     if (args.position_embedding_type == PositionEmbeddingType.absolute or
             args.position_embedding_type == PositionEmbeddingType.alibi or
@@ -356,15 +371,31 @@ def validate_args(args, defaults={}):
                   'Defaulting to no_persist_layer_norm=True')
     else:
         args.no_persist_layer_norm = False
+    # Activation recomputing.
+    if args.distribute_saved_activations:
+        ensure_valid(args.tensor_model_parallel_size > 1, 'can distribute ' +
+                     'recomputed activations only across tensor model ' +
+                     'parallel groups')
+        ensure_valid(args.recompute_granularity == 'full',
+                     'distributed recompute activations is only ' +
+                     'application to full recompute granularity')
+        ensure_valid(args.recompute_method is not None,
+                     'for distributed recompute activations to work you ' +
+                     'need to use a recompute method ')
+        ensure_valid((torch_major, torch_minor) >= (1, 10),
+                     'distributed recompute activations are supported for pytorch ' +
+                     'v1.10 and above (Nvidia Pytorch container >= 21.07). Current ' +
+                     'pytorch version is v%s.%s.' % (torch_major, torch_minor))
+    if args.recompute_granularity == 'selective':
+        ensure_valid(args.recompute_method is None,
+                     'recompute method is not yet supported for ' +
+                     'selective recomputing granularity')
     # disable async_tensor_model_parallel_allreduce when
     # model parallel memory optimization is enabled
     if args.sequence_parallel:
         args.async_tensor_model_parallel_allreduce = False
     args.curriculum_learning_legacy = False
     args.compression_training = False
-    args.apply_layernorm_1p = False
-    args.overlap_p2p_comm = False
-    args.swiglu = False
     args.fp8_e4m3 = False
     args.fp8_hybrid = False
 
@@ -473,7 +504,7 @@ def _add_network_size_args(parser):
                        help='Use layernorm for embedding.')
     group.add_argument('--max-position-embeddings', type=int, default=None,
                        help='Maximum number of position embeddings to use. '
-                       'This is the size of position embedding.')
+                       'This is the size of position embedding.', dest="max_position_embeddings")
     group.add_argument('--position-embedding-type', type=lambda x: PositionEmbeddingType[x],
                        choices=list(PositionEmbeddingType), default=PositionEmbeddingType.absolute,
                        help='Define position embedding type ("absolute" | "rope" | "alibi"). "absolute" by default.')
@@ -489,6 +520,12 @@ def _add_network_size_args(parser):
                        help='Pad the vocab size to this value.'
                        'This value must be greater than the initial size of the tokenizer,'
                        'needs to be divisible by TP size and `make-vocab-size-divisible-by`.')
+    group.add_argument('--normalization', default='LayerNorm',
+                       choices=['LayerNorm', 'RMSNorm'],
+                       help='Which normalization technique to use.')
+    group.add_argument('--apply-layernorm-1p', action='store_true',
+                       help='Adjust LayerNorm weights such that they are centered '
+                       'around zero. This improves numerical stability.')
     group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
                        help='Layer norm epsilon.')
     group.add_argument('--apply-residual-connection-post-layernorm',
@@ -509,16 +546,21 @@ def _add_network_size_args(parser):
     group.add_argument('--bert-no-binary-head', action='store_false',
                        help='Disable BERT binary head.',
                        dest='bert_binary_head')
-    group.add_argument('--untie-embeddings-and-output-weights', action='store_true',
-                       help='Untie embeddings and output weights.'),
+    group.add_argument('--no-untie-embeddings-and-output-weights', action='store_false',
+                       help='Not untie embeddings and output weights.',
+                       dest="untie_embeddings_and_output_weights",
+                       default=True),
     group.add_argument('--mlp-layer-fusion', action='store_true',
                        help='Fuse gate and upprojection in MLP for llama families, '
                        'e.g. llama or internlm')
     group.add_argument('--use-flash-attn', action='store_true',
                        default=False,
                        help='Use flash attention')
+    group.add_argument('--use-fused-rmsnorm', action='store_true', help='use fused norm')
     group.add_argument('--embedding-weights-in-fp32', action='store_true',
                        help='Cast word embedding weights to fp32 before embedding fwd.'),
+    group.add_argument('--no-add-gate', action='store_true', default=False, dest="no_add_gate",
+                       help='Do not add gate layer in model.'),
     return parser
 
 
@@ -589,9 +631,9 @@ def _add_logging_args(parser):
 def _add_regularization_args(parser):
     group = parser.add_argument_group(title='regularization')
 
-    group.add_argument('--attention-dropout', type=float, default=0.1,
+    group.add_argument('--attention-dropout', type=float, default=0.0,
                        help='Post attention dropout probability.')
-    group.add_argument('--hidden-dropout', type=float, default=0.1,
+    group.add_argument('--hidden-dropout', type=float, default=0.0,
                        help='Dropout probability for hidden state transformer.')
     group.add_argument('--weight-decay', type=float, default=0.01,
                        help='Weight decay coefficient for L2 regularization.')
@@ -655,7 +697,7 @@ def _add_training_args(parser):
                        help='If set, distribute recomputed activations '
                        'across model parallel group.')
     group.add_argument('--recompute-method', type=str, default=None,
-                       choices=['uniform', 'block'],
+                       choices=['uniform', 'block', "custom"],
                        help='1) uniform: uniformly divide the total number of '
                        'Transformer layers and recompute the input activation of '
                        'each divided chunk at specified granularity, '
@@ -732,9 +774,9 @@ def _add_training_args(parser):
     group.add_argument('--create-moe-param-group', action='store_true',
                        help='Create separate groups for MoE params.'
                        'This is necessary for techniques like ZeRO.')
-    group.add_argument('--disable-bias-linear', action='store_false',
-                       help='Disable bias in the linear layers',
-                       dest='add_bias_linear')
+    group.add_argument('--add-bias-linear', action='store_true',
+                       help='Use bias in the linear layers',
+                       dest='add_bias_linear', default=False)
     group.add_argument('--optimizer', type=str, default='adam',
                        choices=['adam', 'sgd', 'fused_adam', 'cadam'],
                        help='Optimizer function')
@@ -902,13 +944,14 @@ def _add_mixed_precision_args(parser):
                        help='hysteresis for dynamic loss scaling')
     group.add_argument('--fp32-residual-connection', action='store_true',
                        help='Move residual connections to fp32.')
-    group.add_argument('--no-query-key-layer-scaling', action='store_false',
-                       help='Do not scale Q * K^T by 1 / layer-number.',
-                       dest='apply_query_key_layer_scaling')
-    group.add_argument('--attention-softmax-in-fp32', action='store_true',
-                       help='Run attention masking and softmax in fp32. '
-                       'This flag is ignored unless '
-                       '--no-query-key-layer-scaling is specified.')
+    group.add_argument('--query-key-layer-scaling', action='store_true',
+                       help='Scale Q * K^T by 1 / layer-number.',
+                       dest='apply_query_key_layer_scaling', default=False)
+    group.add_argument('--no-attention-softmax-in-fp32', action='store_false',
+                       help='Not run attention masking and softmax in fp32. '
+                            'This flag is ignored unless '
+                            '--no-query-key-layer-scaling is specified.', default=True,
+                       dest="attention_softmax_in_fp32")
     group.add_argument('--accumulate-allreduce-grads-in-fp32',
                        action='store_true',
                        help='Gradient accumulation and all-reduce in fp32.')
@@ -933,6 +976,9 @@ def _add_distributed_args(parser):
     group.add_argument('--sequence-parallel', action='store_true',
                        default=False,
                        help="use sequence parallelism")
+    group.add_argument('--no-overlap-p2p-communication', action='store_false',
+                       help='overlap pipeline parallel communication with forward and backward chunks',
+                       dest='overlap_p2p_comm')
     group.add_argument('--pipeline-model-parallel-size', type=int, default=1,
                        help='Degree of pipeline model parallelism.')
     group.add_argument('--pipeline-model-parallel-split-rank',

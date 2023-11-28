@@ -67,14 +67,13 @@ TRANSFORMERS_OFFLINE=1  \
     --embed-layernorm \
     --tokenizer-name-or-path $TOKENIZER_NAME_OR_PATH \
     --data-path $DATA_PATH \
-    --attention-dropout 0 \
-    --hidden-dropout 0 \
     --pad-vocab-size-to 250880 \
     --tensor-model-parallel-size 8 \
     --pipeline-model-parallel-size 1 \
     --num-layers $NLAYERS \
     --hidden-size $NHIDDEN \
     --num-attention-heads $NHEADS \
+    --normalization LayerNorm \
     --seq-length $SEQ_LEN \
     --max-position-embeddings $SEQ_LEN \
     --micro-batch-size $MICRO_BATCH_SIZE \
@@ -108,5 +107,12 @@ TRANSFORMERS_OFFLINE=1  \
     --zero-stage ${ZERO_STAGE} \
     --deepspeed-activation-checkpointing  \
     --distributed-backend nccl \
-    --sequence-parallel
+    --sequence-parallel \
+    --recompute-method block \
+    --recompute-granularity full \
+    --no-add-gate \
+    --add-bias-linear \
+    --query-key-layer-scaling \
+    --no-attention-softmax-in-fp32 \
+    --no-untie-embeddings-and-output-weights
     

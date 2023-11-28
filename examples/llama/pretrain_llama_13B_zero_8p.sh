@@ -72,6 +72,8 @@ deepspeed pretrain_llama.py \
        --micro-batch-size $MICRO_BATCH \
        --global-batch-size $GLOBAL_BATCH \
        --seq-length 2048 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --max-position-embeddings 2048 \
        --train-iters 500000 \
        --lr-decay-iters 320000 \

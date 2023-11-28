@@ -35,3 +35,4 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --max-new-tokens 256 \
        --seed 42 \
        --position-embedding-type alibi \
+       --normalization RMSNorm \
