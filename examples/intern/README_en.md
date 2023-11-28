@@ -29,14 +29,15 @@ Here's a software summary of pre-training InternLM-7B:
 
 
 |         Software          |   Version   |
-| :-----------------------: |:-----------:|
-|          Python           |   3.7.16    |
+|:-------------------------:|:------------------------------------------------------------------------------------------------------------:|
+|          python           |                                                    3.8.18                                                    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                    |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
+|         apex         |                             [package](https://gitee.com/ascend/apex/releases)                             |
 
 ### Script
 
@@ -55,8 +56,10 @@ mkdir ckpt
 conda create -n test python=3.7
 conda activate test
 # install torch and torch_npu
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
-pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
+pip install torch-2.1.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+pip install torch_npu-2.1.0.post20231124_cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+# install apex
+pip install apex-0.1_ascend_20231124-cp38-cp38-linux_aarch64.whl
 # install megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
 # install deepspeed and deepspeed_npu
@@ -169,9 +172,9 @@ bash examples/intern/pretrain_internlm_7b_zero.sh
 The performance of Internlm-7B in **Ascend NPU** and **Reference**:
 
 | Device | Model       | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
-| ------ | ----------- | ---------------- | ----------------------------- | ---------------------------- | ------------------------- | ----------------------------------- |
-| NPUs   | Internlm-7B | 2048             | 1.355                         | 2777                         | 5.90                      | 161.22                              |
-| Reference   | Internlm-7B | 2048             | 1.344                         | 2753                        | 5.95                      | 158.60                             |
+|----|-------------|------|--------------------|----------------------|-----------------|------------------|
+| NPUs | Internlm-7B | 2048 | 13.000              | 3328                 | 19684.6            | 145.69           |
+| benchmarks | Internlm-7B | - | -              | 4078                 |  -            | -           |
 
 
 
