@@ -175,7 +175,7 @@ LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">训练</a> </td>
     </tr>
     <tr>
-      <td rowspan="2"><a href="examples/llama2/README.md">LLaMA2</td>
+      <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</td>
       <td>7B</td>
       <td>1x8</td>
       <td>FP16 </td>
