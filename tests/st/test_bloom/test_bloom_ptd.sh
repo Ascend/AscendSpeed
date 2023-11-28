@@ -54,8 +54,6 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
     --embed-layernorm \
     --tokenizer-name-or-path $TOKENIZER_NAME_OR_PATH \
     --data-path $DATA_PATH \
-    --attention-dropout 0 \
-    --hidden-dropout 0 \
     --pad-vocab-size-to 250880 \
     --train-iters 5 \
     --lr-decay-iters 320000 \
@@ -97,4 +95,8 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
     --deepspeed_config ${config_json} \
     --zero-stage 0 \
     --deepspeed-activation-checkpointing  \
-    --distributed-backend nccl
+    --distributed-backend nccl \
+    --no-add-gate \
+    --add-bias-linear \
+    --no-attention-softmax-in-fp32 \
+    --no-untie-embeddings-and-output-weights

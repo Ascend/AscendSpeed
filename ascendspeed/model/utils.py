@@ -20,10 +20,13 @@ import math
 import torch
 
 from ascendspeed import get_args
+from ascendspeed.model import LayerNorm
+from ascendspeed.model.rms_norm import RMSNorm
 
 
 def init_method_normal(sigma):
     """Init method based on N(0, sigma)."""
+
     def init_(tensor):
         return torch.nn.init.normal_(tensor, mean=0.0, std=sigma)
 
@@ -79,3 +82,21 @@ def openai_gelu(x):
 @torch.jit.script
 def erf_gelu(x):
     return x * 0.5 * (torch.erf(x / 1.41421).to(dtype=x.dtype) + torch.ones_like(x).to(dtype=x.dtype))
+
+
+def get_norm(config):
+    args = get_args()
+    if args.normalization == "LayerNorm":
+        return LayerNorm(
+            args.hidden_size,
+            eps=args.layernorm_epsilon)
+    elif args.normalization == "RMSNorm":
+        if args.apply_layernorm_1p:
+            raise NotImplementedError('RMSNorm does not currently support the layernorm_1p formulation.')
+
+        else:
+            return RMSNorm(dim=config.hidden_size,
+                           eps=config.layernorm_epsilon,
+                           sequence_parallel=config.sequence_parallel)
+    else:
+        raise Exception(f"unsupported norm type '{args.normalization}'.")

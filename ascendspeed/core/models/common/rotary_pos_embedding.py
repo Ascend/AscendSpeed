@@ -2,8 +2,10 @@
 
 import torch
 from torch import nn
+import torch_npu
 
 from ascendspeed.error_utils import check_divisible_by_zero
+
 __all__ = ['RotaryEmbedding', 'apply_rotary_pos_emb']
 
 
@@ -17,16 +19,16 @@ class RotaryEmbedding(nn.Module):
         seq_len_interpolation_factor (float, optional): scale of linearly interpolating RoPE for longer sequences. The value must be a float larger than 1.0. Defaults to None
     """
 
+
     def __init__(self, kv_channels, base=10000.0, rotary_percent=1.0, seq_len_interpolation_factor=None):
         super().__init__()
-
         dim = kv_channels
         if rotary_percent < 1.0:
             dim = int(dim * rotary_percent)
-        
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
-        exponent = torch.arange(0, dim, 2).double().to(torch.npu.current_device()) / dim
-        self.inv_freq = 1.0 / (base ** exponent).float()
+        exponent = torch.arange(0, dim, 2, dtype=torch.float32, device=torch.npu.current_device()) / dim
+        inv_freq = 1.0 / (base ** exponent)
+        self.register_buffer('inv_freq', inv_freq)
 
     def forward(self, max_seq_len, offset=0):
         """
@@ -39,21 +41,16 @@ class RotaryEmbedding(nn.Module):
         Returns:
             Tensor: Embeddings after applying RoPE.
         """
-        seq = (torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype) + offset)
-
+        seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         if self.seq_len_interpolation_factor is not None:
-            seq *= check_divisible_by_zero(1, self.seq_len_interpolation_factor)
-        
+            seq = seq.type_as(self.inv_freq)
+            seq *= 1 / self.seq_len_interpolation_factor
         freqs = torch.outer(seq, self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
         emb = torch.cat((freqs, freqs), dim=-1)
         # emb [seq_length, .., dim]
         return emb[:, None, None, :]
-    
-    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
-        state_dict.pop(f'{prefix}inv_freq', None)
-        return super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
 
 def _rotate_half(x):
@@ -84,3 +81,9 @@ def apply_rotary_pos_emb(t, freqs):
     sin_ = torch.sin(freqs).to(t.dtype)
     t = (t * cos_) + (_rotate_half(t) * sin_)
     return torch.cat((t, t_pass), dim=-1)
+
+
+def apply_fused_rotary_pos_emb(t, freqs):
+    cos = torch.cos(freqs)
+    sin = torch.sin(freqs)
+    return torch_npu.npu_rotary_mul(t, cos, sin).to(t.dtype)

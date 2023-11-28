@@ -62,6 +62,9 @@ deepspeed  pretrain_intern.py \
        --pipeline-model-parallel-size 1 \
        --num-layers 32 \
        --hidden-size 4096 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
+       --add-bias-linear \
        --ffn-hidden-size 11008 \
        --num-attention-heads 32 \
        --micro-batch-size $MICRO_BATCH \

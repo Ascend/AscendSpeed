@@ -52,4 +52,8 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --eval-interval 1000 \
        --eval-iters 10 \
        --release-fp32-grad \
-       --fp16
+       --fp16 \
+       --no-add-gate \
+       --add-bias-linear \
+       --no-attention-softmax-in-fp32 \
+       --no-untie-embeddings-and-output-weights

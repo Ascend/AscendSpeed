@@ -78,6 +78,8 @@ deepspeed pretrain_llama.py \
        --global-batch-size $GLOBAL_BATCH \
        --seq-length 4096 \
        --max-position-embeddings 4096 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --train-iters 500000 \
        --lr-decay-iters 320000 \
        --save $CHECKPOINT_PATH \

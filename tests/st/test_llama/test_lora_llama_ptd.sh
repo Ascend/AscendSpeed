@@ -34,7 +34,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --num-attention-heads 32 \
        --micro-batch-size 2 \
        --global-batch-size 8 \
-       --seq-length 128 \
+       --seq-length 96 \
        --max-position-embeddings 2048 \
        --train-iters 2 \
        --lr-decay-iters 320000 \
@@ -53,10 +53,14 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
        --checkpoint-activations \
+       --recompute-method block \
        --log-interval 1 \
        --save-interval 10000 \
        --eval-interval 1000 \
-       --fp16
+       --eval-iters 1 \
+       --fp16 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
 
 # save lora adapter
 MASTER_PORT=6016
@@ -74,7 +78,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --num-attention-heads 32 \
        --micro-batch-size 2 \
        --global-batch-size 8 \
-       --seq-length 128 \
+       --seq-length 96 \
        --max-position-embeddings 2048 \
        --train-iters 2 \
        --lr-decay-iters 320000 \
@@ -93,12 +97,15 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
        --checkpoint-activations \
+       --recompute-method block \
        --log-interval 1 \
        --save-interval 10000 \
        --eval-interval 1000 \
-       --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
-       --lora-modules-to-save word_embeddings lm_head.lm_head \
-       --fp16
+       --eval-iters 1 \
+       --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
+       --fp16 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
 
 # load lora adapter
 MASTER_PORT=6017
@@ -116,7 +123,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --num-attention-heads 32 \
        --micro-batch-size 2 \
        --global-batch-size 8 \
-       --seq-length 128 \
+       --seq-length 96 \
        --max-position-embeddings 2048 \
        --train-iters 2 \
        --lr-decay-iters 320000 \
@@ -137,9 +144,12 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
        --checkpoint-activations \
+       --recompute-method block \
        --log-interval 1 \
        --save-interval 10000 \
        --eval-interval 1000 \
-       --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
-       --lora-modules-to-save word_embeddings lm_head.lm_head \
-       --fp16
+       --eval-iters 1 \
+       --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
+       --fp16 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \

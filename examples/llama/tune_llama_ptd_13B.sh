@@ -48,6 +48,8 @@ python -m torch.distributed.launch ${DISTRIBUTED_ARGS} \
        --global-batch-size ${GLOBAL_BATCH} \
        --seq-length 256 \
        --max-position-embeddings 2048 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --train-iters ${TRAIN_ITERS} \
        --save ${SAVE_CHECKPOINT_PATH} \
        --load ${LOAD_CHECKPOINT_PATH} \

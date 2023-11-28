@@ -122,16 +122,16 @@ def generate_ascendspeed_weights_again(config):
     for tp_rank in range(tp_size):
         for pp_rank in range(pp_size):
             model_dic = {"checkpoint_version": 3.0}
-            rank_model = {}
+            rank_model = {
+                "language_model": {"embedding": {"word_embeddings": {"weight": {}}}, "encoder": {}, "output_layer": {}}}
             emb_w = get_weight_from_name("model.embed_tokens.weight")
             emb_w = pad_embed(emb_w, make_vocab_size_divisible_by, tp_size, added_token_num)
 
             if pp_rank == 0:
-                rank_model["embedding.word_embeddings.weight"] = row_split(emb_w, tp_size, tp_rank)
-
+                rank_model["language_model"]["embedding"]["word_embeddings"]["weight"] = row_split(emb_w, tp_size, tp_rank)
             if pp_rank == pp_size - 1:
-                rank_model["language_model.final_layernorm.weight"] = get_weight_from_name("model.norm.weight").clone()
-                rank_model["lm_head.lm_head.weight"] = row_split(
+                rank_model["language_model"]["encoder"]["final_layernorm.weight"] = get_weight_from_name("model.norm.weight").clone()
+                rank_model["language_model"]["output_layer"]["weight"] = row_split(
                     pad_embed(get_weight_from_name("lm_head.weight"), make_vocab_size_divisible_by,
                               tp_size, added_token_num), tp_size, tp_rank)
 
@@ -143,23 +143,16 @@ def generate_ascendspeed_weights_again(config):
                     qw = row_split(ws[0], tp_size, tp_rank)
                     kw = row_split(ws[1], tp_size, tp_rank)
                     vw = row_split(ws[2], tp_size, tp_rank)
-                    if args.use_wpack_rotray:
-                        rank_model[f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"] = get_weight_from_name(
-                            f"model.layers.{ori_i}.self_attn.rotary_emb.inv_freq")
                 else:
-                    rank_model[f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"] = get_weight_from_name(
-                        f"model.layers.{ori_i}.self_attn.rotary_emb.inv_freq")
                     qw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.q_proj.weight"), tp_size, tp_rank)
                     kw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.k_proj.weight"), tp_size, tp_rank)
                     vw = row_split(get_weight_from_name(f"model.layers.{ori_i}.self_attn.v_proj.weight"), tp_size, tp_rank)
 
    
                 permute_w = permute_qkv_weight(torch.cat([qw, kw, vw], dim=0), (n_heads, hidden_size, tp_size, args.num_kv_heads))
-                rank_model[f"language_model.layers.{pp_i}.attention.query_key_value.weight"] = permute_w
-
-                rank_model[f"language_model.layers.{pp_i}.attention.dense.weight"] = column_split(
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.self_attention.query_key_value.weight"] = permute_w
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.self_attention.dense.weight"] = column_split(
                     get_weight_from_name(f"model.layers.{ori_i}.self_attn.o_proj.weight"), tp_size, tp_rank)
-
                 if args.bias:
                     qwb = row_split(get_weight_from_name(
                         f"model.layers.{ori_i}.self_attn.q_proj.bias"), tp_size, tp_rank)
@@ -168,34 +161,31 @@ def generate_ascendspeed_weights_again(config):
                     vwb = row_split(get_weight_from_name(
                         f"model.layers.{ori_i}.self_attn.v_proj.bias"), tp_size, tp_rank)
                     permute_bias = permute_qkv_bias(torch.cat([qwb, kwb, vwb], dim=0), n_heads, hidden_size, tp_size)
-                    rank_model[f"language_model.layers.{pp_i}.attention.query_key_value.bias"] = permute_bias
-                    rank_model[f"language_model.layers.{pp_i}.attention.dense.bias"] = \
-                        get_weight_from_name(f"model.layers.{ori_i}.self_attn.o_proj.bias")
+                    rank_model["language_model"]["encoder"][
+                        f"layers.{pp_i}.self_attention.query_key_value.bias"] = permute_bias
+                    rank_model["language_model"]["encoder"][f"layers.{pp_i}.self_attention.dense.bias"] = (
+                        get_weight_from_name(f"model.layers.{ori_i}.self_attn.o_proj.bias"))
 
                 gate_proj = row_split(
                     get_weight_from_name(f"model.layers.{ori_i}.mlp.gate_proj.weight"), tp_size, tp_rank)
                 up_proj = row_split(
                     get_weight_from_name(f"model.layers.{ori_i}.mlp.up_proj.weight"), tp_size, tp_rank)
                 if args.merge_mlp:
-                    rank_model[
-                        f"language_model.layers.{pp_i}.mlp.proj.weight"] = torch.cat(
+                    rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.proj.weight"] = torch.cat(
                         [gate_proj, up_proj], 0).contiguous().clone()
                 else:
-                    rank_model[
-                        f"language_model.layers.{pp_i}.mlp.gate_proj.weight"] = gate_proj
-                    rank_model[
-                        f"language_model.layers.{pp_i}.mlp.up_proj.weight"] = up_proj
-
-                rank_model[f"language_model.layers.{pp_i}.mlp.down_proj.weight"] = column_split(
+                    rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.gate_proj.weight"] = gate_proj
+                    rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.dense_h_to_4h.weight"] = up_proj
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.dense_4h_to_h.weight"] = column_split(
                     get_weight_from_name(f"model.layers.{ori_i}.mlp.down_proj.weight"), tp_size, tp_rank)
-
-                rank_model[f"language_model.layers.{pp_i}.input_layernorm.weight"] = get_weight_from_name(
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.input_layernorm.weight"] = get_weight_from_name(
                     f"model.layers.{ori_i}.input_layernorm.weight").clone()
-                rank_model[f"language_model.layers.{pp_i}.post_attention_layernorm.weight"] = get_weight_from_name(
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.post_attention_layernorm.weight"] = get_weight_from_name(
                     f"model.layers.{ori_i}.post_attention_layernorm.weight").clone()
             if tp_rank == 0 and pp_rank == 0:
                 print_model(rank_model)
             if not args.deepspeed:
+
                 save_ascendspeed_model_config = SaveAscendspeedModelConfig(model_dic, rank_model, pp_size,
                                                                        tp_rank, pp_rank, release_model_dir)
                 save_ascendspeed_model(save_ascendspeed_model_config)

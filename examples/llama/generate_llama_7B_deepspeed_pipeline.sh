@@ -52,3 +52,5 @@ deepspeed --num_nodes $NNODES --num_gpus $NPUS_PER_NODE \
        --seed 42 \
        --deepspeed \
        --deepspeed_config ${config_json} \
+       --position-embedding-type rope \
+       --normalization RMSNorm \

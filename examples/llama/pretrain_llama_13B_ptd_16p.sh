@@ -27,6 +27,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
       --pipeline-model-parallel-size 2 \
       --num-layers 40 \
       --hidden-size 5120 \
+      --position-embedding-type rope \
+      --normalization RMSNorm \
       --ffn-hidden-size 13824 \
       --num-attention-heads 40 \
       --micro-batch-size 1 \

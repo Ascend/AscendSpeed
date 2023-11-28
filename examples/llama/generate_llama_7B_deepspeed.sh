@@ -53,3 +53,5 @@ deepspeed --num_nodes $NNODES --num_gpus $NPUS_PER_NODE \
        --deepspeed \
        --deepspeed_config ${config_json} \
        --no-pipeline-parallel \
+       --position-embedding-type rope \
+       --normalization RMSNorm \

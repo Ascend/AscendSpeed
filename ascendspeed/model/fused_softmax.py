@@ -100,27 +100,28 @@ class NPUFusedScaleMaskSoftmax(nn.Module):
 
     def __init__(
             self,
-            input_in_fp16,
-            input_in_bf16,
+            config,
             attn_mask_type,
             scaled_masked_softmax_fusion,
             mask_func,
-            softmax_in_fp32,
             scale,
         ):
         super(NPUFusedScaleMaskSoftmax, self).__init__()
-        self.input_in_fp16 = input_in_fp16
-        self.input_in_bf16 = input_in_bf16
+        self.input_in_fp16 = config.fp16
+        self.input_in_bf16 = config.bf16
         expression = not (self.input_in_fp16 and self.input_in_bf16)
         ensure_valid(expression, error_message="both fp16 and bf16 flags cannot be active at the same time.")
         self.input_in_float16 = self.input_in_fp16 or self.input_in_bf16
         self.attn_mask_type = attn_mask_type
+        self.apply_query_key_layer_scaling = config.apply_query_key_layer_scaling
+        self.attention_softmax_in_fp32 = config.attention_softmax_in_fp32
+        if self.apply_query_key_layer_scaling:
+            self.attention_softmax_in_fp32 = True
         self.scaled_masked_softmax_fusion = scaled_masked_softmax_fusion
         self.mask_func = mask_func
-        self.softmax_in_fp32 = softmax_in_fp32
         self.scale = scale
 
-        ensure_valid(self.scale is None or softmax_in_fp32, error_message="softmax should be in fp32 when scaled")
+        ensure_valid(self.scale is None or self.attention_softmax_in_fp32, error_message="softmax should be in fp32 when scaled")
 
     def forward(self, input_, mask):
         # [b, np, sq, sk]
@@ -141,10 +142,11 @@ class NPUFusedScaleMaskSoftmax(nn.Module):
         )
 
     def npu_forward_fused_softmax(self, input_, mask):
+        self.scale = self.scale if self.scale is not None else 1.0
         return torch_npu.npu_scaled_masked_softmax(input_, mask, self.scale, False)
 
     def npu_forward_torch_softmax(self, input_, mask):
-        if self.input_in_float16 and self.softmax_in_fp32:
+        if self.input_in_float16 and self.attention_softmax_in_fp32:
             input_ = input_.float()
 
         if self.scale is not None:
@@ -152,7 +154,7 @@ class NPUFusedScaleMaskSoftmax(nn.Module):
         mask_output = self.mask_func(input_, mask) if mask is not None else input_
         probs = torch.nn.Softmax(dim=-1)(mask_output)
 
-        if self.input_in_float16 and self.softmax_in_fp32:
+        if self.input_in_float16 and self.attention_softmax_in_fp32:
             probs = probs.half() if self.input_in_fp16 else probs.bfloat16()
         return probs
 
