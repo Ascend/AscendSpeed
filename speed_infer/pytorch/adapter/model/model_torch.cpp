@@ -33,7 +33,7 @@
 #include "llama/7b/model/fusion_model.h"
 #include "llama/7b/model/rope_model.h"
 #include "llama/7b/model/quant_flashattention_model.h"
-#include "llama/model/pa_model.h"
+#include "llama_pa/model/pa_model.h"
 
 uint64_t GetNewModelId()
 {
