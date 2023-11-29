@@ -53,6 +53,8 @@ public:
 
     struct Graph {
         std::vector<atb::Tensor> weightTensors;
+        std::vector<atb::Tensor> kCacheTensors;
+        std::vector<atb::Tensor> vCacheTensors;
         std::vector<atb::Tensor> inTensors;
         std::vector<atb::Tensor> outTensors;
         std::vector<atb::Tensor> internalTensors;
@@ -75,6 +77,7 @@ public:
         std::vector<atb::TensorDesc> &outTensorDescs) = 0;
 
     void SetWeight(const std::vector<atb::Tensor> &weightTensors);
+    void SetKVCache(const std::vector<atb::Tensor> &kCacheTensors, const std::vector<atb::Tensor> &vCacheTensors);
     atb::Status Execute(atb::Context *context, std::vector<atb::Tensor> &inTensors, 
         std::vector<atb::Tensor> &outTensors,const std::string &param);
 

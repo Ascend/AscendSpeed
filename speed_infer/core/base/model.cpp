@@ -163,6 +163,24 @@ void Model::SetWeight(const std::vector<atb::Tensor> &weightTensors)
     graph_.weightTensors = weightTensors;
 }
 
+void Model::SetKVCache(const std::vector<atb::Tensor> &kCacheTensors, const std::vector<atb::Tensor> &vCacheTensors)
+{
+    if (graph_.kCacheTensors.size() != kCacheTensors.size()) {
+        ATB_LOG(ERROR) << modelName_ << " kCacheTensors.size:" << kCacheTensors.size() << " != "
+                       << " graph.kCacheTensors.size:" << graph_.kCacheTensors.size();
+        return;
+    }
+
+    if (graph_.vCacheTensors.size() != vCacheTensors.size()) {
+        ATB_LOG(ERROR) << modelName_ << " vCacheTensors.size:" << vCacheTensors.size() << " != "
+                       << " graph.vCacheTensors.size:" << graph_.vCacheTensors.size();
+        return;
+    }
+
+    graph_.kCacheTensors = kCacheTensors;
+    graph_.vCacheTensors = vCacheTensors;
+}
+
 atb::Status Model::Execute(atb::Context *context, std::vector<atb::Tensor> &inTensors,
                            std::vector<atb::Tensor> &outTensors, const std::string &param)
 {
