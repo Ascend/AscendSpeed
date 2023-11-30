@@ -696,7 +696,7 @@ def _add_training_args(parser):
                        action='store_true',
                        help='If set, distribute recomputed activations '
                        'across model parallel group.')
-    group.add_argument('--recompute-method', type=str, default=None,
+    group.add_argument('--recompute-method', type=str, default='uniform',
                        choices=['uniform', 'block', "custom"],
                        help='1) uniform: uniformly divide the total number of '
                        'Transformer layers and recompute the input activation of '
