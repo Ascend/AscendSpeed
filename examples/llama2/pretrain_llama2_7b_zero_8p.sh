@@ -63,7 +63,7 @@ ds_args=" --deepspeed-activation-checkpointing ${ds_args}"
 
 # Main script
 deepspeed pretrain_llama.py \
-       --auto-recompute-device-size 51200 \
+       --auto-recompute-device-size 48128 \
        --use-fused-rotary-pos-emb \
        --triangle-attn \
        --triangle-block-size 1024 \
