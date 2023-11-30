@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from llama.ckpt_utils import (column_split, row_split, pad_embed, permute_qkv_weight,
-                                print_model, make_ascendspeed_model_dirs, save_ascendspeed_model)
+from tools.ckpt_convert.llama.ckpt_utils import (column_split, row_split, pad_embed, permute_qkv_weight,
+                                                 print_model, make_ascendspeed_model_dirs, save_ascendspeed_model)
 
 
 def get_args():

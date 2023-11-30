@@ -50,6 +50,8 @@ def model_provider(pre_process=True, post_process=True):
     args = get_args()
     config = core_transformer_config_from_args(args)
     # internlm模型配置
+    config.column_parallel_linear_bias = True
+    config.row_parallel_linear_bias = True
     config.row_parallel_linear_skip_bias_add = False
     with deepspeed.zero.Init(data_parallel_group=parallel_state.get_data_parallel_group(),
                              remote_device=None if args.remote_device == 'none' else args.remote_device,

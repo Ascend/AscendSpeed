@@ -110,34 +110,37 @@ class ParallelMLP(MegatronModule):
         self.gated_linear_unit = config.gated_linear_unit
         if config.gated_linear_unit or self.layer_fusion:
             ffn_hidden_size *= 2
-        ensure_valid(sum([args.mlp_layer_fusion, not args.no_add_gate, config.gated_linear_unit]) <= 1,
-                     f"only can use one method in [mlp_layer_fusion :{args.mlp_layer_fusion},add_gate :"
-                     f"{not args.no_add_gate},gated_linear_unit :{config.gated_linear_unit}],")
-        self.add_gate = not args.no_add_gate and not self.layer_fusion and not self.gated_linear_unit
-        if self.layer_fusion and not self.gated_linear_unit:
-            self.proj = tensor_parallel.ColumnParallelLinear(
-                config.hidden_size,
-                ffn_hidden_size,
-                config=config,
-                init_method=config.init_method,
-                bias=self.add_bias,
-                gather_output=False,
-                skip_bias_add=True,
-                moe=moe,
-                enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
-            )
+        ensure_valid(sum([args.add_gate, config.gated_linear_unit]) <= 1,
+                     f"only can use one method in [add_gate :"
+                     f"{args.add_gate},gated_linear_unit :{config.gated_linear_unit}],")
+        self.add_gate = args.add_gate
+
         if self.add_gate:
-            self.gate_proj = tensor_parallel.ColumnParallelLinear(
-                config.hidden_size,
-                ffn_hidden_size,
-                config=config,
-                init_method=config.init_method,
-                bias=self.add_bias,
-                gather_output=False,
-                skip_bias_add=True,
-                moe=moe,
-                enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
-            )
+            if self.layer_fusion:
+                self.proj = tensor_parallel.ColumnParallelLinear(
+                    config.hidden_size,
+                    ffn_hidden_size,
+                    config=config,
+                    init_method=config.init_method,
+                    bias=self.add_bias,
+                    gather_output=False,
+                    skip_bias_add=True,
+                    moe=moe,
+                    enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
+                )
+            else:
+                self.gate_proj = tensor_parallel.ColumnParallelLinear(
+                    config.hidden_size,
+                    ffn_hidden_size,
+                    config=config,
+                    init_method=config.init_method,
+                    bias=self.add_bias,
+                    gather_output=False,
+                    skip_bias_add=True,
+                    moe=moe,
+                    enable_expert_tensor_parallelism=enable_expert_tensor_parallelism
+                )
+
         if not self.layer_fusion:
             # Project to 4h. If using swiglu double the output width
             self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
@@ -190,13 +193,15 @@ class ParallelMLP(MegatronModule):
     def forward(self, hidden_states):
 
         if self.add_gate:
-            intermediate_parallel = F.silu(
-                self.gate_proj(hidden_states)[0]) * self.dense_h_to_4h(hidden_states)[0]
-        elif self.layer_fusion:
-            gate_and_up_proj = self.proj(hidden_states)[0]
-            (gate, up_proj) = tensor_parallel.utils.split_tensor_along_last_dim(
-                gate_and_up_proj, 2, contiguous_split_chunks=True)
-            intermediate_parallel = self.activation_func(gate) * up_proj
+            if self.layer_fusion:
+                gate_and_up_proj = self.proj(hidden_states)[0]
+                (gate, up_proj) = tensor_parallel.utils.split_tensor_along_last_dim(
+                    gate_and_up_proj, 2, contiguous_split_chunks=True)
+                intermediate_parallel = F.silu(gate) * up_proj
+            else:
+                intermediate_parallel = F.silu(
+                    self.gate_proj(hidden_states)[0]) * self.dense_h_to_4h(hidden_states)[0]
+
         else:
             # [s, b, 4hp]
             intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
@@ -464,12 +469,14 @@ class ParallelAttention(MegatronModule):
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
+            # 适配internlm模型
+            bias = getattr(config, "column_parallel_linear_bias", args.add_bias_linear)
             self.query_key_value = tensor_parallel.ColumnParallelLinear(
                 config.hidden_size,
                 query_projection_size + 2 * kv_projection_size,
                 config=config,
                 init_method=config.init_method,
-                bias=args.add_bias_linear,
+                bias=bias,
                 gather_output=False)
         else:
             ensure_valid(attention_type == AttnType.cross_attn)
@@ -516,6 +523,7 @@ class ParallelAttention(MegatronModule):
                                                 self.attn_mask_type)
 
         # 适配internlm模型
+        bias = getattr(config, "row_parallel_linear_bias", args.add_bias_linear)
         skip_bias_add = getattr(config, "row_parallel_linear_skip_bias_add", True)
         # Output.
         self.dense = tensor_parallel.RowParallelLinear(
@@ -523,7 +531,7 @@ class ParallelAttention(MegatronModule):
             config.hidden_size,
             config=config,
             init_method=config.output_layer_init_method,
-            bias=args.add_bias_linear,
+            bias=bias,
             input_is_parallel=True,
             skip_bias_add=skip_bias_add)
 

@@ -54,6 +54,11 @@ python -m torch.distributed.run $DISTRIBUTED_ARGS \
        --layernorm-epsilon 1e-6 \
        --fp16 \
        --no-load-optim \
-       --no-load-rng
+       --no-load-rng \
+       --no-add-gate \
+       --add-bias-linear \
+       --query-key-layer-scaling \
+       --no-attention-softmax-in-fp32 \
+       --no-untie-embeddings-and-output-weights \
        --seed 42 | tee logs/train.log
 

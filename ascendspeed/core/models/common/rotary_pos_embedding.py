@@ -26,9 +26,8 @@ class RotaryEmbedding(nn.Module):
         if rotary_percent < 1.0:
             dim = int(dim * rotary_percent)
         self.seq_len_interpolation_factor = seq_len_interpolation_factor
-        exponent = torch.arange(0, dim, 2, dtype=torch.float32, device=torch.npu.current_device()) / dim
-        inv_freq = 1.0 / (base ** exponent)
-        self.register_buffer('inv_freq', inv_freq)
+        exponent = torch.arange(0, dim, 2).double().to(torch.npu.current_device()) / dim
+        self.inv_freq = 1.0 / (base ** exponent).float()
 
     def forward(self, max_seq_len, offset=0):
         """
