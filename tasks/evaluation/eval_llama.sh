@@ -39,4 +39,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS tasks/evaluation/evaluation
        --tokenizer-not-use-fast \
        --fp16  \
        --micro-batch-size 1  \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --seed 42 | tee logs/train.log

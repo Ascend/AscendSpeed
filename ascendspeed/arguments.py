@@ -559,7 +559,7 @@ def _add_network_size_args(parser):
     group.add_argument('--use-fused-rmsnorm', action='store_true', help='use fused norm')
     group.add_argument('--embedding-weights-in-fp32', action='store_true',
                        help='Cast word embedding weights to fp32 before embedding fwd.'),
-    group.add_argument('--no-add-gate', action='store_true', default=False, dest="no_add_gate",
+    group.add_argument('--no-add-gate', action='store_false', default=True, dest="add_gate",
                        help='Do not add gate layer in model.'),
     return parser
 

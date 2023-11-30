@@ -20,7 +20,7 @@ import logging
 from torch import distributed as dist
 from transformers import LlamaTokenizer
 from ascendspeed import get_args
-from ascendspeed.model import LlamaModel
+from ascendspeed.model import GPTModel
 from ascendspeed.initialize import initialize_megatron
 from ascendspeed.arguments import core_transformer_config_from_args
 from tasks.evaluation.eval_api.chat import Chat
@@ -41,10 +41,9 @@ logger = logging.getLogger(__name__)
 def model_provider(pre_process=True, post_process=True):
     config = core_transformer_config_from_args(get_args())
     """Build the model."""
-    init_model = LlamaModel(
+    init_model = GPTModel(
         config,
         parallel_output=False,
-        add_pooler=False,
         pre_process=pre_process,
         post_process=post_process
     )
@@ -205,7 +204,7 @@ if __name__ == "__main__":
                         args_defaults={'no_load_rng': True,
                                        'no_load_optim': True})
     args = get_args()
-    model = LlamaModel.from_pretrained(
+    model = GPTModel.from_pretrained(
         model_provider=model_provider,
         pretrained_model_name_or_path=args.load
     )
