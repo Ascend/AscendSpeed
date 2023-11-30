@@ -838,7 +838,7 @@ class DistributedOptimizerWithoutFP32Grad(DistributedOptimizer):
         norm_coeff_scale = self.grad_scaler.inv_scale if self.grad_scaler else self.inv_scale
         if self.clip_grad > 0.0:
             grad_norm, clip_coeff = self.get_clip_grad_norm(self.clip_grad, use_global_grad_norm=True)
-            norm_coeff_scale *= clip_coeff
+            norm_coeff_scale = norm_coeff_scale * clip_coeff
         timers('optimizer-clip-main-grad').stop()
 
         # Step the optimizer.
