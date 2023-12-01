@@ -52,7 +52,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --checkpoint-activations \
        --checkpoint-policy custom \
        --recomputation-layer-num 3 2 1 0 0 0 0 0 \
-       --triangle-attn \
        --use-fused-rotary-pos-emb \
        --release-fp32-grad \
        --use-flash-attn \
