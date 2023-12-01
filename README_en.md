@@ -127,9 +127,9 @@ Coming soon ...
       <td><a href="examples/intern/README.md">InternLM</td>
       <td>7B</td>
       <td>1x8</td>
-      <td>FP16</td>
-      <td> 2777 </td>
-      <td> 2800 </td>
+      <td>BF16</td>
+      <td> 3328 </td>
+      <td> 4078 </td>
       <td>  <a href="sources/images/intern7b_loss.png">Loss</a>  </td>
       <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">Train</a> </td>
     </tr>

@@ -28,13 +28,14 @@ InternLM-7B 训练的软件配置如下:
 
 |            软件             |                                                      配置                                                      |
 |:-------------------------:|:------------------------------------------------------------------------------------------------------------:|
-|          python           |                                                    3.7.16                                                    |
+|          python           |                                                    3.8.18                                                    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                    |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
+|         apex         |                             [package](https://gitee.com/ascend/apex/releases)                             |
 
 ### 脚本
 
@@ -50,11 +51,13 @@ mkdir ckpt
 
 ```bash
 # python3.7
-conda create -n test python=3.7
+conda create -n test python=3.8
 conda activate test
 # 安装 torch 和 torch_npu
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
-pip install torch_npu-1.11.0.post4_XXXXXX-cp37-cp37m-linux_aarch64.whl
+pip install torch-2.1.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+pip install torch_npu-2.1.0.post20231124_cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+# 安装 apex
+pip install apex-0.1_ascend_20231124-cp38-cp38-linux_aarch64.whl
 # 安装 megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
 # 安装 deepspeed 和 deepspeed_npu
@@ -173,8 +176,8 @@ Internlm-7B 在 **昇腾芯片** 和 **参考芯片** 上的性能对比：
 
 | 设备 | 模型          | 总迭代数 | 样本吞吐 (samples/p/s) | token吞吐 (tokens/p/s) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
 |----|-------------|------|--------------------|----------------------|-----------------|------------------|
-| NPUs | Internlm-7B | 2048 | 1.355              | 2777                 | 5.90            | 161.22           |
-| 参考 | Internlm-7B | 2048 | 1.344              | 2753                 | 5.95            | 158.60           |
+| NPUs | Internlm-7B | 2048 | 13.000              | 3328                 | 19684.6            | 145.69           |
+| 参考 | Internlm-7B | - | -              | 4078                 |  -            | -           |
 
 
 
