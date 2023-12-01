@@ -510,11 +510,11 @@ There are other Lora related arguments here, you can find their definitions in t
 # Llama example
 --lora-r 64 \
 --lora-alpha 128 \
---lora-modules-to-save word_embeddings lm_head.lm_head \
+--lora-modules-to-save word_embeddings output_layer \
 --lora-register-forward-hook word_embeddings input_layernorm \
 ```
 
-Among them, the argument `--lora-register-forward-hook` is used to repair the gradient chain break caused by PP. It only needs to be set to the input layer of each PP stage, and the repair will not increase the trainable parameters.
+Among them, the argument `--lora-register-forward-hook` is used to repair the gradient chain break caused by PP. It only needs to be set to the input layer of each PP stage, and the repair will not increase the trainable parameters. The argument `--lora-modules-to-save` is used for fine-tuning when expanding the vocabulary. If there is no need for this, there is no need to pass in this argument.
 
 Finally, only Lora's parameters are saved after turning on Lora. Similarly, when loading a model, you need to specify the original model weight path and the Lora weight path. Parameters such as the optimizer are subject to those in the Lora weight path.
 

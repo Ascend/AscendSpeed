@@ -18,6 +18,8 @@
 import os
 import random
 import sys
+import traceback
+
 import numpy as np
 from deepspeed import PipelineEngine
 from deepspeed.accelerator import get_accelerator
@@ -180,6 +182,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
             torch.save(state_dict, checkpoint_name)
 
     if args.deepspeed:
+        original_state_dict = None
         # ascendspeed model uses state_dict_for_save_checkpointing instead of the standard state_dict
         # state_dict is used by deepspeed for module saving so it needs to point to the right function
         if args.no_pipeline_parallel:
@@ -190,6 +193,8 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
             model[0].module.state_dict = state_dict_for_save_checkpoint_deepspeed
         if is_enable_lora():
+            if original_state_dict is None:
+                original_state_dict = model[0].module.state_dict
             model[0].module.state_dict = get_lora_state_dict_with_deepspeed(model=model[0])
 
         # Saving is a collective communication
@@ -200,7 +205,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
             checkpoint_name = os.path.dirname(checkpoint_name)
         model[0].save_checkpoint(checkpoint_name, client_state=state_dict)
 
-        if args.no_pipeline_parallel:
+        if original_state_dict is not None:
             model[0].module.state_dict = original_state_dict
 
     save_checkpoint_post_process(iteration)
@@ -386,7 +391,7 @@ def get_state_dict_and_release(load_dir, lora_load_dir=None):
         sys.modules.pop('megatron.fp16.loss_scaler', None)
     except BaseException as e:
         print_rank_0('could not load the checkpoint')
-        print_rank_0(e)
+        traceback.print_exc()
         sys.exit()
 
     return state_dict, release, checkpoint_name

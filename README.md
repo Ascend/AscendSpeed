@@ -498,11 +498,11 @@ Lora有一些相关参数，在 [PEFT](https://github.com/huggingface/peft) 仓�
 # Llama example
 --lora-r 64 \
 --lora-alpha 128 \
---lora-modules-to-save word_embeddings lm_head.lm_head \
+--lora-modules-to-save word_embeddings output_layer \
 --lora-register-forward-hook word_embeddings input_layernorm \
 ```
 
-在这些参数中，标志 `--lora-register-forward-hook` 被用于修复由PP造成的梯度链中断，它仅仅只需要在每一个PP阶段的输入层设置，并不会增加训练参数。
+在这些参数中，标志 `--lora-register-forward-hook` 被用于修复由PP造成的梯度链中断，它仅仅只需要在每一个PP阶段的输入层设置，并不会增加训练参数。 标志 `--lora-modules-to-save` 被用于扩展词表时的微调，若没此需求则无需传入此参数。
 
 最后，Lora微调后保存的权重仅仅只会包含新增的Lora权重。相似的，当你加载一个Lora模型时，除了原始权重路径需要设置，还需要设置一个加载Lora权重的路径，如下：
 
