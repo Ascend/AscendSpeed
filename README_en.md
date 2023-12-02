@@ -30,7 +30,7 @@ Currently, the following models has been supported:
 
 * <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[[README: 7B/13B]](examples/baichuan/README.md)
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[README: 7B/176B]](examples/bloom/README.md)
-* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[README: 7B]](examples/intern/README.md)
+* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[README: 7B/65B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[README: 7B/13B/33B/65B]](examples/llama/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[README: 7B/13B/70B]](examples/llama2/README.md)
 
@@ -124,7 +124,7 @@ Coming soon ...
       <td> <a href="examples/bloom/pretrain_bloom_176b.sh">Train</a> </td>
     </tr>
     <tr>
-      <td><a href="examples/intern/README.md">InternLM</td>
+      <td rowspan="2"><a href="examples/intern/README.md">InternLM</a></td>
       <td>7B</td>
       <td>1x8</td>
       <td>BF16</td>
@@ -132,6 +132,15 @@ Coming soon ...
       <td> 4078 </td>
       <td>  <a href="sources/images/intern7b_loss.png">Loss</a>  </td>
       <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">Train</a> </td>
+    </tr>
+    <tr>
+      <td >65B</td>
+      <td >4x8</td>
+      <td> BF16 </td>
+      <td> 342 </td>
+      <td> 414 </td>
+      <td> <a href="sources/images/intern65b_loss.png">Loss</a> </td>
+      <td> <a href="examples/intern/pretrain_internlm_65b_ptd_32p.sh">Train</a> </td>
     </tr>
     <tr>
       <td rowspan="5"><a href="examples/llama/README.md">LLaMA</td>
