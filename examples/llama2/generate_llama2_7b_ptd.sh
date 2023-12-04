@@ -38,6 +38,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --seq-length 4096 \
        --max-new-tokens 256 \
        --use-flash-attn \
+       --use-fused-rmsnorm \
        --seed 42 \
        --position-embedding-type rope \
        --normalization RMSNorm \

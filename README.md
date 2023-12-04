@@ -16,25 +16,25 @@
 </p>
 <p align="center">
         <b>简体中文</b> |
-        <b><a href="https://gitee.com/fengliangjun66/AscendSpeed/blob/master/README_en.md">English</a> </b> 
+        <b><a href="https://gitee.com/fengliangjun66/AscendSpeed/blob/master/README_en.md">English</a> </b>
     </p>
 </p>
 
 AscendSpeed旨在为华为 [昇腾芯片](https://open.codehub.huawei.com/OpenBaize/Ascend/ascendspeed/files?ref=master&filePath=examples%2Fbaichuan%2Fpretrain_baichuan_zero_7B.sh&isFile=true) 上的大语言模型提供端到端的解决方案, 包含模型，算法，算子，以及下游任务。
 
-## AscendSpeed解决方案概览 
+## AscendSpeed解决方案概览
 
 ---
 ### 大语言模型
-当前AscendSpeed支持下列模型的预训练以及全参微调: 
-
+当前AscendSpeed支持下列模型的预训练以及全参微调:
+* <a href="https://huggingface.co/BAAI/Aquila-7B/tree/main" style="color:green">Aquila</a>-[[使用说明: 7B]](examples/aquila/README.md)
 * <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[[使用说明: 7B/13B]](examples/baichuan/README.md)
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[使用说明: 7B/176B]](examples/bloom/README.md)
-* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[使用说明: 7B]](examples/intern/README.md)
+* <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[使用说明: 7B/65B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[使用说明: 7B/13B/33B/65B]](examples/llama/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[使用说明: 7B/13B/70B]](examples/llama2/README.md)
 
-LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
+LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
 
 ### 下游任务
 当前AscendSpeed为大模型提供以下周边应用:
@@ -87,6 +87,16 @@ LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
   </thead>
   <tbody>
     <tr>
+      <td rowspan="1"><a href="examples/aquila/README.md">Aquila</a></td>
+      <td>7B</td>
+      <td> 1x8</td>
+      <td> FP16 </td>
+      <td> 3644 </td>
+      <td> 4078 </td>
+      <td> <a href="./sources/images/aquila/aquila_comp1130.png">Loss</a> </td>
+      <td> <a href="examples/aquila/pretrain_aquila_7B.sh">训练</a> </td>
+    </tr>
+    <tr>
       <td rowspan="2"><a href="examples/baichuan/README.md">Baichaun</a></td>
       <td>7B</td>
       <td> 1x8</td>
@@ -125,7 +135,7 @@ LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td> <a href="examples/bloom/pretrain_bloom_176b.sh">训练</a> </td>
     </tr>
     <tr>
-      <td><a href="examples/intern/README.md">InternLM</td>
+      <td rowspan="2"><a href="examples/intern/README.md">InternLM</a></td>
       <td>7B</td>
       <td>1x8</td>
       <td>BF16</td>
@@ -133,6 +143,15 @@ LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td> 4078 </td>
       <td>  <a href="sources/images/intern7b_loss.png">Loss</a>  </td>
       <td> <a href="examples/intern/pretrain_internlm_7b_zero.sh">训练</a> </td>
+    </tr>
+    <tr>
+      <td >65B</td>
+      <td >4x8</td>
+      <td> BF16 </td>
+      <td> 342 </td>
+      <td> 414 </td>
+      <td> <a href="sources/images/intern65b_loss.png">Loss</a> </td>
+      <td> <a href="examples/intern/pretrain_internlm_65b_ptd_32p.sh">训练</a> </td>
     </tr>
     <tr>
       <td rowspan="5"><a href="examples/llama/README.md">LLaMA</td>
@@ -178,11 +197,11 @@ LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
       <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</td>
       <td>7B</td>
       <td>1x8</td>
-      <td>FP16 </td>
-      <td> 2712 </td>
-      <td> 2348 </td>
-      <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
-      <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">训练</a> </td>
+      <td>BF16 </td>
+      <td> 2662 </td>
+      <td> 2884 </td>
+      <td> <a href="sources/images/llama2/llama2-7b-tp8pp1mbs4gbs16-cann1115-Megatron-GPU-loss-releative.png">Loss</a> </td>
+      <td> <a href="examples/llama2/pretrain_llama2_7b_ptd.sh">训练</a> </td>
     </tr>
     <tr>
       <td>13B</td>
@@ -212,8 +231,8 @@ LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B 等模型即将上线...
 1. 拷贝仓库到你的个人服务器:
 
 ```bash
-git clone https://gitee.com/ascend/AscendSpeed.git 
-cd AscendSpeed 
+git clone https://gitee.com/ascend/AscendSpeed.git
+cd AscendSpeed
 mkdir logs
 mkdir ckpt
 ```
@@ -285,7 +304,7 @@ python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-mode
 5. 启动训练
 
 ```bash
-# 在脚本中设置你自己的数据/权重/tokenizer等路径  
+# 在脚本中设置你自己的数据/权重/tokenizer等路径
 sh examples/llama/pretrain_llama_7B_zero_8p.sh
 ```
 
@@ -370,10 +389,10 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
     <tr>
       <td><a href="examples/llama2/README.md">LLaMA2</a></td>
       <td>7B</td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/tune_llama2_7b_ptd.sh">lora</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_7b_ptd.sh">对话 </a> </td>
       <td> -- </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">对话 </a> </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json </td>
     </tr>
   </tbody>
 </table>
@@ -469,7 +488,7 @@ python tools/preprocess_data.py --input WORKSPACE/alpaca/train-00000-of-00001-a0
                                 --handler-name GeneralInstructionHandler
 ```
 
-在处理后，`WORKSPACE/alpaca_preprocessed` 文件夹下会有3个 `bin` 文件 和 3个 `idx` 文件，我们便可以通过添加 `--data-path WORKSPACE/alpaca_preprocessed/alpaca` 和 `--is-instruction-dataset` 标志来进行指令微调。 
+在处理后，`WORKSPACE/alpaca_preprocessed` 文件夹下会有3个 `bin` 文件 和 3个 `idx` 文件，我们便可以通过添加 `--data-path WORKSPACE/alpaca_preprocessed/alpaca` 和 `--is-instruction-dataset` 标志来进行指令微调。
 此外，基于指令数据集，我们还可以通过加上 `--variable-seq-lengths` 标志使用动态序列长度训练模型。
 
 请注意，使用 `--handler-name GeneralInstructionHandler` 标志的指令数据集，在处理时会从 `ascendspeed/data/data_handler.py` 中选择 `GeneralInstructionHandler` 类来制作prompt。如果你处理的是 alpaca 格式风格的数据集，即包含 `instruction`, `input` 和 `output` 列的数据集，可以直接使用 `--handler-name GeneralInstructionHandler` 标志。
@@ -483,7 +502,7 @@ python tools/preprocess_data.py --input WORKSPACE/alpaca/train-00000-of-00001-a0
 ```shell
 pip install peft==0.4.0
 ```
-你也可以选择直接从它Github仓库的 [源码安装](https://github.com/huggingface/peft/archive/refs/tags/v0.4.0.tar.gz)， 通过修改它的setup.py文件来回避一些依赖问题。 
+你也可以选择直接从它Github仓库的 [源码安装](https://github.com/huggingface/peft/archive/refs/tags/v0.4.0.tar.gz)， 通过修改它的setup.py文件来回避一些依赖问题。
 
 之后，你仅仅只需要在启动脚本中使能如下标志便可以启动lora微调训练:
 
@@ -498,11 +517,11 @@ Lora有一些相关参数，在 [PEFT](https://github.com/huggingface/peft) 仓�
 # Llama example
 --lora-r 64 \
 --lora-alpha 128 \
---lora-modules-to-save word_embeddings lm_head.lm_head \
+--lora-modules-to-save word_embeddings output_layer \
 --lora-register-forward-hook word_embeddings input_layernorm \
 ```
 
-在这些参数中，标志 `--lora-register-forward-hook` 被用于修复由PP造成的梯度链中断，它仅仅只需要在每一个PP阶段的输入层设置，并不会增加训练参数。
+在这些参数中，标志 `--lora-register-forward-hook` 被用于修复由PP造成的梯度链中断，它仅仅只需要在每一个PP阶段的输入层设置，并不会增加训练参数。 标志 `--lora-modules-to-save` 被用于扩展词表时的微调，若没此需求则无需传入此参数。
 
 最后，Lora微调后保存的权重仅仅只会包含新增的Lora权重。相似的，当你加载一个Lora模型时，除了原始权重路径需要设置，还需要设置一个加载Lora权重的路径，如下：
 
@@ -536,9 +555,9 @@ AscendSpeed:
 
 这里有一些使用不同模式的样例脚本可以尝试运行，***请注意：***
 1. 如果你尝试使用 huggingface 的模型权重，请首先进行权重转换， 以 Llama-7B 为例:
-    
+
       - PTD 策略的转换
-    
+
            ```bash
            python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
                                                                                --output-model-dir llama-7b-tp2-pp2 \
@@ -546,7 +565,7 @@ AscendSpeed:
                                                                                --pipeline-model-parallel-size 2 \
                                                                                --type 7B
            ```
-    
+
       - ZeRO 策略的转换
           ```bash
           python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
@@ -554,7 +573,7 @@ AscendSpeed:
                                                                               --type 7B \
                                                                               --deepspeed
           ```
-    
+
 5. 下面脚本中的一些路径需要修改，比如：模型权重路径 和 词表路径.
 
     - 仅仅使用 PTD 策略训练的模型：在这种模式下，模型以 Megatron-LM 的风格被 流水并行 和 张量并行 切分
@@ -752,7 +771,7 @@ VOCAB_FILE=../models/llama7b-hf/
 # 配置任务和数据路径
 DATA_PATH="dataset/boolq/test"
 TASK="boolq"
-# 配置生成参数 
+# 配置生成参数
 python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
@@ -800,7 +819,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --micro-batch-size 1  \
        --seed 42 | tee logs/train.log
 ```
-##### BoolQ 
+##### BoolQ
 BoolQ 是一个 yes/no 的问答数据集， 每一个问题包含了一个（问题，文章，答案）三元组，同时有文章的标题作为额外的选择性输入。BoolQ 数据集的评估相对简单，只需要配置 `TASK="boolq"`, `--seq-length=512`, `--max-position-embeddings=512`, `--max-new-token=2`。
 零样本评估的结果通常会被给定的 prompt 影响，可以尝试通过在 `tasks/evaluation/evaluation.py` 中设置合适的 prompt 得到更高的分数，
 
@@ -809,15 +828,15 @@ BoolQ 是一个 yes/no 的问答数据集， 每一个问题包含了一个（�
 template = {instruction}
 ```
 
-##### MMLU 
+##### MMLU
 由于 MMLU 是一项多学科任务，并且需要进行 5-shot 评估，因此每个学科问题的长度差异很大。如果你想同时跑57个学科任务，可以尝试设置 `TASK="mmlu"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=2` (`--max-new-tokens` 可以在 2-4 取值)。
 在很多网站，MMLU 的精度会依据学科进行评估，57个学科主要属于四个大类， 因此该数据集也可以基于四个大类进行打分，[网站](https://github.com/hendrycks/test/blob/master/categories.py) 给出了具体的57个类别。
 
 
-##### GSM8K 
+##### GSM8K
 GSM8K 是一个有8.5k高质量小学数学应用题文本的数据集，每一个问题的回答是具体的数字。由于该数据集通常采用 few-shot 的形式进行评估，GSM8K的问题长度相对是比较长的，输出答案包含一整个思维链路，相关入参应该设置为 `TASK="gsm8k"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=128` (`--max-new-tokens` 可以是 256-512).
 
-##### HumanEval 
+##### HumanEval
 HumanEval 是一个用于挑战代码生成问题的数据集，具有164个编程问题，包含函数签名，文档，函数主体和单元测试等。该数据的所有问题都是手写的，以确保它们不在训练集中，由于答案包含长代码，相关参数可以设置为 `TASK="human_eval"`, `--seq-length=2048`,
 `--max-position-embeddings=2048`, `--max-new-token=1024`。
 
@@ -841,7 +860,7 @@ Big-bench-hard 数据集是 BIG-Bench 的一个子集，专注于有挑战性的
 在 AscendSpeed 中使用张量并行， 可以在启动脚本中增加  `--tensor-model-parallel-size` 标志， 来明确用于拆分模型的GPU数量。
 
 ### <span id="jump2">  (虚拟 & 动态) 流水并行  </span>
-流水并行（Pipeline Parallelism (PP)）是一种将模型所有的Transformer模块划分为多个stage放在不同卡上训练的模型并行技术。 
+流水并行（Pipeline Parallelism (PP)）是一种将模型所有的Transformer模块划分为多个stage放在不同卡上训练的模型并行技术。
 在PP中，每一个stage都有相等数量的Transformer，同时通过将 全局的 （global） batchsize 拆分为多个 微 （micro） batchsize，在stage间流水化训练这些微 batchsize，以达到训练整个模型的目的。
 虚拟流水并行 （Virtual Pipeline (VP) Parallelism），通过增加虚拟的 stage 来减少 PP 运行时的空泡时间， 动态流水并行 （Dynamic Pipline Parallelism，DPP） 则是增强版本的 VP， 通过合理的设置每个微 batchsize的大小进一步降低空泡时间。
 PP 和 VP的基本原理如下：<div align=center> <img src="sources/images/pp_vp.png" height="350px" width="800px"> </div>
@@ -1038,16 +1057,3 @@ AscendSpeed由华为公司的下列部门联合贡献
 - 许可描述: 在运行程序之前，建议您对训练所需的文件（如ckpt、日志等）采取权限控制（普通用户而不是root权限）等安全措施
 - 路径描述: 当你使用 `torch.load` 接口时，除非 weights_only 参数被设置为 True， 否则请隐式的使用 pickle 模块，我们不建议您加载和使用任何来源未知或不可信任的数据
 - 通信矩阵: [通信矩阵](https://gitee.com/ascend/AscendSpeed/wikis/Communition%20Matrix/AscendSpeed%20Communication%20Matrix?sort_id=8855822)
-
-
-
-
-
-
-
-
-
-
-
-
-

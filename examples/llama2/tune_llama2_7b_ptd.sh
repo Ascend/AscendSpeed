@@ -10,7 +10,7 @@ export COMBINED_ENABLE=1
 LOAD_CHECKPOINT_PATH="your init model load path"
 SAVE_CHECKPOINT_PATH="your model ckpt save path"
 TOKENIZER_PATH=./llama-2-7b-hf/  #tokenizer path
-DATA_PATH=./dataset_llama2/alpaca_text_document  #processed dataset
+DATA_PATH=./finetune_dataset/alpaca  #processed dataset
 
 # Change for multinode config
 MASTER_ADDR=localhost
@@ -70,7 +70,11 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --mlp-layer-fusion \
        --use-flash-attn \
        --use-fused-rmsnorm \
+       --is-instruction-dataset \
+       --lora-target-modules query_key_value dense proj dense_4h_to_h \
+       --lora-r 16 \
+       --lora-alpha 32 \
        --bf16 | tee ./logs/ascendspeed-llama2-7b-ptd-bf16_train-${logfile}.log
-	   
+
 # ptd模式训练脚本
- 
+
