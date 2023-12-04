@@ -197,11 +197,11 @@ LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
       <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</td>
       <td>7B</td>
       <td>1x8</td>
-      <td>FP16 </td>
-      <td> 2712 </td>
-      <td> 2348 </td>
-      <td> <a href="sources/images/llama2/llama2_7b_shape_fp16_layer32_loss_with_weights.png">Loss</a> </td>
-      <td> <a href="examples/llama2/pretrain_llama2_7b_zero_8p.sh">训练</a> </td>
+      <td>BF16 </td>
+      <td> 2662 </td>
+      <td> 2884 </td>
+      <td> <a href="sources/images/llama2/llama2-7b-tp8pp1mbs4gbs16-cann1115-Megatron-GPU-loss-releative.png">Loss</a> </td>
+      <td> <a href="examples/llama2/pretrain_llama2_7b_ptd.sh">训练</a> </td>
     </tr>
     <tr>
       <td>13B</td>
@@ -389,10 +389,10 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
     <tr>
       <td><a href="examples/llama2/README.md">LLaMA2</a></td>
       <td>7B</td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/tune_llama2_7b_ptd.sh">lora</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_7b_ptd.sh">对话 </a> </td>
       <td> -- </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">对话 </a> </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json </td>
     </tr>
   </tbody>
 </table>

@@ -33,27 +33,27 @@
   - [Inference](#inference-70b)
   - [Evaluation](#Evaluation-70b)
 
-# LLaMA2-7B
+# LLAMA2-7B
 
 ## Training
 
-Here's a hardware summary of pre-training  LLaMA2-7B:
+Here's a hardware summary of pre-training  LLAMA2-7B:
 
 | Hardware |                      Value                      |
 | :------: | :---------------------------------------------: |
 |   NPU    |               8 x Ascend NPUs                   |
 
-Here's a software summary of pre-training  LLaMA2-7B: 
+Here's a software summary of pre-training  LLAMA2-7B: 
 
 
 |         Software          |   Version   |
 | :-----------------------: |:-----------:|
-|          Python           |   3.7.16    |
+|          Python           |   3.8.18    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                    |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 ### Script
@@ -69,14 +69,14 @@ Here's a software summary of pre-training  LLaMA2-7B:
 2. Build environment
    
     ```bash
-    # python3.7
-    conda create -n test python=3.7
+    # python3.8
+    conda create -n test python=3.8
     conda activate test
     
     # install torch and torch_npu
-    pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
-    pip install torch_npu-1.11.0*-cp37-cp37m-linux_aarch64.whl
-    pip install apex-0.1_ascend*-cp37-cp37m-linux_aarch64.whl
+    pip install torch-2.1.0-cp38-cp38m-manylinux2014_aarch64.whl
+    pip install torch_npu-2.1.0*-cp38-cp38m-linux_aarch64.whl
+    pip install apex-0.1_ascend*-cp38-cp38m-linux_aarch64.whl
     
     # install megatron-core
     pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -122,22 +122,8 @@ Here's a software summary of pre-training  LLaMA2-7B:
       wget https://huggingface.co/daryl149/llama-2-7b-hf/resolve/main/tokenizer_config.json
       cd ..
     ```
-    
-   3.1 weight conversion in deepspeed mode
-   *Note that if you want to use the weight from huggingface, please run the weight conversion script first. The following uses llama-2-7b model  weight conversion in deepspeed as an example.*
-    ```bash
-    # modify the script according to your own ascend-toolkit path
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
-    
-    # convert to deepspeed weights
-    python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-2-7b-hf \
-                                                                        --output-model-dir ckpt \
-                                                                        --tensor-model-parallel-size 1 \
-                                                                        --pipeline-model-parallel-size 1 \
-                                                                        --type 7B \
-                                                                        --deepspeed
-    ```
-   3.2 weight conversion in ptd mode
+
+   weight conversion in ptd mode
    *Note that if you want to use the weight from huggingface, please run the weight conversion script first. The following uses llama-2-7b model weight conversion in ptd as an example.*
    ```bash
     # modify the script according to your own ascend-toolkit path
@@ -173,23 +159,7 @@ Here's a software summary of pre-training  LLaMA2-7B:
 		 --tokenizer-type PretrainedFromHF
 	```
 
-	4.2 pre-training using deepspeed mode
-	Config LLAMA2-7B pre-training script: examples/llama2/pretrain_llama2_7b_zero_8p.sh 
-	```shell
-	# modify the script according to your own ascend-toolkit path
-	source /usr/local/Ascend/ascend-toolkit/set_env.sh 
-	
-	# modify script orign dataset path according to your own dataset path
-	TOKENIZER_PATH=./llama-2-7b-hf/  #tokenizer path
-	DATA_PATH=./dataset_llama2/alpaca_text_document  #processed dataset
-	```
-
-	Launch LLAMA2-7B  pre-training script: examples/llama2/pretrain_llama2_7b_zero_8p.sh
-	```shell
-	bash examples/llama2/pretrain_llama2_7b_zero_8p.sh 
-	```
-	
-	4.3 pre-training using ptd mode
+	4.2 pre-training using ptd mode
 	Config LLAMA2-7B pre-training script: examples/llama2/pretrain_llama2_7b_ptd.sh 
    ```shell
     # modify the script according to your own ascend-toolkit path
@@ -229,14 +199,15 @@ Here's a software summary of pre-training  LLaMA2-7B:
 		  --handler-name GeneralInstructionHandler \
 		  --append-eod
     ```
-   5.2 fine-tuning using deepspeed mode
-   5.2.1 Full Parameters Fine-Tuning
-   The configuration script for full parameters fine-tuning  is basically the same as that for pretrain_llama2_7b_zero_8p.sh.*The only difference is the data set.*
+   5.2 Full Parameters Fine-Tuning
+   The configuration script for full parameters fine-tuning  is basically the same as that for pretrain_llama2_7b_ptd.sh.*The difference is that the dataset and the training parameter is-instruction-dataset are added.*
    ```bash
    DATA_PATH=./finetune_dataset/alpaca
+   
+   --is-instruction-dataset \
    ```
-   5.2.2 Lora Fine-Tuning
-   The Lora fine-tuning script is configured by adding the following lora parameters to the pretrain_llama2_7b_zero_8p.sh script:
+   5.3 Lora Fine-Tuning
+   The Lora fine-tuning script is configured by adding the following lora parameters to the pretrain_llama2_7b_ptd.sh script:
    ```bash
        --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
        --lora-r 16 \
@@ -251,10 +222,6 @@ Here's a software summary of pre-training  LLaMA2-7B:
        --load ${ORIGIN_CHECKPOINT}  \
        --lora-load ${LORA_CHECKPOINT} \
    ```
-   
-   
-   5.3 fine-tuning using ptd mode
-   *The modification method is the same as that in deepspeed mode. For details, see the previous section.*
 
 ### Performance
 
@@ -374,7 +341,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS tasks/evaluation/evaluation
      --seq-length 4096 \
      --max-new-tokens 1 \
      --max-position-embeddings 4096 \
-     --rotary-v3-impl \
      --tensor-model-parallel-size 8 \
      --pipeline-model-parallel-size 1  \
      --num-layers 32  \
@@ -383,8 +349,10 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS tasks/evaluation/evaluation
      --num-attention-heads 32  \
      --mlp-layer-fusion \
      --load ${CHECKPOINT}  \
+     --position-embedding-type rope \
+     --normalization RMSNorm \
      --tokenizer-type PretrainedFromHF  \
-     --tokenizer-name-or-path $VOCAB_FILE \
+     --tokenizer-name-or-path ${TOKENIZER_PATH} \
      --tokenizer-not-use-fast \
      --fp16  \
      --micro-batch-size 1  \
@@ -397,67 +365,68 @@ bash tasks/evaluation/eval.sh
 
 Evaluation results
 ```text
-                                subject  question_n       acc
-0            high_school_macroeconomics         390  0.466667
-1                          formal_logic         126  0.253968
-2                     international_law         121  0.652893
-3                   college_mathematics         100  0.330000
-4                      college_medicine         173  0.421965
-5                       world_religions         171  0.725146
-6                       moral_scenarios         895  0.220112
-7                             nutrition         306  0.513072
-8                high_school_statistics         216  0.361111
-9                      medical_genetics         100  0.490000
-10                    college_chemistry         100  0.300000
-11              professional_accounting         282  0.361702
-12                     professional_law        1534  0.338331
-13                        miscellaneous         783  0.698595
-14                            sociology         201  0.651741
-15                professional_medicine         272  0.496324
-16                    logical_fallacies         163  0.552147
-17                     public_relations         110  0.563636
-18                      college_biology         144  0.506944
-19         high_school_european_history         165  0.612121
-20                           philosophy         311  0.556270
-21                     abstract_algebra         100  0.310000
-22               high_school_psychology         545  0.678899
-23         high_school_computer_science         100  0.400000
-24               elementary_mathematics         378  0.312169
-25               high_school_us_history         204  0.617647
-26                     machine_learning         112  0.366071
-27                            astronomy         152  0.493421
-28                         global_facts         100  0.330000
-29              high_school_mathematics         270  0.255556
-30               electrical_engineering         145  0.496552
-31           high_school_microeconomics         238  0.415966
-32                      business_ethics         100  0.540000
-33             college_computer_science         100  0.400000
-34                  high_school_physics         151  0.317881
-35                      human_sexuality         131  0.526718
-36                      college_physics         102  0.245098
-37  high_school_government_and_politics         193  0.720207
-38                            marketing         234  0.747863
-39                high_school_geography         198  0.601010
-40                     security_studies         245  0.555102
-41                high_school_chemistry         203  0.418719
-42                           management         103  0.699029
-43                        jurisprudence         108  0.537037
-44                         econometrics         114  0.350877
-45                          human_aging         223  0.591928
-46                             virology         166  0.403614
-47                       moral_disputes         346  0.528902
-48                              anatomy         135  0.451852
-49              professional_psychology         612  0.498366
-50                   conceptual_physics         235  0.455319
-51                    computer_security         100  0.560000
-52                   clinical_knowledge         265  0.505660
-53                    us_foreign_policy         100  0.680000
-54                           prehistory         324  0.570988
-55            high_school_world_history         237  0.645570
-56                  high_school_biology         310  0.535484
-57                                total       14042  0.478422
-MMLU Running Time:  18266.85981464386
+                           subject_name  question_n   acc_ref   acc_npu  score_diff
+17                     public_relations         110  0.563636  0.554545      0.009091
+44                         econometrics         114  0.368421  0.377193      0.008772
+30               electrical_engineering         145  0.503448  0.510345      0.006897
+5                       world_religions         171  0.701754  0.707602      0.005848
+25               high_school_us_history         204  0.647059  0.651961      0.004902
+45                          human_aging         223  0.596413  0.600897      0.004484
+38                            marketing         234  0.709402  0.713675      0.004274
+55            high_school_world_history         237  0.620253  0.624473      0.004219
+31           high_school_microeconomics         238  0.420168  0.424370      0.004202
+7                             nutrition         306  0.503268  0.500000      0.003268
+56                  high_school_biology         310  0.541935  0.545161      0.003226
+20                           philosophy         311  0.569132  0.565916      0.003215
+24               elementary_mathematics         378  0.291005  0.293651      0.002646
+22               high_school_psychology         545  0.645872  0.647706      0.001835
+12                     professional_law        1534  0.339635  0.340939      0.001304
+13                        miscellaneous         783  0.679438  0.678161      0.001277
+6                       moral_scenarios         895  0.221229  0.222346      0.001117
+37  high_school_government_and_politics         193  0.694301  0.694301      0.000000
+54                           prehistory         324  0.555556  0.555556      0.000000
+53                    us_foreign_policy         100  0.700000  0.700000      0.000000
+39                high_school_geography         198  0.626263  0.626263      0.000000
+40                     security_studies         245  0.522449  0.522449      0.000000
+41                high_school_chemistry         203  0.408867  0.408867      0.000000
+52                   clinical_knowledge         265  0.513208  0.513208      0.000000
+49              professional_psychology         612  0.482026  0.482026      0.000000
+42                           management         103  0.679612  0.679612      0.000000
+43                        jurisprudence         108  0.583333  0.583333      0.000000
+51                    computer_security         100  0.560000  0.560000      0.000000
+50                   conceptual_physics         235  0.417021  0.417021      0.000000
+35                      human_sexuality         131  0.526718  0.526718      0.000000
+46                             virology         166  0.439759  0.439759      0.000000
+47                       moral_disputes         346  0.514451  0.514451      0.000000
+48                              anatomy         135  0.459259  0.459259      0.000000
+36                      college_physics         102  0.215686  0.215686      0.000000
+0            high_school_macroeconomics         390  0.420513  0.420513      0.000000
+34                  high_school_physics         151  0.311258  0.311258      0.000000
+33             college_computer_science         100  0.420000  0.420000      0.000000
+2                     international_law         121  0.636364  0.636364      0.000000
+3                   college_mathematics         100  0.330000  0.330000      0.000000
+4                      college_medicine         173  0.410405  0.410405      0.000000
+8                high_school_statistics         216  0.314815  0.314815      0.000000
+9                      medical_genetics         100  0.450000  0.450000      0.000000
+10                    college_chemistry         100  0.290000  0.290000      0.000000
+11              professional_accounting         282  0.411348  0.411348      0.000000
+14                            sociology         201  0.601990  0.601990      0.000000
+15                professional_medicine         272  0.452206  0.452206      0.000000
+16                    logical_fallacies         163  0.521472  0.521472      0.000000
+18                      college_biology         144  0.506944  0.506944      0.000000
+19         high_school_european_history         165  0.575758  0.575758      0.000000
+21                     abstract_algebra         100  0.280000  0.280000      0.000000
+23         high_school_computer_science         100  0.430000  0.430000      0.000000
+26                     machine_learning         112  0.375000  0.375000      0.000000
+27                            astronomy         152  0.500000  0.500000      0.000000
+1                          formal_logic         126  0.222222  0.222222      0.000000
+29              high_school_mathematics         270  0.259259  0.259259      0.000000
+32                      business_ethics         100  0.450000  0.450000      0.000000
+28                         global_facts         100  0.380000  0.380000      0.000000
 ```
+|  dataset | subject_num | question_num | reference_acc |NPU acc|
+|:---:|:-----------:|:------------:|:-------------:|:---:|
+| MMLU |     57      |    14042     |    0.4691     |0.4698|
 
 # LLaMA2-13B
 
