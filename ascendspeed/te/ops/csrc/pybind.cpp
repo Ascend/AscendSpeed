@@ -20,4 +20,5 @@
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("npu_fusion_attention", &npu_flash_attention, "fusion attention forward");
     m.def("npu_fusion_attention_grad", &npu_flash_attention_grad, "fusion attention backward");
+    m.def("npu_dropout_add_layer_norm", &npu_dropout_add_layer_norm, "Run Dropout + Add + LayerNorm forward kernel");
 }

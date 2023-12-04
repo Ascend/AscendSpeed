@@ -34,6 +34,7 @@
 #include "torch_npu/csrc/framework/utils/OpPreparation.h"
 #include "torch_npu/csrc/framework/interface/EnvVariables.h"
 #include "torch_npu/csrc/aten/NPUNativeFunctions.h"
+#include "torch_npu/csrc/core/npu/DeviceUtils.h"
 
 #define NPU_NAME_SPACE at_npu::native
 
@@ -190,7 +191,7 @@ inline c10::Scalar ConvertTensorToScalar(const at::Tensor &tensor)
         c10::Scalar scalar(value);
         expScalar = scalar;
     } else {
-        NPU_LOGE("unsupported scalar type! ");
+        ASCEND_LOGE("unsupported scalar type! ");
     }
     return expScalar;
 }
@@ -200,7 +201,7 @@ inline at::Tensor CopyTensorHostToDevice(const at::Tensor &cpu_tensor)
     at::Tensor cpuPinMemTensor = cpu_tensor.pin_memory();
     int deviceIndex = 0;
     return cpuPinMemTensor.to(
-        c10::Device(at_npu::key::NativeDeviceType, deviceIndex), cpuPinMemTensor.scalar_type(), true, true);
+        c10::Device(torch_npu::utils::get_npu_device_type(), deviceIndex), cpuPinMemTensor.scalar_type(), true, true);
 }
 
 inline at::Tensor CopyScalarToDevice(const c10::Scalar &cpu_scalar, at::ScalarType scalar_data_type)
@@ -260,7 +261,7 @@ inline aclTensor *ConvertType(const at::Tensor &at_tensor)
             format,
             storageDims.data(),
             storageDims.size(),
-            aclInput.storage().data());
+            const_cast<void *>(aclInput.storage().data()));
     }
 
     auto acl_tensor = aclCreateTensor(at_tensor.sizes().data(),
@@ -271,7 +272,7 @@ inline aclTensor *ConvertType(const at::Tensor &at_tensor)
         format,
         storageDims.data(),
         storageDims.size(),
-        at_tensor.storage().data());
+        const_cast<void *>(at_tensor.storage().data()));
     return acl_tensor;
 }
 
@@ -569,7 +570,7 @@ using ReleaseHugeMem = void (*)(void *, bool);
         if (workspace_size != 0) {                                                                          \
             at::TensorOptions options = at::TensorOptions(torch_npu::utils::get_npu_device_type());         \
             auto workspace_tensor = at::empty({workspace_size}, options.dtype(at::kByte));                  \
-            workspace_addr = workspace_tensor.storage().data();                                             \
+            workspace_addr = const_cast<void *>(workspace_tensor.storage().data());                         \
         }                                                                                                   \
         auto acl_call = [converted_params, workspace_addr, workspace_size, acl_stream, executor]() -> int { \
             typedef int (*OpApiFunc)(void *, uint64_t, aclOpExecutor *, const aclrtStream);                 \
