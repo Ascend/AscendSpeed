@@ -40,3 +40,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --load "${CHECKPOINT}"  \
        --embed-layernorm \
        --position-embedding-type alibi \
+       --no-add-gate \
+       --add-bias-linear \
+       --query-key-layer-scaling \
+       --no-attention-softmax-in-fp32 \
+       --no-untie-embeddings-and-output-weights

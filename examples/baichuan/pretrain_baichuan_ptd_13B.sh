@@ -40,6 +40,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --micro-batch-size $MICRO_BATCH \
        --global-batch-size $GLOBAL_BATCH \
        --seq-length 4096 \
+       --normalization RMSNorm \
        --max-position-embeddings 4096 \
        --train-iters 100000 \
        --save $CHECKPOINT_PATH \

@@ -43,8 +43,6 @@ TRANSFORMERS_OFFLINE=1  \
     --embed-layernorm \
     --tokenizer-name-or-path $TOKENIZER_NAME_OR_PATH \
     --data-path $DATA_PATH \
-    --attention-dropout 0 \
-    --hidden-dropout 0 \
     --pad-vocab-size-to 250880 \
     --tensor-model-parallel-size 8 \
     --pipeline-model-parallel-size 1 \
@@ -80,5 +78,10 @@ TRANSFORMERS_OFFLINE=1  \
     --load $CHECKPOINT_PATH \
     --data-impl mmap \
     --distributed-backend nccl \
-    --sequence-parallel
+    --sequence-parallel \
+    --no-add-gate \
+    --add-bias-linear \
+    --query-key-layer-scaling \
+    --no-attention-softmax-in-fp32 \
+    --no-untie-embeddings-and-output-weights
     

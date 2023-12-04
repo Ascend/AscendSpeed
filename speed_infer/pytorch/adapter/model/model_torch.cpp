@@ -33,6 +33,7 @@
 #include "llama/7b/model/fusion_model.h"
 #include "llama/7b/model/rope_model.h"
 #include "llama/7b/model/quant_flashattention_model.h"
+#include "llama_pa/model/pa_model.h"
 
 uint64_t GetNewModelId()
 {
@@ -67,8 +68,10 @@ void ModelTorch::SetParam(std::string param)
         model_ = std::make_shared<atb_speed::llama_7b::QuantFlashAttentionModel>(param);
     } else if (modelName_ == "llama_7b_flashattention_model") {
         model_ = std::make_shared<atb_speed::llama_7b::FlashAttentionModel>(param);
+    } else if (modelName_ == "llama_pa_model" || modelName_ == "llama_65b_pa_model") {
+        model_ = std::make_shared<atb_speed::llama_pa::PAModel>(param);
     } else {
-    ATB_LOG(FATAL) << "not support modelName:" << modelName_;
+        ATB_LOG(FATAL) << "not support modelName:" << modelName_;
         return;
     }
 
@@ -90,6 +93,42 @@ void ModelTorch::SetWeight(std::vector<torch::Tensor> atWeightTensors)
     std::vector<atb::Tensor> weigthTensors;
     AtTensor2Tensor(atWeightTensors, weigthTensors);
     model_->SetWeight(weigthTensors);
+}
+
+void ModelTorch::SetKVCache(std::vector<torch::Tensor> atKCacheTensors, std::vector<torch::Tensor> atVCacheTensors)
+{
+    ATB_LOG(INFO) << "ModelTorch set k cache tensors:" << atKCacheTensors.size();
+    for (size_t i = 0; i < atKCacheTensors.size(); ++i) {
+        const torch::Tensor &atkTensor = atKCacheTensors.at(i);
+        ATB_LOG(INFO) << "ModelTorch atKCacheTensors[" << i << "]"
+                      << " data:" << atkTensor.data_ptr() << ", storage_offset:" << atkTensor.storage_offset()
+                      << ", format:" << Utils::GetTensorNpuFormat(atkTensor) << ", shape:" << atkTensor.sizes()
+                      << ", options:" << atkTensor.options();
+        const torch::Tensor &atvTensor = atVCacheTensors.at(i);
+        ATB_LOG(INFO) << "ModelTorch atVCacheTensors[" << i << "]"
+                      << " data:" << atvTensor.data_ptr() << ", storage_offset:" << atvTensor.storage_offset()
+                      << ", format:" << Utils::GetTensorNpuFormat(atvTensor) << ", shape:" << atvTensor.sizes()
+                      << ", options:" << atvTensor.options();
+    }
+
+    std::vector<atb::Tensor> kCacheTensors;
+    std::vector<atb::Tensor> vCacheTensors;
+    AtTensor2Tensor(atKCacheTensors, kCacheTensors);
+    AtTensor2Tensor(atVCacheTensors, vCacheTensors);
+
+    if (atb_speed::GetSingleton<atb_speed::Config>().IsConvertNCHWToND()) {
+        for (size_t i = 0; i < kCacheTensors.size(); ++i) {
+            if (kCacheTensors.at(i).desc.format == ACL_FORMAT_NCHW) {
+                kCacheTensors.at(i).desc.format = ACL_FORMAT_ND;
+            }
+        }
+        for (size_t i = 0; i < vCacheTensors.size(); ++i) {
+            if (vCacheTensors.at(i).desc.format == ACL_FORMAT_NCHW) {
+                vCacheTensors.at(i).desc.format = ACL_FORMAT_ND;
+            }
+        }
+    }
+    model_->SetKVCache(kCacheTensors, vCacheTensors);
 }
 
 std::vector<torch::Tensor> ModelTorch::Execute(std::vector<torch::Tensor> atInTensors, std::string param)
@@ -184,6 +223,7 @@ TORCH_LIBRARY(ModelTorch, m)
         .def(torch::init<std::string>())
         .def("set_param", &ModelTorch::SetParam)
         .def("set_weight", &ModelTorch::SetWeight)
+        .def("set_kv_cache", &ModelTorch::SetKVCache)
         .def("execute", &ModelTorch::Execute)
         .def("execute_out", &ModelTorch::ExecuteOut);
 }

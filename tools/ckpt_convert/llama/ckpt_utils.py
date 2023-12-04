@@ -116,11 +116,18 @@ def permute_qkv_bias(bias, n_head, hidden_size, tp, split=False):
 
 def print_model(model):
     param_cnt = 0
-    for p_name, v in model.items():
-        if "check" in p_name:
-            continue
-        logging.info("p_name: %s, shape:%s, dtype: %s", p_name, str(v.shape), str(v.dtype))
-        param_cnt += v.numel()
+
+    def print_dict(model, indent=0):
+        nonlocal param_cnt
+        for key, value in model.items():
+            print(' ' * indent + str(key))
+            if isinstance(value, dict):
+                print_dict(value, indent + 2)
+            else:
+                print(' ' * (indent + 2) + "shape :" + str(value.shape) + ",dtype :" + str(value.dtype))
+                param_cnt += value.numel()
+
+    print_dict(model)
     logging.info("total param: %s", param_cnt)
 
 

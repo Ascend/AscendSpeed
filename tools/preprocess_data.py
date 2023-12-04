@@ -22,6 +22,7 @@ import os
 import sys
 import time
 import logging
+from typing import List
 
 import torch
 try:

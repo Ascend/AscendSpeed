@@ -428,6 +428,8 @@ class TransformerLanguageModel(MegatronModule):
             args.position_embedding_type == PositionEmbeddingType.rope
         if self.use_rotary_position_embeddings:
             self.seq_length = args.seq_length
+            # Dynamically obtaining seq_length in inference
+            self.dynamic_args = args
             rotary_dim = args.hidden_size // args.num_attention_heads \
                 if args.kv_channels is None else args.kv_channels
 
@@ -543,7 +545,7 @@ class TransformerLanguageModel(MegatronModule):
                 rotary_pos_emb = \
                     self.rotary_pos_emb(inference_params.max_sequence_len)
             else:
-                rotary_pos_emb = self.rotary_pos_emb(self.seq_length)
+                rotary_pos_emb = self.rotary_pos_emb(self.dynamic_args.seq_length)
         # Run encoder.
         if enc_hidden_states is None:
             if self.encoder is not None:

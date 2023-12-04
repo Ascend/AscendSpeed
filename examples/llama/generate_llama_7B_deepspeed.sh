@@ -35,7 +35,6 @@ EOT
 deepspeed --num_nodes $NNODES --num_gpus $NPUS_PER_NODE \
        ./tasks/inference/inference_llama.py \
        --no-contiguous-buffers-in-local-ddp \
-       --tensor-model-parallel-size 8  \
        --num-layers 32  \
        --hidden-size 4096  \
        --ffn-hidden-size 11008 \
@@ -53,3 +52,5 @@ deepspeed --num_nodes $NNODES --num_gpus $NPUS_PER_NODE \
        --deepspeed \
        --deepspeed_config ${config_json} \
        --no-pipeline-parallel \
+       --position-embedding-type rope \
+       --normalization RMSNorm \

@@ -31,6 +31,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --micro-batch-size 2 \
        --global-batch-size 512 \
        --seq-length 2048 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --max-position-embeddings 2048 \
        --train-iters 50000 \
        --lr-decay-iters 320000 \

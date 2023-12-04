@@ -63,7 +63,7 @@ ds_args=" --deepspeed-activation-checkpointing ${ds_args}"
 
 # Main script
 deepspeed pretrain_llama.py \
-       --auto-recompute-device-size 51200 \
+       --auto-recompute-device-size 48128 \
        --use-fused-rotary-pos-emb \
        --triangle-attn \
        --triangle-block-size 1024 \
@@ -78,6 +78,8 @@ deepspeed pretrain_llama.py \
        --global-batch-size $GLOBAL_BATCH \
        --seq-length 4096 \
        --max-position-embeddings 4096 \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
        --train-iters 500000 \
        --lr-decay-iters 320000 \
        --save $CHECKPOINT_PATH \

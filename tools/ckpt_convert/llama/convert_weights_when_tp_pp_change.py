@@ -51,16 +51,16 @@ def get_args():
     parser.add_argument("--tgt-pipeline-model-parallel-size", type=int, default=1,
                         help="degree of pipeline model parallel")
     parser.add_argument("--added-token-num", type=int, default=0, help="the number of added tokens")
-    parser.add_argument("--type", type=str, default="7B",
+    parser.add_argument("--type", type=str,
                         help="There are four predefined types: [7B, 13B, 30B, 65B]")
-    parser.add_argument("--num_layers", type=int, default=1,
-                        help="num layers")
-    parser.add_argument("--num_heads", type=int, default=1,
-                        help="num heads")
-    parser.add_argument("--num_kv_heads", type=int, default=None,
-                        help="num kv heads")
-    parser.add_argument("--hidden_size", type=int, default=1,
-                        help="hidden size")
+    parser.add_argument("--num-layers", type=int, default=1,
+                        help="num layers", dest="num_layers")
+    parser.add_argument("--num-heads", type=int, default=1,
+                        help="num heads", dest="num_heads")
+    parser.add_argument("--num-kv-heads", type=int, default=None,
+                        help="num kv heads", dest="num_kv_heads")
+    parser.add_argument("--hidden-size", type=int, default=1,
+                        help="hidden size", dest="hidden_size")
     parser.add_argument("--bias", action="store_true", default=False)
     parser.add_argument("--deepspeed", action="store_true", default=False)
     parser.add_argument("--merge-mlp", action="store_true", default=False,
@@ -98,11 +98,11 @@ def get_weight_from_name(k):
     if k in entire_model:
         return entire_model[k]
     else:
-        raise KeyError(f"{k} is not in {entire_model}")
+        raise KeyError(f"{k} is not in {entire_model.keys()}")
 
 
 def merge_weight(config):
-    ws = [tm[config.k.format(config.pp_i)] for tm in config.tp_models]
+    ws = [tm["language_model"]["encoder"][config.src_k.format(config.pp_i)] for tm in config.tp_models]
     config.entire_model_dic[config.k.format(config.tot_i)] =\
         torch.cat(ws, dim=config.dim)
 
@@ -130,61 +130,65 @@ def merge_pp_tp_models(config):
             tp_models.append(sd)
 
         if pp_rank == 0:
-            emb_ws = [tm["embedding.word_embeddings.weight"] for tm in tp_models]
+            emb_ws = [tm["language_model"]["embedding"]["word_embeddings"]["weight"] for tm in tp_models]
             entire_model["embedding.word_embeddings.weight"] = torch.cat(emb_ws, dim=0)[:orig_vocab_size, ...].clone()
 
         if pp_rank == pp_size - 1:
-            entire_model["language_model.final_layernorm.weight"] = tp_models[0][
-                "language_model.final_layernorm.weight"]
-            head_ws = [tp_models[tp_rank]["lm_head.lm_head.weight"] for tp_rank in range(tp_size)]
+            entire_model["language_model.final_layernorm.weight"] = tp_models[0]["language_model"]["encoder"][
+                "final_layernorm.weight"]
+            head_ws = [tp_models[tp_rank]["language_model"]["output_layer"]["weight"] for tp_rank in range(tp_size)]
             entire_model["lm_head.lm_head.weight"] = torch.cat(head_ws, dim=0)[:orig_vocab_size, ...].clone()
 
         for pp_i in range(pp_n_layer):
             g_i = offset + pp_i
-            entire_model[f"language_model.layers.{g_i}.attention.rotary_emb.inv_freq"] = tp_models[0][
-                f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"]
-            entire_model[f"language_model.layers.{g_i}.input_layernorm.weight"] = tp_models[0][
-                f"language_model.layers.{pp_i}.input_layernorm.weight"]
-            entire_model[f"language_model.layers.{g_i}.post_attention_layernorm.weight"] = tp_models[0][
-                f"language_model.layers.{pp_i}.post_attention_layernorm.weight"]
+            entire_model[f"language_model.layers.{g_i}.attention.rotary_emb.inv_freq"] = \
+            tp_models[0]["language_model"]["encoder"][f"layers.{pp_i}.self_attention.rotary_emb.inv_freq"]
+            entire_model[f"language_model.layers.{g_i}.input_layernorm.weight"] = \
+            tp_models[0]["language_model"]["encoder"][f"layers.{pp_i}.input_layernorm.weight"]
+            entire_model[f"language_model.layers.{g_i}.post_attention_layernorm.weight"] = \
+            tp_models[0]["language_model"]["encoder"][f"layers.{pp_i}.post_attention_layernorm.weight"]
 
             # qkv split
-            qkv_key = "language_model.layers.{}.attention.query_key_value.weight"
-            qkv_len = tp_models[0][qkv_key.format(pp_i)].shape[0]
+            qkv_key = "layers.{}.self_attention.query_key_value.weight"
+
+            qkv_len = \
+            tp_models[0]["language_model"]["encoder"][qkv_key.format(pp_i)].shape[0]
 
             check_divisible(qkv_len, repeats + 2)
             s1, s2 = qkv_len // (repeats + 2) * repeats, qkv_len // (repeats + 2) * (repeats + 1)
 
-            qs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[:s1,
+            qs = [permute_qkv_weight(tm["language_model"]["encoder"][qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[:s1,
                   ...].clone() for tm in tp_models]
-            ks = [permute_qkv_weight(tm[qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[s1:s2,
+            ks = [permute_qkv_weight(tm["language_model"]["encoder"][qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[s1:s2,
                   ...].clone() for tm in tp_models]
-            vs = [permute_qkv_weight(tm[qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[s2:,
+            vs = [permute_qkv_weight(tm["language_model"]["encoder"][qkv_key.format(pp_i)], (num_heads, hid_size, tp_size, args.num_kv_heads), split=True)[s2:,
                   ...].clone() for tm in tp_models]
+            qkv_key_entire_model = "language_model.layers.{}.attention.query_key_value.weight"
+            entire_model[qkv_key_entire_model.format(g_i) + "_query"] = torch.cat(qs, dim=0)
+            entire_model[qkv_key_entire_model.format(g_i) + "_key"] = torch.cat(ks, dim=0)
+            entire_model[qkv_key_entire_model.format(g_i) + "_value"] = torch.cat(vs, dim=0)
 
-            entire_model[qkv_key.format(g_i) + "_query"] = torch.cat(qs, dim=0)
-            entire_model[qkv_key.format(g_i) + "_key"] = torch.cat(ks, dim=0)
-            entire_model[qkv_key.format(g_i) + "_value"] = torch.cat(vs, dim=0)
-
-            merge_weight_config1 = MergeWeightConfig(entire_model, tp_models,
+            merge_weight_config1 = MergeWeightConfig(entire_model, tp_models, "layers.{}.self_attention.dense.weight",
                                                      "language_model.layers.{}.attention.dense.weight",
                                                      pp_i, g_i, dim=1)
             merge_weight(merge_weight_config1)
             if args.merge_mlp:
-                mlp_key = "language_model.layers.{}.mlp.".format(g_i)
+                mlp_key = "layers.{}.mlp.".format(pp_i)
                 mlp_len = tp_models[0][mlp_key + "proj.weight"].shape[0] // 2
                 for tm in tp_models:
-                    tm[mlp_key + "gate_proj.weight"] = tm[mlp_key + "proj.weight"][:mlp_len].clone()
-                    tm[mlp_key + "up_proj.weight"] = tm[mlp_key + "proj.weight"][mlp_len:].clone()
-            merge_weight_config2 = MergeWeightConfig(entire_model, tp_models,
+                    tm[mlp_key + "gate_proj.weight"] = tm["language_model"]["encoder"][mlp_key + "proj.weight"][
+                                                       :mlp_len].clone()
+                    tm[mlp_key + "up_proj.weight"] = tm["language_model"]["encoder"][mlp_key + "proj.weight"][
+                                                     mlp_len:].clone()
+            merge_weight_config2 = MergeWeightConfig(entire_model, tp_models, 'layers.{}.mlp.gate_proj.weight',
                                                      "language_model.layers.{}.mlp.gate_proj.weight",
                                                      pp_i, g_i, dim=0)
             merge_weight(merge_weight_config2)
-            merge_weight_config3 = MergeWeightConfig(entire_model, tp_models,
+            merge_weight_config3 = MergeWeightConfig(entire_model, tp_models, 'layers.{}.mlp.dense_h_to_4h.weight',
                                                      "language_model.layers.{}.mlp.up_proj.weight",
                                                      pp_i, g_i, dim=0)
             merge_weight(merge_weight_config3)
-            merge_weight_config4 = MergeWeightConfig(entire_model, tp_models,
+            merge_weight_config4 = MergeWeightConfig(entire_model, tp_models, 'layers.{}.mlp.dense_4h_to_h.weight',
                                                      "language_model.layers.{}.mlp.down_proj.weight",
                                                      pp_i, g_i, dim=1)
             merge_weight(merge_weight_config4)
@@ -209,33 +213,32 @@ def generate_ascendspeed_weights(config):
     for tp_rank in range(tp_size):
         for pp_rank in range(pp_size):
             model_dic = {"checkpoint_version": 3.0}
-            rank_model = {}
+            rank_model = {
+                "language_model": {"embedding": {"word_embeddings": {"weight": {}}}, "encoder": {}, "output_layer": {}}}
 
             emb_w = get_weight_from_name("embedding.word_embeddings.weight")
             emb_w = pad_embed(emb_w, make_vocab_size_divisible_by, tp_size, added_token_num)
 
             if pp_rank == 0:
-                rank_model["embedding.word_embeddings.weight"] = row_split(emb_w, tp_size, tp_rank)
+                rank_model["language_model"]["embedding"]["word_embeddings"]["weight"] = row_split(emb_w, tp_size, tp_rank)
 
             if pp_rank == pp_size - 1:
-                rank_model["language_model.final_layernorm.weight"] = get_weight_from_name(
+                rank_model["language_model"]["encoder"]["final_layernorm.weight"] = get_weight_from_name(
                     "language_model.final_layernorm.weight").clone()
-                rank_model["lm_head.lm_head.weight"] = row_split(
+                rank_model["language_model"]["output_layer"]["weight"] = row_split(
                     pad_embed(get_weight_from_name("lm_head.lm_head.weight"), make_vocab_size_divisible_by,
                               tp_size, added_token_num), tp_size, tp_rank)
 
             for pp_i in range(pp_n_layer):
                 g_i = pp_n_layer * pp_rank + pp_i
-                rank_model[f"language_model.layers.{pp_i}.attention.rotary_emb.inv_freq"] = get_weight_from_name(
-                    f"language_model.layers.{g_i}.attention.rotary_emb.inv_freq")
                 qkv_key = f"language_model.layers.{g_i}.attention.query_key_value.weight"
                 qw = row_split(get_weight_from_name(qkv_key + "_query"), tp_size, tp_rank)
                 kw = row_split(get_weight_from_name(qkv_key + "_key"), tp_size, tp_rank)
                 vw = row_split(get_weight_from_name(qkv_key + "_value"), tp_size, tp_rank)
                 permute_w = permute_qkv_weight(torch.cat([qw, kw, vw], dim=0), (num_heads, hid_size, tp_size, args.num_kv_heads))
-                rank_model[f"language_model.layers.{pp_i}.attention.query_key_value.weight"] = permute_w
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.self_attention.query_key_value.weight"] = permute_w
 
-                rank_model[f"language_model.layers.{pp_i}.attention.dense.weight"] = column_split(
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.self_attention.dense.weight"] = column_split(
                     get_weight_from_name(f"language_model.layers.{g_i}.attention.dense.weight"), tp_size, tp_rank)
 
                 gate_proj = row_split(
@@ -243,21 +246,18 @@ def generate_ascendspeed_weights(config):
                 up_proj = row_split(
                     get_weight_from_name(f"language_model.layers.{g_i}.mlp.up_proj.weight"), tp_size, tp_rank)
                 if args.merge_mlp:
-                    rank_model[
-                        f"language_model.layers.{pp_i}.mlp.proj.weight"] = torch.cat(
+                    rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.proj.weight"] = torch.cat(
                         [gate_proj, up_proj], 0).contiguous().clone()
                 else:
-                    rank_model[
-                        f"language_model.layers.{pp_i}.mlp.gate_proj.weight"] = gate_proj
-                    rank_model[
-                        f"language_model.layers.{pp_i}.mlp.up_proj.weight"] = up_proj
+                    rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.gate_proj.weight"] = gate_proj
+                    rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.dense_h_to_4h.weight"] = up_proj
 
-                rank_model[f"language_model.layers.{pp_i}.mlp.down_proj.weight"] = column_split(
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.mlp.dense_4h_to_h.weight"] = column_split(
                     get_weight_from_name(f"language_model.layers.{g_i}.mlp.down_proj.weight"), tp_size, tp_rank)
 
-                rank_model[f"language_model.layers.{pp_i}.input_layernorm.weight"] = get_weight_from_name(
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.input_layernorm.weight"] = get_weight_from_name(
                     f"language_model.layers.{g_i}.input_layernorm.weight").clone()
-                rank_model[f"language_model.layers.{pp_i}.post_attention_layernorm.weight"] = get_weight_from_name(
+                rank_model["language_model"]["encoder"][f"layers.{pp_i}.post_attention_layernorm.weight"] = get_weight_from_name(
                     f"language_model.layers.{g_i}.post_attention_layernorm.weight").clone()
             if tp_rank == 0 and pp_rank == 0:
                 print_model(rank_model)
@@ -271,7 +271,7 @@ def print_result(arg):
     logging.info("=" * 100)
     logging.info(
         "weight converted from (tp=%s,pp=%s) to (tp=%s,pp=%s) success.. the converted weights are stored in %s",
-        str(arg.tgt_tensor_model_parallel_size), str(arg.tgt_pipeline_model_parallel_size),
+        str(arg.src_tensor_model_parallel_size), str(arg.src_pipeline_model_parallel_size),
         str(arg.tgt_tensor_model_parallel_size), str(arg.tgt_pipeline_model_parallel_size),
         str(arg.output_model_dir)
     )

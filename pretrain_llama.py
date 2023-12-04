@@ -34,7 +34,8 @@ from ascendspeed import get_tokenizer
 from ascendspeed.core import parallel_state, tensor_parallel
 from ascendspeed.data.gpt_dataset import build_train_valid_test_datasets as build_pretrain_dataset
 from ascendspeed.data.decoder_packed_mtf_dataset import build_train_valid_test_datasets as build_instruction_dataset
-from ascendspeed.model import LlamaModel, LlamaModelPipe
+from ascendspeed.model.gpt_model import GPTModel
+from ascendspeed.model.gpt_model import GPTModelPipe
 from ascendspeed.core.enums import ModelType
 from ascendspeed.training import pretrain
 from ascendspeed.utils import get_ltor_masks_and_position_ids, get_tune_attention_mask
@@ -56,7 +57,7 @@ def model_provider(pre_process=True, post_process=True):
                              enabled=args.zero_stage == 3,
                              mpu=parallel_state):
         if args.deepspeed and not args.no_pipeline_parallel:
-            model = LlamaModelPipe(config=config, parallel_output=True)
+            model = GPTModelPipe(config=config, parallel_output=True)
             # This is a hack to give us a reference to get_batch_pipe from within training.py
             # We need to call model.set_batch_fn after deepspeed.initialize
             model._megatron_batch_fn = get_batch_pipe
@@ -79,10 +80,9 @@ def model_provider(pre_process=True, post_process=True):
             # Attention mask must be bool.
             args.attn_mask = attention_mask.to(torch.bool)
         else:
-            model = LlamaModel(
+            model = GPTModel(
                 config=config,
                 parallel_output=True,
-                add_pooler=False,
                 pre_process=pre_process,
                 post_process=post_process
             )
@@ -208,7 +208,7 @@ def forward_step(data_iterator, model):
     if args.foldx_mode is None:
         timers('batch-generator').stop()
 
-    output_tensor = model(tokens, attention_mask, labels=labels)
+    output_tensor, other_losses = model(tokens, position_ids=None, attention_mask=attention_mask, labels=labels)
     # Output_tensor stores the standard loss, loos_func calculates the total loss.
     return output_tensor, partial(loss_func, loss_mask)
 

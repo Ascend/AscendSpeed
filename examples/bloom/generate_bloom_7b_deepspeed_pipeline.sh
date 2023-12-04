@@ -54,3 +54,8 @@ deepspeed --num_nodes $NNODES --num_gpus $NPUS_PER_NODE \
        --seed 42 \
        --deepspeed \
        --deepspeed_config ${config_json} \
+       --no-add-gate \
+       --add-bias-linear \
+       --query-key-layer-scaling \
+       --no-attention-softmax-in-fp32 \
+       --no-untie-embeddings-and-output-weights

@@ -109,8 +109,8 @@ deepspeed pretrain_llama.py \
          --tokenizer-name-or-path $TOKENIZER_PATH \
          --tokenizer-not-use-fast \
          --checkpoint-activations \
-         --checkpoint-policy block \
-         --checkpoint_block_layer 8 \
+         --recompute-method block \
+         --checkpoint_num_layers 8 \
          --data-impl mmap \
          --split 949,50,1 \
          --distributed-backend nccl \
@@ -129,4 +129,6 @@ deepspeed pretrain_llama.py \
          --lora-r 64 \
          --lora-alpha 128 \
          $ds_args \
+         --position-embedding-type rope \
+         --normalization RMSNorm \
          --fp16 | tee logs/train.log

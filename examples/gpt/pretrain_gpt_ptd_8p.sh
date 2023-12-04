@@ -45,10 +45,17 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --weight-decay 1e-2 \
        --clip-grad 1.0 \
        --lr-warmup-fraction .01 \
-       --checkpoint-activations \
        --recompute-method block \
-       --log-interval 10 \
+       --recompute-granularity full \
+       --no-add-gate \
+       --attention-dropout 0.1 \
+       --hidden-dropout 0.1 \
+       --log-interval 1 \
        --save-interval 10000 \
        --eval-interval 1000 \
        --eval-iters 10 \
+       --add-bias-linear \
+       --query-key-layer-scaling \
+       --no-attention-softmax-in-fp32 \
+       --no-untie-embeddings-and-output-weights \
        --fp16 | tee logs/train.log

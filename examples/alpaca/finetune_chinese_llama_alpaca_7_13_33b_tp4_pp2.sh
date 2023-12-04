@@ -81,4 +81,6 @@ python -m torch.distributed.launch ${DISTRIBUTED_ARGS} \
          --lora-r 64 \
          --lora-alpha 128 \
          --lora-modules-to-save word_embeddings lm_head.lm_head \
+         --position-embedding-type rope \
+         --normalization RMSNorm \
          --fp16 | tee logs/train.log

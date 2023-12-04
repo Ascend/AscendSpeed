@@ -76,6 +76,8 @@ deepspeed  pretrain_baichuan.py \
   --pipeline-model-parallel-size 1 \
   --num-layers 32 \
   --hidden-size 4096 \
+  --position-embedding-type rope \
+  --normalization RMSNorm \
   --ffn-hidden-size 11008 \
   --num-attention-heads 32 \
   --micro-batch-size $MICRO_BATCH \
@@ -100,8 +102,8 @@ deepspeed  pretrain_baichuan.py \
   --eval-interval 1000 \
   --eval-iters 1 \
   --checkpoint-activations \
-  --checkpoint-policy block \
-  --checkpoint_block_layer 30 \
+  --recompute-method uniform \
+  --recompute-num-layers 30 \
   --triangle-attn \
   $ds_args \
   --fp16 | tee logs/train.log

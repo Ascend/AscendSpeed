@@ -35,11 +35,14 @@ python -m torch.distributed.run $DISTRIBUTED_ARGS ./tasks/inference/inference_gp
                --num-attention-heads 112 \
                --max-position-embeddings 2048 \
                --seq-length 2048 \
-               --attention-dropout 0 \
-               --hidden-dropout 0 \
                --micro-batch-size 1 \
                --init-method-std 0.0048 \
                --layernorm-epsilon 1e-6 \
                --fp16 \
                --no-load-optim \
-               --no-load-rng
+               --no-load-rng \
+               --no-add-gate \
+               --add-bias-linear \
+               --query-key-layer-scaling \
+               --no-attention-softmax-in-fp32 \
+               --no-untie-embeddings-and-output-weights

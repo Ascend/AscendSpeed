@@ -35,4 +35,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/main.py \
                --layernorm-epsilon 1e-6 \
                --fp16 \
                --no-load-optim \
-               --no-load-rng
+               --no-load-rng \
+               --position-embedding-type rope \
+               --normalization RMSNorm \

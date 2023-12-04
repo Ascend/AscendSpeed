@@ -1,57 +1,50 @@
-# This is an example: training llama using PTD/
+# This is an example: train llama using PTD.
 
 # The number of parameters is not aligned
 export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
 export COMBINED_ENABLE=1
 
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=6001
-NNODES=8
+NNODES=4
 NODE_RANK=0
 NPUS_PER_NODE=8
 WORLD_SIZE=$(($NPUS_PER_NODE*$NNODES))
 
-DATA_PATH=./dataset/llama_text_document
-CHECKPOINT_LOAD_PATH=./load_ckpt
-CHECKPOINT_SAVE_PATH=./save_ckpt
+TOKENIZER_PATH=./internlm-65b-hf
+DATA_PATH=./dataset/alpaca_text_document
+CHECKPOINT_PATH=./ckpt
 DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 
 # Main script
 python -m torch.distributed.launch $DISTRIBUTED_ARGS \
-       pretrain_llama.py \
+       pretrain_intern.py \
        --DDP-impl local \
-       --use-flash-attn \
-       --sequence-parallel \
-       --mlp-layer-fusion \
        --tensor-model-parallel-size 8 \
-       --pipeline-model-parallel-size 8 \
+       --pipeline-model-parallel-size 4 \
        --num-layers 80 \
        --hidden-size 8192 \
-       --ffn-hidden-size 28672 \
+       --ffn-hidden-size 22016 \
        --num-attention-heads 64 \
+       --micro-batch-size 2 \
+       --global-batch-size 128 \
+       --seq-length 2048 \
        --position-embedding-type rope \
        --normalization RMSNorm \
-       --group-query-attention \
-       --num-query-groups 8 \
-       --micro-batch-size 2 \
-       --global-batch-size 1024 \
-       --seq-length 4096 \
-       --max-position-embeddings 4096 \
-       --train-iters 5000 \
+       --max-position-embeddings 2048 \
+       --train-iters 50000 \
        --lr-decay-iters 320000 \
-       --save $CHECKPOINT_SAVE_PATH \
-       --load $CHECKPOINT_LOAD_PATH \
+       --save $CHECKPOINT_PATH \
+       --load $CHECKPOINT_PATH \
        --data-path $DATA_PATH \
-       --tokenizer-name-or-path ./dataset/llama/ \
+       --tokenizer-name-or-path $TOKENIZER_PATH \
        --tokenizer-not-use-fast \
-       --pad-vocab-size-to 32000 \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
-       --lr 0.00015 \
+       --lr 1e-4 \
        --lr-decay-style cosine \
        --min-lr 1.0e-5 \
        --weight-decay 1e-2 \
@@ -61,5 +54,15 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --save-interval 10000 \
        --eval-interval 1000 \
        --eval-iters 10 \
-       --release-fp32-grad \
+       --auto-recompute-device-size 55296 \
+       --initial-loss-scale 524288.0 \
+       --optimizer adam \
+       --adam-beta1 0.9 \
+       --adam-beta2 0.95 \
+       --adam-eps 1e-8 \
+       --clip-grad 1.0 \
+       --use-flash-attn \
+       --use-fused-rotary-pos-emb \
+       --sequence-parallel \
+       --mlp-layer-fusion \
        --bf16 | tee logs/train.log
