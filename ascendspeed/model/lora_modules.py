@@ -25,6 +25,18 @@ if is_bnb_available():
     from peft.tuners.lora import Linear8bitLt, Linear4bit
 
 
+def modules_to_save_getattr_hook(self, name: str):
+    try:
+        return super(ModulesToSaveWrapper, self).__getattr__(name)  # defer to nn.Module's logic
+    except AttributeError:
+        if self.active_adapter not in self.modules_to_save:
+            return getattr(self.original_module, name)
+        return getattr(self.modules_to_save[self.active_adapter], name)
+
+
+setattr(ModulesToSaveWrapper, '__getattr__', modules_to_save_getattr_hook)
+
+
 class LoraParalleLayer(LoraLayer):
     def __init__(self, in_features: int, out_features: int, is_paralle_a: bool = False):
         LoraLayer.__init__(self, in_features=in_features, out_features=out_features)

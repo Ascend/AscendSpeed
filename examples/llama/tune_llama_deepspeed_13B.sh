@@ -25,8 +25,8 @@ TOKENIZER_PATH=<tokenizer-path>
 DS_CONFIG=deepspeed_config_13B.json
 ZERO_STAGE=2
 
-MICRO_BATCH=16
-GRADIENT_ACCUMULATION_STEP=1
+MICRO_BATCH=4
+GRADIENT_ACCUMULATION_STEP=4
 GLOBAL_BATCH=$(($MICRO_BATCH * $GRADIENT_ACCUMULATION_STEP * $WORLD_SIZE))
 EPOCH=2
 TRAIN_ITERS=$((52000 / $GLOBAL_BATCH * $EPOCH))
@@ -100,7 +100,7 @@ deepspeed pretrain_llama.py \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
-       --lr 1e-6 \
+       --lr 2e-5 \
        --lr-decay-style cosine \
        --min-lr 0 \
        --weight-decay 0. \
@@ -112,10 +112,9 @@ deepspeed pretrain_llama.py \
        --eval-interval 1000 \
        --eval-iters 10 \
        --use-cpu-initialization \
-       --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
-       --lora-r 64 \
-       --lora-alpha 128 \
-       --lora-modules-to-save word_embeddings lm_head.lm_head \
+       --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
+       --lora-r 16 \
+       --lora-alpha 32 \
        --is-instruction-dataset \
        $ds_args \
        --fp16 | tee logs/train_13B_deepspeed.log

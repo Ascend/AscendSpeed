@@ -103,6 +103,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --eval-interval 1000 \
        --eval-iters 1 \
        --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
+       --lora-modules-to-save word_embeddings output_layer \
        --fp16 \
        --position-embedding-type rope \
        --normalization RMSNorm \
@@ -150,6 +151,7 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --eval-interval 1000 \
        --eval-iters 1 \
        --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
+       --lora-modules-to-save word_embeddings output_layer \
        --fp16 \
        --position-embedding-type rope \
        --normalization RMSNorm \

@@ -61,7 +61,7 @@ python -m torch.distributed.launch ${DISTRIBUTED_ARGS} \
        --data-impl mmap \
        --split 949,50,1 \
        --distributed-backend nccl \
-       --lr 1e-6 \
+       --lr 2e-5 \
        --lr-decay-style cosine \
        --lr-decay-iters ${TRAIN_ITERS} \
        --min-lr 0 \
@@ -76,9 +76,8 @@ python -m torch.distributed.launch ${DISTRIBUTED_ARGS} \
        --seed 1234 \
        --zero-stage 2 \
        --is-instruction-dataset \
-       --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
-       --lora-r 64 \
-       --lora-alpha 128 \
-       --lora-modules-to-save word_embeddings lm_head.lm_head \
+       --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
+       --lora-r 16 \
+       --lora-alpha 32 \
        --fp16 | tee logs/train_13B_megatron.log
 
