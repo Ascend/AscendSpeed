@@ -18,8 +18,8 @@
 import os
 import random
 import sys
+import enum
 import traceback
-
 import numpy as np
 from deepspeed import PipelineEngine
 from deepspeed.accelerator import get_accelerator
@@ -28,6 +28,8 @@ from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
 from ascendspeed.enums import PositionEmbeddingType
 from ascendspeed.utils import WRITE_FILE_DEFAULT_FLAGS, WRITE_FILE_DEFAULT_MODES
+from ascendspeed.utils import cpu_tensor_reduce_context
+from ascendspeed.utils import convert_args_to_strs
 
 from ascendspeed import (get_args,
                          is_rank_0,
@@ -70,6 +72,10 @@ def check_checkpoint_args(checkpoint_args):
         else:
             checkpoint_value = getattr(checkpoint_args, arg_name)
         args_value = getattr(args, arg_name)
+        if isinstance(args_value, enum.Enum):
+            args_value = args_value.name
+        if isinstance(checkpoint_value, enum.Enum):
+            checkpoint_value = checkpoint_value.name
         error_info = '{} value from checkpoint ({}) is not equal to the ' \
                      'input argument value ({}).'.format(
             arg_name, checkpoint_value, args_value)
@@ -150,7 +156,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
         # Arguments, iteration, and model.
         state_dict = {}
-        state_dict['args'] = args
+        state_dict['args'] = convert_args_to_strs(args)
         state_dict['checkpoint_version'] = 3.0
         state_dict['iteration'] = iteration
         state_dict['tokens'] = args.consumed_train_tokens
@@ -179,7 +185,8 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
         checkpoint_name = get_checkpoint_name(args.save, iteration)
         if not args.deepspeed:
             ensure_directory_exists(checkpoint_name)
-            torch.save(state_dict, checkpoint_name)
+            with cpu_tensor_reduce_context(args.save_to_cpu):
+                torch.save(state_dict, checkpoint_name)
 
     if args.deepspeed:
         original_state_dict = None
@@ -203,7 +210,8 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
         # Trim off the filename and mp_rank_* directory.
         for _ in range(3):
             checkpoint_name = os.path.dirname(checkpoint_name)
-        model[0].save_checkpoint(checkpoint_name, client_state=state_dict)
+        with cpu_tensor_reduce_context(args.save_to_cpu):
+            model[0].save_checkpoint(checkpoint_name, client_state=state_dict)
 
         if original_state_dict is not None:
             model[0].module.state_dict = original_state_dict
