@@ -460,7 +460,7 @@ class MegatronModuleForCausalLM(MegatronModuleForCausalLMABC):
             args.load = pretrained_model_name_or_path
 
         if args.deepspeed:
-            if is_enable_lora():
+            if is_enable_lora() and not args.no_pipeline_parallel:
                 unwrap_classes = get_lora_model_classes()
                 # The deepspeed pipeline needs to verify the model base class. Therefore, the peft package needs to be unpacked.
                 args.model = unwrap_model(args.model, unwrap_classes)

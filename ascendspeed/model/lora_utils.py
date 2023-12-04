@@ -27,7 +27,7 @@ def is_module_name_in_lora_modules_to_save(module_name):
     from ascendspeed import get_args
     args = get_args()
     for modules_to_save_name in args.lora_modules_to_save:
-        if module_name.endswith(f"{modules_to_save_name}.weight"):
+        if module_name == modules_to_save_name:
             return True
     return False
 
@@ -60,41 +60,60 @@ def is_lora_modules_to_save_state_dict(state_dict):
     from ascendspeed import get_args
     args = get_args()
     modules_to_save_key = f'modules_to_save.{args.lora_adapter_name}'
-    for key in state_dict.keys():
+
+    @judge_unwarp_dict
+    def func_(key):
         if modules_to_save_key in key:
             return True
-    return False
+        return False
+
+    return func_(state_dict)
 
 
 def handle_lora_modules_to_save_key(state_dict):
     if not is_enable_lora_modules_to_save():
         return state_dict
     if is_lora_modules_to_save_state_dict(state_dict):
-        @unwarp_dict
-        def func_(key_name, state_dict_temp, state_dict):
-            if not is_module_name_in_lora_modules_to_save(key_name):
-                state_dict_temp[key_name] = state_dict[key_name]
+        # 如果是modules_to_save保存后的权重，则需去除里面原始层的权重，即保留original_model和modules_to_save.xx.weight
 
-        return func_(state_dict)
+        def remove_modules_to_save_weight_(state_dict_):
+            state_dict_temp = {}
+            for key in state_dict_:
+                if is_module_name_in_lora_modules_to_save(key):
+                    state_dict_temp[key] = {}
+                    for key_ in state_dict_[key]:
+                        if key_ == 'weight':
+                            continue
+                        # modules_to_save的dict里不应再嵌套dict
+                        state_dict_temp[key][key_] = state_dict_[key][key_]
+                elif isinstance(state_dict_[key], dict):
+                    state_dict_temp[key] = remove_modules_to_save_weight_(state_dict_[key])
+                else:
+                    state_dict_temp[key] = state_dict_[key]
+            return state_dict_temp
+
+        return remove_modules_to_save_weight_(state_dict)
 
     from ascendspeed import get_args
     args = get_args()
-    original_module_key = 'original_module'
-    modules_to_save_key = f'modules_to_save.{args.lora_adapter_name}'
+    original_module_key = 'original_module.weight'
+    modules_to_save_key = f'modules_to_save.{args.lora_adapter_name}.weight'
 
-    @unwarp_dict
-    def func__(key_name, state_dict_temp, state_dict):
-        state_dict_temp[key_name] = state_dict[key_name]
-        if is_module_name_in_lora_modules_to_save(key_name):
-            _key_name_list = key_name.split('.')
-            if original_module_key not in key_name:
-                original_module_name = '.'.join(_key_name_list[:-1] + [original_module_key] + [_key_name_list[-1]])
-                state_dict_temp[original_module_name] = state_dict[key_name]
-            if modules_to_save_key not in key_name:
-                modules_to_save_name = '.'.join(_key_name_list[:-1] + [modules_to_save_key] + [_key_name_list[-1]])
-                state_dict_temp[modules_to_save_name] = state_dict[key_name]
+    def add_modules_to_save_lora_weight_(state_dict_):
+        state_dict_temp = {}
+        for key in state_dict_:
+            if is_module_name_in_lora_modules_to_save(key):
+                state_dict_temp[key] = {}
+                if 'weight' in state_dict_[key].keys():
+                    state_dict_temp[key][original_module_key] = state_dict_[key]['weight']
+                    state_dict_temp[key][modules_to_save_key] = state_dict_[key]['weight']
+            elif isinstance(state_dict_[key], dict):
+                state_dict_temp[key] = add_modules_to_save_lora_weight_(state_dict_[key])
+            else:
+                state_dict_temp[key] = state_dict_[key]
+        return state_dict_temp
 
-    return func__(state_dict)
+    return add_modules_to_save_lora_weight_(state_dict)
 
 
 def lora_custom_load_fn_for_deepspeed(src, dst):
@@ -136,9 +155,7 @@ def get_lora_load_fn_with_deepspeed(model, base_model_load_dir=None, tag=None):
     module_state_dict = checkpoint['module']
 
     def _lora_load_fn(src, dst):
-        state_dict = {}
-        state_dict.update(module_state_dict)
-        state_dict.update(src)
+        state_dict = merge_dict(module_state_dict, src)  # 更新model的权重
         return lora_custom_load_fn_for_deepspeed(src=state_dict, dst=dst)
 
     return _lora_load_fn
@@ -194,14 +211,18 @@ def merge_dict(d1, d2):
     temp = {}
     for key in d1:
         temp[key] = d1[key]
+
     for key in d2:
-        if key in d1:
-            if isinstance(d2[key], dict):
+        if isinstance(d2[key], dict):
+            if not d2[key]:  # 空字典
+                continue
+            if key in d1:
                 temp[key] = merge_dict(d1[key], d2[key])
             else:
                 temp[key] = d2[key]
-        else:
+        else:  # tensor
             temp[key] = d2[key]
+
     return temp
 
 
