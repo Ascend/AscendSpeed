@@ -18,8 +18,8 @@ VOCAB_FILE="your vocab path"
 
 python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference_llama.py \
        --no-contiguous-buffers-in-local-ddp \
-       --tensor-model-parallel-size 8  \
-       --pipeline-model-parallel-size 1  \
+       --tensor-model-parallel-size 4  \
+       --pipeline-model-parallel-size 2  \
        --num-layers 60  \
        --hidden-size 6656  \
        --ffn-hidden-size 17920 \
@@ -36,3 +36,4 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference
        --seed 42 \
        --position-embedding-type rope \
        --normalization RMSNorm \
+       --mlp-layer-fusion \

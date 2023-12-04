@@ -177,10 +177,10 @@ LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
         <td>4x8</td>
         <td>FP16</td>
         <td>621</td>
-        <td>520</td>
+        <td>776</td>
         <td>
-        <a href="./sources/images/llama/llama33B_shape_layer8.png">Loss</a> </td>
-        <td><a href="examples/llama/pretrain_llama_33B_zero_32p.sh">训练</a> </td>
+        <a href="sources/images/llama/llama33b-layer20-loss-with-weight.png">Loss</a> </td>
+        <td><a href="examples/llama/pretrain_llama_33B_ptd_32p.sh">训练</a> </td>
     </tr>
     <tr>
       <td rowspan="2">65B</td>
@@ -375,8 +375,8 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
     <tr>
       <td>33B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_33B_tp8_pp1.sh">对话 </a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_33B_ptd.sh">对话 </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/evaluate_llama_33B_ptd.sh">评估 </a> </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
