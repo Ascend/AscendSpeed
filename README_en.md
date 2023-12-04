@@ -16,25 +16,25 @@
 </p>
 <p align="center">
         <b><a href="https://gitee.com/fengliangjun66/AscendSpeed/blob/master/README.md"> 简体中文</a></b> |
-        <b> English </b> 
+        <b> English </b>
     </p>
 </p>
 
 AscendSpeed provides end-to-end solutions for large language models on [Ascend](https://open.codehub.huawei.com/OpenBaize/Ascend/ascendspeed/files?ref=master&filePath=examples%2Fbaichuan%2Fpretrain_baichuan_zero_7B.sh&isFile=true) chips, including models, algorithms, kernels, and tasks.
 
-## Why AscendSpeed? 
+## Why AscendSpeed?
 
 ---
 ### Prepared Models
-Currently, the following models has been supported: 
-
+Currently, the following models has been supported:
+* <a href="https://huggingface.co/BAAI/Aquila-7B/tree/main" style="color:green">Aquila</a>-[[README: 7B]](examples/aquila/README.md)
 * <a href="https://github.com/baichuan-inc" style="color:green">Baichuan</a>-[[README: 7B/13B]](examples/baichuan/README.md)
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[README: 7B/176B]](examples/bloom/README.md)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[README: 7B/65B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[README: 7B/13B/33B/65B]](examples/llama/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[README: 7B/13B/70B]](examples/llama2/README.md)
 
-LLaMA2-34B, Aquila-7B, Baichuan2-7B/13B are coming soon ...
+LLaMA2-34B, Baichuan2-7B/13B are coming soon ...
 
 ### Downstream Tasks
 Currently, the following downstream tasks have been supported:
@@ -85,6 +85,16 @@ Coming soon ...
     </tr>
   </thead>
   <tbody>
+    <tr>
+      <td rowspan="1"><a href="examples/aquila/README.md">Aquila</a></td>
+      <td>7B</td>
+      <td> 1x8</td>
+      <td> FP16 </td>
+      <td> 3644 </td>
+      <td> 4078 </td>
+      <td> <a href="./sources/images/aquila/aquila_comp1130.png">Loss</a> </td>
+      <td> <a href="examples/aquila/pretrain_aquila_7B.sh">Train</a> </td>
+    </tr>
     <tr>
       <td rowspan="2"><a href="examples/baichuan/README.md">Baichaun</a></td>
       <td>7B</td>
@@ -220,8 +230,8 @@ This is an example of model training with AscendSpeed, and the detailed guidelin
 1. Clone the repository to your local server:
 
 ```bash
-git clone https://gitee.com/ascend/AscendSpeed.git 
-cd AscendSpeed 
+git clone https://gitee.com/ascend/AscendSpeed.git
+cd AscendSpeed
 mkdir logs
 mkdir ckpt
 ```
@@ -294,7 +304,7 @@ python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-mode
 5. Start your task
 
 ```bash
-# set your data path / weight path / tokenizer path etc.   
+# set your data path / weight path / tokenizer path etc.
 sh examples/llama/pretrain_llama_7B_zero_8p.sh
 ```
 
@@ -397,7 +407,7 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
 # for llama, download alpaca dataset, like
 wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
 
-# download tokenizer configs and (selective) weights from 
+# download tokenizer configs and (selective) weights from
 # https://huggingface.co/yahma/llama-7b-hf/tree/main
 # revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
 mkdir dataset
@@ -411,7 +421,7 @@ python tools/preprocess_data.py --input train-00000-of-00001-a09b74b3ef9c3b56.pa
 
 #### Preprocessing pretraining dataset
 
-##### wikipedia dataset 
+##### wikipedia dataset
 
 + download [wikipedia data](https://huggingface.co/datasets/wikipedia/tree/main) from huggingface to WORKSPACE/wikipedia
 + download [llama tokenizer model and config](https://huggingface.co/yahma/llama-7b-hf/tree/main) from huggingface to WORKSPACE/llama-7b-hf
@@ -423,7 +433,7 @@ cd WORKSPACE
 mkdir wikipedia_preprocessed
 
 # specify huggingface load_dataset parameters.(--input param will be ignored)
-# these params will just be feed into datasets.load_dataset function 
+# these params will just be feed into datasets.load_dataset function
 hf_config_json="./hf_config_json.json"
 cat <<EOT > $hf_config_json
 {
@@ -472,7 +482,7 @@ python tools/preprocess_data.py --input WORKSPACE/train-00000-of-00001-a09b74b3e
 # for llama, download alpaca dataset, like
 # wget https://huggingface.co/datasets/tatsu-lab/alpaca/resolve/main/data/train-00000-of-00001-a09b74b3ef9c3b56.parquet
 
-# download tokenizer configs and (selective) weights from 
+# download tokenizer configs and (selective) weights from
 # https://huggingface.co/yahma/llama-7b-hf/tree/main
 # revise "LLaMATokenizer" as "LlamaTokenizer" in tokenizer_config.json (This is a bug of huggingface)
 
@@ -486,7 +496,7 @@ python tools/preprocess_data.py --input WORKSPACE/alpaca/train-00000-of-00001-a0
                                 --handler-name GeneralInstructionHandler
 ```
 
-After preprocessing, there will be three `bin` files and three `idx` files in the `WORKSPACE/alpaca_preprocessed` dictionary. Then, we can train a model with `--data-path WORKSPACE/alpaca_preprocessed/alpaca` and `--is-instruction-dataset` flags. 
+After preprocessing, there will be three `bin` files and three `idx` files in the `WORKSPACE/alpaca_preprocessed` dictionary. Then, we can train a model with `--data-path WORKSPACE/alpaca_preprocessed/alpaca` and `--is-instruction-dataset` flags.
 In addition, we have developed the dynamic padding function based on the instruction dataset, which can be implemented using the `--variable-seq-lengths` flag.
 
 Note that instruction dataset has a `--handler-name GeneralInstructionHandler` flag which will choose `GeneralInstructionHandler` class to create prompt in `ascendspeed/data/data_handler.py`.
@@ -498,7 +508,7 @@ In addition, `BelleMultiTurnInstructionHandler` is used to handle [belle dataset
 ### <span id="jump12"> Low-parameter fine-tuning </span>
 #### Lora
 
-Now, we support Lora to fine-tune your models. 
+Now, we support Lora to fine-tune your models.
 
 First, you need to install version 0.4.0 of the peft library, like this:
 ```shell
@@ -532,7 +542,7 @@ Finally, only Lora's parameters are saved after turning on Lora. Similarly, when
 --lora-load ${LORA_CHECKPOINT} \
 ```
 
-There is an [example](examples/llama/tune_llama_ptd_13b.sh) could be referred. 
+There is an [example](examples/llama/tune_llama_ptd_13b.sh) could be referred.
 
 After using Lora to fine-tune the Llama model, the instruction dialogue effect is as follows:
 
@@ -557,11 +567,11 @@ Currently, we support the following four cases of inference:
 Here are some example scripts in different mode mentioned above for you to launch directly.
 
 ***Please Note that:***
-1. If you want to use the weight from huggingface, please run the weight conversion script first. 
+1. If you want to use the weight from huggingface, please run the weight conversion script first.
     Take Llama-7B, for example:
-    
+
       - PTD only
-    
+
            ```bash
            python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
                                                                                --output-model-dir llama-7b-tp2-pp2 \
@@ -569,7 +579,7 @@ Here are some example scripts in different mode mentioned above for you to launc
                                                                                --pipeline-model-parallel-size 2 \
                                                                                --type 7B
            ```
-    
+
     - DeepSpeed ZeRO only
         ```bash
         python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-7b-hf \
@@ -577,7 +587,7 @@ Here are some example scripts in different mode mentioned above for you to launc
                                                                             --type 7B \
                                                                             --deepspeed
         ```
-    
+
 2. You need to modify some variables in the shell script such as **model weight path** and **vocab path**.
 
     - **PTD only:** In this mode, the model is split by pipeline parallel and tensor parallel mode in megatron ways.
@@ -776,7 +786,7 @@ VOCAB_FILE=../models/llama7b-hf/
 # configure task and data path
 DATA_PATH="dataset/boolq/test"
 TASK="boolq"
-# configure generation parameters 
+# configure generation parameters
 python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
@@ -824,39 +834,39 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation_llama.py   \
        --micro-batch-size 1  \
        --seed 42 | tee logs/train.log
 ```
-##### BoolQ 
+##### BoolQ
 BoolQ is a question answering dataset for yes/no questions. Each question contains a triplet of (question, passage, answer), with the title of the page as optional additional context.
 The evaluation of the BoolQ data set is relatively simple, just configure `TASK="boolq"`, `--seq-length=512`, `--max-position-embeddings=512`, `--max-new-token=2`.
-The zero-shot results are usually affected by the given prompt, and a higher score can be obtained by a suitable prompt. 
+The zero-shot results are usually affected by the given prompt, and a higher score can be obtained by a suitable prompt.
 The prompt can be modified in `tasks/evaluation/evaluation.py`
 ```bash
 # Update new prompt by changing the template
 template = {instruction}
 ```
 
-##### MMLU 
+##### MMLU
 Since MMLU is a multidisciplinary task and 5 shots are performed, the length of each subject question varies greatly. If you want to run 57 subjects at the same time, you need to set `TASK="mmlu"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=2`. (`--max-new-tokens` can be set to between 2-4).
 On many websites, the accuracy of the MMLU is evaluated according to disciplines. The 57 categories of single subjects belong to four main categories. Therefore, the statistics should be summarized according to the major categories of the subjects. The [website](https://github.com/hendrycks/test/blob/master/categories.py) gives the major categories of subjects for 57 categories of subjects.
 
 
-##### GSM8K 
+##### GSM8K
 GSM8K is a dataset of 8.5K high quality linguistically diverse grade school math word problems created by human problem writers. The answer of each question is a specific number. Since few shots are performed,  the question length is relatively long in GSM8K, and the output answer contains a chain of thoughts, it is necessary to configure `TASK="gsm8k"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=128`. (`--max-new-tokens` can be set between 256-512).
 
-##### HumanEval 
-HumanEval dataset is a handcrafted set of 164 programming problems designed to challenge code generation models. The problems include a function signature, docstring, body, and several unit tests, all handwritten to ensure they're not included in the training set of code generation models. 
+##### HumanEval
+HumanEval dataset is a handcrafted set of 164 programming problems designed to challenge code generation models. The problems include a function signature, docstring, body, and several unit tests, all handwritten to ensure they're not included in the training set of code generation models.
 Since the answer of HumanEval dataset contains long codes, it is necessary to configure `TASK="human_eval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024`.
 
 ##### AGIEval
-AGIEval is a human-centric benchmark specifically designed to evaluate the general 
-abilities of foundation models in tasks pertinent to human cognition and problem-solving. This benchmark is derived from 20 official, public, and high-standard admission and qualification exams intended for general human test-takers, such as general college admission tests (e.g., Chinese College Entrance Exam (Gaokao) and American SAT), law school admission tests, math competitions, lawyer qualification tests, and national civil service exams.Since the length of answers to different type of questions varies, we have to configure `TASK="agieval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024` to fit the longest answer. 
+AGIEval is a human-centric benchmark specifically designed to evaluate the general
+abilities of foundation models in tasks pertinent to human cognition and problem-solving. This benchmark is derived from 20 official, public, and high-standard admission and qualification exams intended for general human test-takers, such as general college admission tests (e.g., Chinese College Entrance Exam (Gaokao) and American SAT), law school admission tests, math competitions, lawyer qualification tests, and national civil service exams.Since the length of answers to different type of questions varies, we have to configure `TASK="agieval"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=1024` to fit the longest answer.
 
 ##### Big-Bench-Hard
 Big-bench-hard dataset is a subset of big bench, which is a diverse evaluation suite that focuses on a suite of 23 challenging BIG-Bench tasks. These are the task for which prior language model evaluations did not outperform the average human-rater. This dataset covers multiple areas including text understanding, reasoning, logical reasoning, mathematical reasoning, and common sense reasoning.
 Except word_sorting, all datasets are multiple-choice questions. So we can set `TASK="bbh"`, `--seq-length=2048`, `--max-position-embeddings=2048`, `--max-new-token=32`. (`--max-new-tokens` can be set between 32-64).
 
 ##### CEval
-As [C-Eval](https://cevalbenchmark.com/) shows, C-Eval is a comprehensive Chinese evaluation suite for foundation models. It consists of 13948 multi-choice questions spanning 52 diverse disciplines and four difficulty levels, as shown below. You may explore our dataset examples at Explore, or check our paper for more details. The dataset contains validation and test data, however, only validation data has label for auto-evaluation. If 
-you want to evaluate on test data, you should email your results to [C-Eval](https://cevalbenchmark.com/). 
+As [C-Eval](https://cevalbenchmark.com/) shows, C-Eval is a comprehensive Chinese evaluation suite for foundation models. It consists of 13948 multi-choice questions spanning 52 diverse disciplines and four difficulty levels, as shown below. You may explore our dataset examples at Explore, or check our paper for more details. The dataset contains validation and test data, however, only validation data has label for auto-evaluation. If
+you want to evaluate on test data, you should email your results to [C-Eval](https://cevalbenchmark.com/).
 
 
 #### Configuration of models and datasets
@@ -867,7 +877,7 @@ python convert_weights_from_huggingface.py \
         --output-model-dir /home/w425040/models/llama-7b-tp2-pp4 \
         --type 7B \
         --tensor-model-parallel-size 2 \
-        --pipeline-model-parallel-size 4 
+        --pipeline-model-parallel-size 4
 ```
 Then, configure dataset path and task.  Note: since the evaluation parameters of different datasets are not totally same, it is not recommended to evaluate two or more different datasets together. Evaluation parameters such as `--seq-length`, `--max-new-tokens` and `--max-position-embeddings` need to be adjusted to datasets. The recommended parameters for each dataset will be given in the following instruction.
 
@@ -878,7 +888,7 @@ VOCAB_FILE=../models/llama7b-hf/
 # configure task and data path
 DATA_PATH="dataset/boolq/test"
 TASK="boolq"
-# configure generation parameters 
+# configure generation parameters
 ```
 
 ## Introduction For Acceleration Features
@@ -886,7 +896,7 @@ TASK="boolq"
 ---
 
 ### <span id="jump1"> Tensor Parallelism </span>
-Tensor parallelism (TP) is a kind of model parallelism strategy, which splits execution of a single transformer module over multiple devices. 
+Tensor parallelism (TP) is a kind of model parallelism strategy, which splits execution of a single transformer module over multiple devices.
 The basic principle of PP is:<div align=center>
 <img src="sources/images/tp_in_mlp.png" height="280px" width="500px">
 <img src="sources/images/tp_in_sa.png" height="280px" width="500px"></div>
@@ -899,7 +909,7 @@ smaller microbatches. Virtual pipeline (VP) parallelism optimizes PP by add virt
 <img src="sources/images/pp_vp.png" height="350px" width="800px"></div>
 
 To enable pipeline model parallelism, use the `--pipeline-model-parallel-size` flag to specify the number of stages to split the model into (e.g., splitting a model with 24 transformer layers across 4 stages would mean each stage gets 6 transformer layers each).
-To enable virtual pipeline parallelism, additionally use `--num-layers-per-virtual-pipeline-stage` flag to decide number of layers per virtual stage. 
+To enable virtual pipeline parallelism, additionally use `--num-layers-per-virtual-pipeline-stage` flag to decide number of layers per virtual stage.
 To enable optimized pipeline parallelism, additionally use `--optimized-pipeline` and `--manual-mbs example-config-1` flag based on PP. Note that both VP and OPP reduce bubble time, but increase communication time.
 
 ### <span id="jump3"> Fold3D </span>
@@ -908,8 +918,8 @@ Fold3D hides the commutation time of data parallelism in VP. The basic principle
 To enable pipeline model parallelism, use the `--fold-mode "aiao"` flag to choose strategy.
 
 ### <span id="jump4"> (Selective) Recomputation </span>
-To reduce NPU memory usage so deploy a large model to a training system, we support activation checkpointing and recomputation. 
-We support two levels of recompute granularity: full and selective. To enable full recomputation, please use `--checkpoint-activations` flag, and to enable selective recomputation, please use `--checkpoint-policy` flag to 
+To reduce NPU memory usage so deploy a large model to a training system, we support activation checkpointing and recomputation.
+We support two levels of recompute granularity: full and selective. To enable full recomputation, please use `--checkpoint-activations` flag, and to enable selective recomputation, please use `--checkpoint-policy` flag to
 decide the strategy of selective recomputation. Note that the selective strategy is customized and optimized for Ascend chips.
 
 To improve the performance of model training while maximizing the use of NPU memory, we support [auto selective recomputing](https://gitee.com/ascend/AscendSpeed/wikis/Algorithm%20Introduction/Auto%20Selective%20Recomputing) strategy by manually adjusting the training memory size.
@@ -920,16 +930,16 @@ Auto selective recomputing selects a strategy based on the training memory infor
 By default, profiling is stopped in step 10, with a minimum setting of 5 steps. It is recommended to stop profiling after the training memory is stable, in order to obtain a better choice of recalculation strategy.
 
 ### <span id="jump5"> Sequence Parallelism </span>
-Sequence parallelism (SP) is a kind of model parallelism strategy, which splits the sequence axis in dropout and layernorm layers. SP depends on TP in our implementation. 
+Sequence parallelism (SP) is a kind of model parallelism strategy, which splits the sequence axis in dropout and layernorm layers. SP depends on TP in our implementation.
 The allreduce operation in TP is split to reduce-scatter and allgather by SP, which reduces the memory occupation in model training. The basic principle of SP is:<div align=center>
 <img src="sources/images/sp.png" height="250px" width="800px"></div>
 To enable sequence parallelism (SP), `--tensor-model-parallel-size` flag should be lager than 1, and set `--sequence-parallel` flag.
 
 ### <span id="jump6"> ZeRO-1/2/3 </span>
-Zero Redundancy Optimizer (ZeRO) is a kind of memory-optimization strategy in data parallelism proposed by MicroSoft. 
+Zero Redundancy Optimizer (ZeRO) is a kind of memory-optimization strategy in data parallelism proposed by MicroSoft.
 AscendSpeed supports ZeRO-1/2/3 by adding a deepspeed branch. The basic principle of ZeRO is:<div align=center>
 <img src="sources/images/ZeRO.png" height="250px" width="600px"></div>
-To enable ZeRO-1/2/3, a deepspeed config is required and an [example](examples/llama/pretrain_llama_7B_zero_8p.sh) could be referred. 
+To enable ZeRO-1/2/3, a deepspeed config is required and an [example](examples/llama/pretrain_llama_7B_zero_8p.sh) could be referred.
 Notably, if only the ZeRO-1 is supposed, deepspeed is not necessary, and simply set the `--use-distributed-optimizer` flag.
 
 ### <span id="jump7"> Inverted Triangle Acceleration </span>
@@ -949,7 +959,7 @@ For llama and other LLMs without bias in FFN, the linear transformation in FFN c
 ### <span id="jump10"> Memory Overcommitment </span>
 In mix precision training, multiple state tensors, such as parameter copies, gradient copies, and optimizer states, occupy a large amount of static memory (16N, where N is the number of parameters). However, in fact, parameters and gradients (4N, N is the number of parameters) that participate in forward and reverse calculation account for a small proportion, and optimizing the preceding state tensors can bring great video memory benefits. By analyzing the actual use of each part of the state tensor, the memory reuse mechanism of the mechanism is obtained, and a multilevel optimizer memory optimization scheme integrating multiple algorithm modules is finally obtained.
 
-- Memory Overcommitment O1 ——  **Relase FP32 Gradient** 
+- Memory Overcommitment O1 ——  **Relase FP32 Gradient**
     - Advantages: Completely equivalent; Support for multiple optimizers; lossless performance.
     - Algorithm principle: The static memory of the FP32 gradient copy that needs to be permanently stored is reused. The memory of the FP16 gradient is converted into the FP32 format by performing the Foreach+Cast operation when necessary, saving 4N space.
     - Usage: This equivalent algorithm is applicable to all optimizers and can be triggered by specifying  `--release-fp32-grad` in the script.
@@ -1001,5 +1011,5 @@ We appreciate every PR from community, and welcome to contribute to AscendSpeed.
 - Inner Function Description: Here are some inner implementation interface introduction [InnerInterface](https://gitee.com/ascend/AscendSpeed/wikis/Inner%20API%20Description/Some%20inner%20interface%20description?sort_id=8824096)
 - Parameters Description: Here are some parameters description and usage [param](https://gitee.com/ascend/AscendSpeed/wikis/Home).
 - Permission Description: It is recommended that the umask value of Linux be greater than or eqaul to 027. Before running the program, you are advised to take security measures such as permission control for files required for training, such as ckpt, logs and so on. You are advised to run the program or execute commands as a regular user not as root or super user. Also, you are advised to set the folder permission to 750 and the file permission to 640. When multiple users share datasets, set the read and write permissions for folders and files based on the minimum permissions to avoid security problems such as unauthorized access.
-- Path Description: When you're using interface such as `torch.load`, unless weights_only parameter is set to True, uses pickle module implicitly, which is known to be insecure. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling. We don't suggest you load data that could have come from an untrusted source in an unsafe mode, or that could have been tampered with. Please load data you trust. Moreover, when you need to read data from outside or your specified path you'd better make it trusted and safe, including but not limited to weights path, dataset path. 
+- Path Description: When you're using interface such as `torch.load`, unless weights_only parameter is set to True, uses pickle module implicitly, which is known to be insecure. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling. We don't suggest you load data that could have come from an untrusted source in an unsafe mode, or that could have been tampered with. Please load data you trust. Moreover, when you need to read data from outside or your specified path you'd better make it trusted and safe, including but not limited to weights path, dataset path.
 - Communication Matrix: Please refer to this [link](https://gitee.com/ascend/AscendSpeed/wikis/Communition%20Matrix/AscendSpeed%20Communication%20Matrix?sort_id=8855822) to check the communication matrix.
