@@ -47,7 +47,7 @@ deepspeed --num_nodes $NNODES --num_gpus $NPUS_PER_NODE \
        --fp16 \
        --micro-batch-size ${MICRO_BATCH_SIZE} \
        --seq-length 2048 \
-       --max-new-tokens 64 \
+       --max-new-tokens 128 \
        --seed 42 \
        --deepspeed \
        --deepspeed_config ${config_json} \

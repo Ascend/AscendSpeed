@@ -14,7 +14,7 @@ NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
 DATA=./dataset/llama_text_document
-CHECKPOINT=./ckpt
+CHECKPOINT=./model_weights/llama-7b
 
 DS_CONFIG=deepspeed_config_7B.json
 ZERO_STAGE=2
@@ -75,19 +75,17 @@ deepspeed pretrain_llama.py \
        --position-embedding-type rope \
        --normalization RMSNorm \
        --train-iters 500000 \
-       --save $CHECKPOINT \
+       --load $CHECKPOINT \
        --data-path $DATA \
+       --split 900,50,50 \
        --tokenizer-name-or-path ./dataset/llama/ \
        --tokenizer-not-use-fast \
-       --attention-dropout 0.0 \
-       --hidden-dropout 0.0 \
        --init-method-std 0.01 \
-       --split 900,50,50 \
        --distributed-backend nccl \
        --lr 1.0e-6 \
+       --min-lr 1.0e-6 \
        --lr-decay-style cosine \
        --lr-warmup-fraction .01 \
-       --min-lr 1.0e-6 \
        --weight-decay 1e-2 \
        --clip-grad 1.0 \
        --adam-beta1 0.9 \
@@ -98,5 +96,6 @@ deepspeed pretrain_llama.py \
        --no-load-rng \
        --no-bias-gelu-fusion \
        --use-flash-attn \
+       --use-fused-rmsnorm \
        $ds_args \
        --fp16 | tee logs/train_7B.log

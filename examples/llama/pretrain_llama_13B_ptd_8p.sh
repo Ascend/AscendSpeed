@@ -31,8 +31,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --position-embedding-type rope \
        --normalization RMSNorm \
        --max-position-embeddings 2048 \
-       --train-iters 1000 \
-       --lr-decay-iters 640 \
+       --train-iters 5000 \
        --load $CHECKPOINT \
        --data-path $DATA_PATH \
        --tokenizer-name-or-path ./dataset/llama/ \
@@ -55,6 +54,6 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --recompute-method custom \
        --recomputation-layer-num 3 2 1 0 0 0 0 0 \
        --use-fused-rotary-pos-emb \
-       --release-fp32-grad \
        --use-flash-attn \
+       --use-fused-rmsnorm \
        --fp16 | tee logs/train_13B.log

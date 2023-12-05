@@ -158,8 +158,8 @@ LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> 3689 </td>
-      <td> 3788 </td>
+      <td> 3763 </td>
+      <td> 3804 </td>
       <td> <a href="sources/images/llama7b-loss-with-weight.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_7B_zero_8p.sh">训练</a> </td>
     </tr>
@@ -167,7 +167,7 @@ LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
       <td>13B</td>
       <td>1x8</td>
       <td>FP16</td>
-      <td> 1958 </td>
+      <td> 1894 </td>
       <td> 2012 </td>
       <td> <a href="sources/images/llama13b-loss-with-weight.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_13B_ptd_8p.sh">训练</a> </td>

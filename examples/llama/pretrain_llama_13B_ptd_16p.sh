@@ -61,4 +61,5 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
       --use-fused-rotary-pos-emb \
       --use-flash-attn \
       --use-distributed-optimizer \
+      --use-fused-rmsnorm \
       --fp16 | tee logs/train_llama_13B.log
