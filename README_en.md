@@ -556,6 +556,8 @@ AscendSpeed:
 - Take medications regularly.
 ```
 
+If after completing lora fine-tuning, we need a model without lora structure, then we only need to run this [script](tools/lora/merge_lora_llama_ptd_13B.sh) to merge the two model files `--load` and `--lora-load`, and generate a model without lora structure. The new weight model file is stored in the `--save` path.
+
 ### <span id="jump13"> Inference: human-machine dialogue </span>
 Currently, we support the following four cases of inference:
 - PTD only

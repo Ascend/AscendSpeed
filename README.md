@@ -544,6 +544,8 @@ AscendSpeed:
 - Take medications regularly.
 ```
 
+如果在完成lora微调后，需要一个不带lora结构的模型，那么我们只需运行这个 [脚本](tools/lora/merge_lora_llama_ptd_13B.sh)，即可将`--load`和`--lora-load`这两个模型文件合并，生成的不带lora结构的新权重模型文件存在`--save`路径里。
+
 ### <span id="jump13"> 推理: 人机对话 </span>
 当前，我们支持使用如下并行策略训练的模型进行推理:
 - 仅仅使用 PTD 策略训练的模型
