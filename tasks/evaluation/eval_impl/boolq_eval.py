@@ -18,6 +18,8 @@ import logging
 import json
 import pandas as pd
 import tqdm
+
+from ascendspeed.error_utils import check_divisible_by_zero
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
 from tasks.evaluation.eval_api.chat import Chat
 logger = logging.getLogger(__name__)
@@ -52,8 +54,7 @@ class BoolqEval(DatasetEval):
                     answer = None
                 try:
                     if rank == 0:
-                        logger.info(instruction)
-                        logger.info("correct: %s, answer : %s", str(item['answer'])[0], answer)
+                        logger.info(f"correct: {str(item['answer'])[0]}, AI: {answer}")
                         subject_result[str(index)] = answer
                         if subject_result[str(index)] == str(item['answer'])[0]:
                             acc_n += 1
@@ -62,14 +63,12 @@ class BoolqEval(DatasetEval):
                         logger.info(e)
                     subject_result[str(index)] = str(e) + ". AI answer:" + answer
             if rank == 0:
-                logger.info("Boolq dataset acc = %d/%d=%e", acc_n, len(boolq_question_list),
-                             acc_n / len(boolq_question_list))
                 total_n += len(boolq_question_list)
                 total_acc_n += acc_n
                 answer_result['Boolq_dataset'] = subject_result
                 score_datas.append(['Boolq_dataset', len(boolq_question_list), acc_n / len(boolq_question_list)])
         if rank == 0:
-            logger.info("Boolq acc = %d/%d=%e", total_acc_n, total_n, total_acc_n / total_n)
+            logger.info(f"boolq acc = {total_acc_n}/{total_n}={check_divisible_by_zero(total_acc_n, total_n)}")
             score_datas.append(["total", total_n, total_acc_n / total_n])
         score_df = pd.DataFrame(columns=['subject', 'question_n', 'acc'], data=score_datas)
         return answer_result, score_df

@@ -17,6 +17,8 @@ import logging
 import json
 import pandas as pd
 import tqdm
+
+from ascendspeed.error_utils import check_divisible_by_zero
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
 from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.template import CEVAL_TEMPLATE_DIR
@@ -63,13 +65,12 @@ class CEvalExam(DatasetEval):
                 except Exception as e:
                     subject_result[str(idx)] = str(e) + f". AI answer: {answer}"
             if rank == 0:
-                logger.info("%s acc = %d/%d=%e", subject_name, acc_n, len(data_df), acc_n / len(data_df))
                 total_n += len(data_df)
                 total_acc_n += acc_n
                 answer_result[subject_name] = subject_result
                 score_datas.append([subject_name, len(data_df), acc_n / len(data_df)])
         if rank == 0:
-            logger.info("ceval acc = %d/%d=%e", total_acc_n, total_n, total_acc_n / total_n)
+            logger.info(f"ceval acc = {total_acc_n}/{total_n}={check_divisible_by_zero(total_acc_n, total_n)}")
             score_datas.append(["total", total_n, total_acc_n / total_n])
         score_df = pd.DataFrame(columns=['subject', 'question_n', 'acc'], data=score_datas)
         logger.info(score_df)

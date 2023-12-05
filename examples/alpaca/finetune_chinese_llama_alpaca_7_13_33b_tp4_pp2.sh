@@ -2,6 +2,7 @@
 # modify the script according to your own conda and ascend-toolkit path
 export LD_LIBRARY_PATH=/usr/local/lib:/root/anaconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
+export INF_NAN_MODE_ENABLE=0
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 NPUS_PER_NODE=8
@@ -18,8 +19,7 @@ DATA_PATH=<data-path>
 # your own merged model path
 MODEL_PATH=<model-path>
 
-ZERO_STAGE=2
-GLOBAL_BATCH=16
+GLOBAL_BATCH=250
 MICRO_BATCH=2
 
 # Distributed setting
@@ -58,7 +58,7 @@ python -m torch.distributed.launch ${DISTRIBUTED_ARGS} \
          --global-batch-size $GLOBAL_BATCH \
          --seq-length 2048 \
          --max-position-embeddings 2048 \
-         --train-iters 1 \
+         --train-iters 1000 \
          --lr-decay-iters 320000 \
          --load $MODEL_PATH \
          --data-path $DATA_PATH \
@@ -74,13 +74,14 @@ python -m torch.distributed.launch ${DISTRIBUTED_ARGS} \
          --weight-decay 1e-2 \
          --clip-grad 1.0 \
          --lr-warmup-fraction .01 \
-         --eval-iters 0 \
+         --eval-iters 10 \
          --log-interval 1 \
          --save-interval 10000 \
-         --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
-         --lora-r 64 \
-         --lora-alpha 128 \
-         --lora-modules-to-save word_embeddings lm_head.lm_head \
          --position-embedding-type rope \
          --normalization RMSNorm \
+         --use-flash-attn \
+         --use-fused-rmsnorm \
+         --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
+         --lora-r 32 \
+         --lora-alpha 64 \
          --fp16 | tee logs/train.log

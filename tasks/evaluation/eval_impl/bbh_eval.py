@@ -56,20 +56,21 @@ class BBHEval(DatasetEval):
                     answer = chat_result[0]
                 try:
                     if rank == 0:
-                        logger.info("correct: %s, AI: %S", item['target'], answer.splitlines()[0])
+                        logger.info(f"correct: {item['target']}, AI: {answer.splitlines()[0]}")
                         subject_result[str(idx)] = answer.splitlines()[0]
                         if subject_result[str(idx)] == item['target']:
                             acc_n += 1
                 except Exception as e:
                     subject_result[str(idx)] = str(e) + f". AI answer: {answer}"
             if rank == 0:
-                logging.info("%s acc = %d/%d=%e", subject_name, acc_n, len(bbh_dataset['examples']), check_divisible_by_zero(acc_n, len(bbh_dataset['examples'])))
+                logging.info(f"{subject_name} acc = {acc_n}/{len(bbh_dataset['examples'])}="
+                             f"{check_divisible_by_zero(acc_n, len(bbh_dataset['examples']))}")
                 total_n += len(bbh_dataset['examples'])
                 total_acc_n += acc_n
                 answer_result[subject_name] = subject_result
                 score_datas.append([subject_name, len(bbh_dataset['examples']), check_divisible_by_zero(acc_n, len(bbh_dataset['examples']))])
         if rank == 0:
-            logger.info("bbh acc = %d/%d=%e", total_acc_n, total_n, check_divisible_by_zero(total_acc_n, total_n))
+            logger.info(f"bbh acc = {total_acc_n}/{total_n}={check_divisible_by_zero(total_acc_n, total_n)}")
             score_datas.append(["total", total_n, check_divisible_by_zero(total_acc_n, total_n)])
         score_df = pd.DataFrame(columns=['subject', 'question_n', 'acc'], data=score_datas)
         return answer_result, score_df

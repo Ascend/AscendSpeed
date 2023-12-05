@@ -2,11 +2,11 @@
 
 export LD_LIBRARY_PATH=/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
+export INF_NAN_MODE_ENABLE=0
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # output data path
 CHECKPOINT_PATH='./ckpt'
-TENSORBOARD_PATH='./tensorboard/'
 LOGS_PATH='./logs/'
 mkdir -p $LOGS_PATH
 
@@ -105,14 +105,11 @@ TRANSFORMERS_OFFLINE=1  \
     --deepspeed \
     --deepspeed_config ${config_json} \
     --zero-stage ${ZERO_STAGE} \
-    --deepspeed-activation-checkpointing  \
     --distributed-backend nccl \
-    --sequence-parallel \
-    --recompute-method block \
-    --recompute-granularity full \
     --no-add-gate \
     --add-bias-linear \
     --query-key-layer-scaling \
     --no-attention-softmax-in-fp32 \
+    --sequence-parallel \
     --no-untie-embeddings-and-output-weights
     

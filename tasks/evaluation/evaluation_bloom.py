@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def model_provider():
+def model_provider(pre_process=True, post_process=True):
     """Build the model."""
     config = core_transformer_config_from_args(get_args())
     init_model = GPTModelPipe(
