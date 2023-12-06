@@ -32,9 +32,9 @@ Currently, the following models has been supported:
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[README: 7B/176B]](examples/bloom/README.md)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[README: 7B/65B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[README: 7B/13B/33B/65B]](examples/llama/README.md)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[README: 7B/13B/70B]](examples/llama2/README.md)
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[README: 7B/13B/34B/70B]](examples/llama2/README.md)
 
-LLaMA2-34B, Baichuan2-7B/13B are coming soon ...
+Baichuan2-7B/13B are coming soon ...
 
 ### Downstream Tasks
 Currently, the following downstream tasks have been supported:
@@ -193,7 +193,7 @@ Coming soon ...
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">Train</a> </td>
     </tr>
     <tr>
-      <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</td>
+      <td rowspan="4"><a href="examples/llama2/README.md">LLaMA2</td>
       <td>7B</td>
       <td>1x8</td>
       <td>BF16 </td>
@@ -210,6 +210,15 @@ Coming soon ...
       <td> 1750 </td>
       <td> <a href="/sources/images/llama2/llama2_13b_bf16_loss_absolute.png">Loss</a> </td>
       <td> <a href="examples/llama2/pretrain_llama2_13B_ptd_8p.sh">Train</a> </td>
+    </tr>
+    <tr>
+      <td>34B</td>
+      <td>2x8</td>
+      <td>BF16 </td>
+      <td> 690 </td>
+      <td> 796 </td>
+      <td> <a href="sources/images/llama2/llama2_34b_bf16_layer12_loss_compare.png">Loss</a> </td>
+      <td> <a href="examples/llama2/pretrain_llama2_34B_ptd.sh">Train</a> </td>
     </tr>
     <tr>
       <td>70B</td>
@@ -387,12 +396,26 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td> -- </td>
     </tr>
     <tr>
-      <td><a href="examples/llama2/README.md">LLaMA2</a></td>
+      <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</a></td>
       <td>7B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/tune_llama2_7b_ptd.sh">lora</a>  </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama2_7b_ptd.sh">inference </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json </td>
+    </tr>
+    <tr>
+      <td > 34B </td>
+      <td > -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_34B_ptd.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/evaluate_llama2_34B_ptd.sh">evaluation </a> </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td > 70B </td>
+      <td > -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_70B_ptd.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/evaluate_llama2_70B_ptd.sh">evaluation </a> </td>
+      <td> -- </td>
     </tr>
   </tbody>
 </table>

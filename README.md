@@ -32,9 +32,9 @@ AscendSpeed旨在为华为 [昇腾芯片](https://open.codehub.huawei.com/OpenBa
 * <a href="https://arxiv.org/pdf/2108.12409.pdf" style="color:green">Bloom</a>-[[使用说明: 7B/176B]](examples/bloom/README.md)
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[使用说明: 7B/65B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[使用说明: 7B/13B/33B/65B]](examples/llama/README.md)
-* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[使用说明: 7B/13B/70B]](examples/llama2/README.md)
+* <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[使用说明: 7B/13B/34B/70B]](examples/llama2/README.md)
 
-LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
+Baichuan2-7B/13B 等模型即将上线...
 
 ### 下游任务
 当前AscendSpeed为大模型提供以下周边应用:
@@ -194,7 +194,7 @@ LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">训练</a> </td>
     </tr>
     <tr>
-      <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</td>
+      <td rowspan="4"><a href="examples/llama2/README.md">LLaMA2</td>
       <td>7B</td>
       <td>1x8</td>
       <td>BF16 </td>
@@ -211,6 +211,15 @@ LLaMA2-34B, Baichuan2-7B/13B 等模型即将上线...
       <td> 1750 </td>
       <td> <a href="/sources/images/llama2/llama2_13b_bf16_loss_absolute.png">Loss</a> </td>
       <td> <a href="examples/llama2/pretrain_llama2_13B_ptd_8p.sh">训练</a> </td>
+    </tr>
+    <tr>
+      <td>34B</td>
+      <td>2x8</td>
+      <td>BF16 </td>
+      <td> 690 </td>
+      <td> 796 </td>
+      <td> <a href="sources/images/llama2/llama2_34b_bf16_layer12_loss_compare.png">Loss</a> </td>
+      <td> <a href="examples/llama2/pretrain_llama2_34B_ptd.sh">训练</a> </td>
     </tr>
     <tr>
       <td>70B</td>
@@ -387,12 +396,26 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td> -- </td>
     </tr>
     <tr>
-      <td><a href="examples/llama2/README.md">LLaMA2</a></td>
+      <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</a></td>
       <td>7B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/tune_llama2_7b_ptd.sh">lora</a> </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_7b_ptd.sh">对话 </a> </td>
       <td> -- </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json </td>
+    </tr>
+    <tr>
+      <td > 34B </td>
+      <td > -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_34B_ptd.sh">对话 </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/evaluate_llama2_34B_ptd.sh">评估 </a> </td>
+      <td> -- </td>
+    </tr>
+    <tr>
+      <td > 70B </td>
+      <td > -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_70B_ptd.sh">对话 </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/evaluate_llama2_70B_ptd.sh">评估 </a> </td>
+      <td> -- </td>
     </tr>
   </tbody>
 </table>
