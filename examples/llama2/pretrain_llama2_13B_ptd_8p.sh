@@ -1,6 +1,7 @@
 export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
 export COMBINED_ENABLE=1
+export INF_NAN_MODE_ENABLE=0
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # Change for multinode config
@@ -22,6 +23,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE --nnodes $NNODES --node_rank $
 python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        pretrain_llama.py \
        --DDP-impl local \
+       --is-instruction-dataset \
        --tensor-model-parallel-size 8 \
        --pipeline-model-parallel-size 1 \
        --sequence-parallel \
@@ -32,11 +34,11 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --ffn-hidden-size 13824 \
        --num-attention-heads 40 \
        --micro-batch-size 2 \
-       --global-batch-size 2 \
+       --global-batch-size 256 \
        --seq-length 4096 \
        --max-position-embeddings 4096 \
-       --train-iters 1 \
-       --lr-warmup-iters 0 \
+       --train-iters 5000 \
+       --lr-warmup-iters 1000 \
        --save $SAVE_CHECKPOINT \
        --load $LOAD_CHECKPOINT \
        --data-path $DATA_PATH \
@@ -56,9 +58,10 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --adam-beta2 0.95 \
        --adam-eps 1.0e-5 \
        --log-interval 1 \
-       --save-interval 5000 \
+       --save-interval 1000 \
        --eval-interval 1000 \
-       --eval-iters 1 \
+       --eval-iters 100 \
        --use-fused-rotary-pos-emb \
        --use-flash-attn \
+       --use-fused-rmsnorm \
        --bf16 | tee logs/train_13B_llama2_npu.log

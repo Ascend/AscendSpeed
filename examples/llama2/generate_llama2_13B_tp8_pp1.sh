@@ -1,5 +1,8 @@
 #!/bin/bash
-export TOKENIZERS_PARALLELISM=false
+export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
+export HCCL_CONNECT_TIMEOUT=1200
+export COMBINED_ENABLE=1
+export INF_NAN_MODE_ENABLE=0
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 MASTER_ADDR=localhost
@@ -14,7 +17,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $NPUS_PER_NODE \
                   --master_addr $MASTER_ADDR \
                   --master_port $MASTER_PORT"
 
-CHECKPOINT=./model/LLAMA-2-13B-hf_tp8_pp1_save/
+CHECKPOINT=./model/LLAMA-2-13B-hf_tp8_pp1/
 VOCAB_FILE=./model/LLAMA-2-13B-hf
 
 python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/inference/inference_llama.py \

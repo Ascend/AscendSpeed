@@ -4,6 +4,8 @@
 export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
 export COMBINED_ENABLE=1
+export INF_NAN_MODE_ENABLE=0
+source /usr/local/Ascend/set_env.sh
 
 # Change for multinode config
 MASTER_ADDR=localhost
@@ -24,16 +26,16 @@ TASK="boolq gsm8k mmlu ceval agieval bbh human_eval"
 python -m torch.distributed.launch $DISTRIBUTED_ARGS tasks/evaluation/evaluation_llama.py   \
        --task-data-path $DATA_PATH \
        --task $TASK\
-       --seq-length 2048 \
+       --seq-length 4096 \
        --max-new-tokens 1 \
-       --max-position-embeddings 2048 \
-       --tensor-model-parallel-size 2  \
-       --pipeline-model-parallel-size 4  \
-       --num-layers 32  \
-       --hidden-size 4096  \
-       --ffn-hidden-size 11008 \
+       --max-position-embeddings 4096 \
+       --tensor-model-parallel-size 8  \
+       --pipeline-model-parallel-size 1  \
+       --num-layers 40  \
+       --hidden-size 5120  \
+       --ffn-hidden-size 13824 \
        --load ${CHECKPOINT}  \
-       --num-attention-heads 32  \
+       --num-attention-heads 40  \
        --tokenizer-type PretrainedFromHF  \
        --tokenizer-name-or-path $VOCAB_FILE \
        --tokenizer-not-use-fast \

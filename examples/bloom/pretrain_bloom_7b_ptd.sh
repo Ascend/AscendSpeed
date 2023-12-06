@@ -6,7 +6,6 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # output data path
 CHECKPOINT_PATH='./ckpt'
-TENSORBOARD_PATH='./tensorboard/'
 LOGS_PATH='./logs/'
 mkdir -p $LOGS_PATH
 

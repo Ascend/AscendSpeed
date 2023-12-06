@@ -12,6 +12,7 @@ Chinese-LLaMA-Alpaca model is from: [Efficient and Effective Text Encoding for C
 
 > Cui, Yang, and Yao, et al. "Efficient and Effective Text Encoding for Chinese LLaMA and Alpaca." arXiv preprint arXiv:2304.08177 (2023).
 
+Here is Llama alpaca's [guide](https://gitee.com/ascend/AscendSpeed/wikis/AscendSpeed%20Guide/AscendSpeed%20%E4%B8%AD%E6%96%87%E6%95%99%E7%A8%8B)
 
 
 # Contents
@@ -33,6 +34,8 @@ Chinese-LLaMA-Alpaca model is from: [Efficient and Effective Text Encoding for C
 
   - [Inference](#Inference)
     - [Script](#script)
+
+  - [Evaluation](#Evaluation)
 
   - [Example](#example)
 
@@ -152,7 +155,7 @@ Here's a software summary of fine-tuning Chinese LLaMA Alpaca-13B:
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    2.0.1                                                     |
+|           torch           |                                                    2.1.0                                                     |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 
@@ -178,8 +181,8 @@ conda create -n test python=3.8
 conda activate test
 
 # install torch and torch_npu
-pip install torch-2.0.1-cp38-cp38-manylinux2014_aarch64.whl
-pip install torch_npu-2.0.1rc1.post_XXXXXX-cp38-cp38-linux_aarch64.whl
+pip install torch-2.1.0-cp38-cp38-manylinux2014_aarch64.whl
+pip install torch_npu-2.1.0rc1.post_XXXXXX-cp38-cp38-linux_aarch64.whl
 
 # install megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -232,11 +235,12 @@ bash examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp1_pp1_deepspeed.sh
 ### Machine performance
 
 The performance of the Chinese LLaMA Alpaca-13B in **Ascend910 NPUs** and **A100 GPUs**:
+Parameter Configuration Reference:finetune_chinese_llama_alpaca_7_13_33b_tp1_pp1_deepspeed.sh
 
-|  Device  |   Model   | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
-| :------: | :-------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
-|   GPUs   | Chinese LLaMA Alpaca-13B |       3000        |             5.83              |         1493.73            |           5.48           |                153.91                 |
-|   NPUs   | Chinese LLaMA Alpaca-13B |       3000        |             6.08              |         1556.77            |           5.26           |                160.41                 |
+|  Device  |   Model   | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | floating point operation (TFLOPs/s) |
+| :------: | :-------: | :--------------: |:-----------------------------:|:----------------------------:|:-----------------------------------:|
+|   GPUs   | Chinese LLaMA Alpaca-13B |       3000        |             5.83              |           1493.73            |               153.91                |
+|   NPUs   | Chinese LLaMA Alpaca-13B |       3000        |             6.59              |           1687.04            |               183.81                |
 
 
 
@@ -263,7 +267,7 @@ We support AscendSpeed Inference for text generation with Chinese LLaMA Alpaca-1
 
 We generate text samples using the `generate_alpaca` script. Inference different from pre-training, such as we need to Load pre training checkpoint and the length of the output samples:
 
-Config Chinese LLaMA Alpaca-13B inference script: examples/alpaca/generate_alpaca_13B_tp8_pp1.sh
+Config Chinese LLaMA Alpaca-13B inference script: [examples/alpaca/generate_alpaca_13B_deepspeed.sh](examples/alpaca/generate_alpaca_13B_deepspeed.sh)
 
 ```shell
 # modify the model weight path and tokenizer path
@@ -272,8 +276,63 @@ VOCAB_FILE=<vocabfile-path>
 ```
 
 ```shell
-bash examples/alpaca/generate_alpaca_13B_tp8_pp1.sh
+bash examples/alpaca/generate_alpaca_13B_deepspeed.sh
 ```
+
+## Evaluation
+
+CEVAL assessment examples, datasets download from [here](https://cevalbenchmark.com/).
+
+```shell
+    CHECKPOINT=./ckpt/
+    VOCAB_FILE=./alpaca-plus-13b/
+    # Configure the task and data set path.
+    DATA_PATH="./ceval/data/test/"
+    TASK="ceval"
+    # configure generation parameters 
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
+       --task-data-path $DATA_PATH \
+       --task $TASK\
+       --seq-length 2048 \
+       --max-new-tokens 2 \
+       --max-position-embeddings 2048 \
+       --tensor-model-parallel-size 4  \
+       --pipeline-model-parallel-size 2  \
+       --num-layers 40  \
+       --hidden-size 5120  \
+       --ffn-hidden-size 13824 \
+       --load ${CHECKPOINT}  \
+       --num-attention-heads 40  \
+       --tokenizer-type PretrainedFromHF  \
+       --tokenizer-name-or-path $VOCAB_FILE \
+       --tokenizer-not-use-fast \
+       --fp16  \
+       --micro-batch-size 1  \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
+       --seed 42 | tee logs/eval_alpaca-13b.log
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>任务</th>
+      <th>验证集</th>
+      <th>模型</th>
+      <th>昇腾值</th>
+      <th>社区值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://cevalbenchmark.com/">Ceval</a></td>
+      <td>Val</td>
+      <th>alpaca plus 13B</th>
+      <td>0.408</td>
+      <td><a href="https://github.com/ymcui/Chinese-LLaMA-Alpaca">0.415</a></td>
+    </tr>
+  </tbody>
+</table>
 
 ## Example
 Chinese LLaMA Alpaca-13B:

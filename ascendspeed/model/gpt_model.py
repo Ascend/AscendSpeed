@@ -57,15 +57,6 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         return loss
 
 
-class LayerNormLayer(MegatronModule):
-    def __init__(self, hidden_size, eps):
-        super(LayerNormLayer, self).__init__()
-        self.final_layernorm = torch.nn.LayerNorm(hidden_size, eps)
-
-    def forward(self, norm_input):
-        return self.final_layernorm(norm_input)
-
-
 class GPTModel(MegatronModule, MegatronModuleForCausalLM):
     """GPT-2 Language model."""
 
@@ -302,18 +293,11 @@ class GPTModelPipe(ManuallyAllocatedPipelineModule, MegatronModule, MegatronModu
         self.specs.append(undo)
 
         # Final layernorm after transformer layers
-        if args.sequence_parallel:
-            self.specs.append(
-                LayerSpec(MixedFusedLayerNorm,
-                          args.hidden_size,
-                          eps=args.layernorm_epsilon,
-                          sequence_parallel=args.sequence_parallel))
-
-        else:
-            self.specs.append(
-                LayerSpec(LayerNormLayer,
-                          args.hidden_size,
-                          eps=args.layernorm_epsilon))
+        self.specs.append(
+            LayerSpec(MixedFusedLayerNorm,
+                      args.hidden_size,
+                      eps=args.layernorm_epsilon,
+                      sequence_parallel=args.sequence_parallel))
 
         def _logits_helper(embedding, lm_output):
             """A wrapper to massage inputs/outputs from pipeline. """

@@ -1,6 +1,7 @@
 #!/bin/bash
-
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
 export TOKENIZERS_PARALLELISM=false
+export INF_NAN_MODE_ENABLE=0
 
 NNODES=1
 NPUS_PER_NODE=8

@@ -19,6 +19,8 @@ import logging
 import json
 import pandas as pd
 import tqdm
+
+from ascendspeed.error_utils import check_divisible_by_zero
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
 from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.template import MMLU_TEMPLATE_DIR
@@ -66,8 +68,7 @@ class MmluEval(DatasetEval):
                         for template in self.output_template:
                             try:
                                 result = re.match(template, answer)
-                                logger.info(
-                                    "correct: %s, answer : %s, AI: %s", row['answer'], result.group('answer'), answer)
+                                logger.info(f"correct: {row['answer']}, AI: {result.group('answer')}")
                                 subject_result[str(idx)] = result.group("answer")
                                 if subject_result[str(idx)] == row['answer']:
                                     acc_n += 1
@@ -83,13 +84,12 @@ class MmluEval(DatasetEval):
                         logger.info(e)
                     subject_result[str(idx)] = str(e) + ". AI answer:" + answer
             if rank == 0:
-                logger.info("%s acc = %d/%d=%e", subject_name, acc_n, len(data_df), acc_n / len(data_df))
                 total_n += len(data_df)
                 total_acc_n += acc_n
                 answer_result[subject_name] = subject_result
                 score_datas.append([subject_name, len(data_df), acc_n / len(data_df)])
         if rank == 0:
-            logger.info("MMLU acc = %d/%d=%e", total_acc_n, total_n, total_acc_n / total_n)
+            logger.info(f"mmlu acc = {total_acc_n}/{total_n}={check_divisible_by_zero(total_acc_n, total_n)}")
             score_datas.append(["total", total_n, total_acc_n / total_n])
         score_df = pd.DataFrame(columns=['subject', 'question_n', 'acc'], data=score_datas)
         return answer_result, score_df

@@ -186,7 +186,7 @@ Bloom-7B 在 **昇腾芯片** 和 **参考芯片** 上的性能对比:
 
 | 设备  | 模型       | 迭代数 | 样本吞吐 (samples/p/s) | tokens吞吐 (tokens/p/s) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
 |-----|----------|-----|--------------------|-----------------------|-----------------|------------------|
-| NPUs | Bloom-7B | 1000 | 10.289             | 2603                  | 18.67           | 115.55           |
+| NPUs | Bloom-7B | 1000 | 9.779            | 2503                  | 19.63           | 109.85           |
 | 参考  | Bloom-7B | 1000 | 9.894              | 2525                  | 19.40           | 111.19           |
 
 
@@ -207,7 +207,11 @@ NPU vs 参考 loss 相对误差
 AscendSpeed 支持 BLOOM 7B 的文本生成推理.
 
 ### deepspeed_pipeline
-
+```text
+    # 请注意，评估时需要修改一个deepspeed的bug：
+    # 将 `<deepspeed-installed-path>/runtime/pipe/engine.py` 文件里的第671行注释掉：
+    # self.total_loss += self.loss.detach()
+```
 ```shell
 # 修改 model weight 路径和 tokenizer 路径
 CHECKPOINT=/home/model/bloom_7B
@@ -261,6 +265,12 @@ TASK="boolq"
 --num-layers 30 
 --hidden-size 4096 
 --num-attention-heads 32 
+```
+
+```text
+    # 请注意，评估时需要修改一个deepspeed的bug：
+    # 将 `<deepspeed-installed-path>/runtime/pipe/engine.py` 文件里的第671行注释掉：
+    # self.total_loss += self.loss.detach()
 ```
 
 ```shell
@@ -464,7 +474,11 @@ AscendSpeed 支持 BLOOM 176B的在线文本生成推理
 We support AscendSpeed Inference for text generation with BLOOM 176B (deepspeed or megatron).
 
 ### deepspeed_pipeline
-
+```text
+    # 请注意，评估时需要修改一个deepspeed的bug：
+    # 将 `<deepspeed-installed-path>/runtime/pipe/engine.py` 文件里的第671行注释掉：
+    # self.total_loss += self.loss.detach()
+```
 ```shell
 # # 修改 model weight 路径和 tokenizer 路径
 CHECKPOINT=/home/model/bloom_176B

@@ -5,6 +5,7 @@ export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
 # modify the script according to your own conda and ascend-toolkit path
 export LD_LIBRARY_PATH=/usr/local/lib:/root/anaconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
+export INF_NAN_MODE_ENABLE=0
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 GPUS_PER_NODE=8
@@ -24,7 +25,7 @@ MODEL_PATH=<model-path>
 
 DS_CONFIG=deepspeed_config_13B.json
 ZERO_STAGE=2
-MICRO_BATCH=4
+MICRO_BATCH=2
 GRADIENT_ACCUMULATION_STEP=8
 GLOBAL_BATCH=$(($MICRO_BATCH * $GRADIENT_ACCUMULATION_STEP * $WORLD_SIZE))
 TRAIN_ITERS=3000
@@ -99,7 +100,7 @@ deepspeed pretrain_llama.py \
          --num-attention-heads $num_heads \
          --micro-batch-size $MICRO_BATCH \
          --global-batch-size $GLOBAL_BATCH \
-         --seq-length 256 \
+         --seq-length 2048 \
          --max-position-embeddings 2048 \
          --train-iters $TRAIN_ITERS \
          --lr-decay-iters $TRAIN_ITERS \
@@ -110,7 +111,6 @@ deepspeed pretrain_llama.py \
          --tokenizer-not-use-fast \
          --checkpoint-activations \
          --recompute-method block \
-         --checkpoint_num_layers 8 \
          --data-impl mmap \
          --split 949,50,1 \
          --distributed-backend nccl \
@@ -125,7 +125,9 @@ deepspeed pretrain_llama.py \
          --eval-interval 1000 \
          --eval-iters 10 \
          --use-cpu-initialization \
-         --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
+         --use-flash-attn \
+         --use-fused-rmsnorm \
+         --lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h \
          --lora-r 64 \
          --lora-alpha 128 \
          $ds_args \

@@ -446,12 +446,12 @@ LLaMA2-13B 训练的软件配置:
 
 |            软件             |                                                      配置                                                      |
 |:-------------------------:|:------------------------------------------------------------------------------------------------------------:|
-|          python           |                                                    3.7.16                                                    |
+|          python           |                                                    3.8.18                                                    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                     |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 ### 脚本
@@ -467,14 +467,14 @@ LLaMA2-13B 训练的软件配置:
 2. 搭建环境
    
     ```bash
-    # python3.7
-    conda create -n test python=3.7
+    # python3.8
+    conda create -n test python=3.8
     conda activate test
     
     # 安装 torch 和 torch_npu
-    pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
-    pip install torch_npu-1.11.0*-cp37-cp37m-linux_aarch64.whl
-    pip install apex-0.1_ascend*-cp37-cp37m-linux_aarch64.whl
+    pip install torch-2.1.0-cp38-cp38m-manylinux2014_aarch64.whl
+    pip install torch_npu-2.1.0*-cp38-cp38m-linux_aarch64.whl
+    pip install apex-0.1_ascend*-cp38-cp38m-linux_aarch64.whl
     
     # 安装 megatron-core
     pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -497,35 +497,19 @@ LLaMA2-13B 训练的软件配置:
     git clone https://huggingface.co/NousResearch/Llama-2-13b-hf
     ```
 
-    ```text
-    # 请注意，如果要加载huggingface的预训练权重，需要修改一个deepspeed关于加载权重的bug：
-    # 在 `<deepspeed-installed-path>/runtime/engine.py` 文件里的 `_load_zero_checkpoint` 函数，
-    # 将 `if zero_sd_list is None` 改为 `if zero_sd_list is None or len(zero_sd_list) == 0`
-    
-    # 原始 deepspeed/runtime/engine.py, 大概 #Lines2746-2748
-    zero_sd_list = self._get_all_zero_checkpoints(load_dir, tag)
-    if zero_sd_list is None:
-        return False
-    
-    # 修改后
-    zero_sd_list = self._get_all_zero_checkpoints(load_dir, tag)
-    if zero_sd_list is None or len(zero_sd_list) == 0:
-        return False
-    ```
 
-    将权重从 huggingface 格式转化为 AscendSpeed 格式
-    ```bash
-    # 修改 ascend-toolkit 路径
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
-    
-    # 权重格式转换
-    python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-2-13b-hf \
-                                                                        --output-model-dir ckpt \
-                                                                        --tensor-model-parallel-size 1 \
-                                                                        --pipeline-model-parallel-size 1 \
-                                                                        --type 13B \
-                                                                        --deepspeed
-    ```
+将权重从 huggingface 格式转化为 AscendSpeed 格式
+```bash
+# 修改 ascend-toolkit 路径
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+
+# 权重格式转换
+python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir ./llama-2-13b-hf \
+                                                                    --output-model-dir ./llama-2-13b_tp8_pp1 \
+                                                                    --tensor-model-parallel-size 8 \
+                                                                    --pipeline-model-parallel-size 1 \
+                                                                    --type 13B 
+```
 
 4. 准备数据集
    
@@ -558,6 +542,7 @@ LLaMA2-13B 训练的软件配置:
     # 配置词表，数据集等路径
     TOKENIZER_PATH=./llama-2-13b-hf/  #词表路径
     DATA_PATH=WORKSPACE/alpaca_preprocessed/alpaca  #数据集路径
+    LOAD_CHECKPOINT=./llama-2-13b_tp8_pp1/
     ```
 
 6. 启动 LLaMA2-13B 预训练脚本: examples/llama2/pretrain_llama2_13B_ptd_8p.sh
@@ -574,7 +559,7 @@ LLaMA2-13B 在 **昇腾芯片** 和 **参考芯片** 上的性能对比：
 
 |  设备  |    模型     | 迭代数  | 样本吞吐 (samples/p/s) | tokens吞吐 (tokens/s/p) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
 |:----:|:---------:|:----:|:------------------:|:---------------------:|:---------------:|:----------------:|
-| NPUs | LLaMA2-13B |       5000       |             2.868             |           1468.416           |          89.275           |               126.73                |
+| NPUs | LLaMA2-13B |       5000       |         2.736             |           1400.832           |           93.45           |               120.69     |
 |  参考  | LLaMA2-13B |        --        |              --               |             1750             |            --             |                 --                  |
 
 
@@ -635,10 +620,27 @@ bash ./examples/llama2/generate_llama2_13B_tp8_pp1.sh
            --fp16  \
            --micro-batch-size 1  \
            --seed 42 | tee logs/train.log
-    # 开始评估
-    bash tasks/evaluation/eval.sh
 ```
-
+<table>
+  <thead>
+    <tr>
+      <th>任务</th>
+      <th>验证集</th>
+      <th>模型</th>
+      <th>昇腾值</th>
+      <th>社区值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://huggingface.co/datasets/boolq">Boolq</a></td>
+      <td>Test</td>
+      <th>Llama2 13B</th>
+      <td>0.824</td>
+      <td><a href="https://opencompass.org.cn/dataset-detail/BoolQ">0.824</a></td>
+    </tr>
+  </tbody>
+</table>
 
 # LLaMA2-70B
 

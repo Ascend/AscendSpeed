@@ -441,14 +441,14 @@ Here's a hardware summary of pre-training  LLaMA2-13B:
 Here's a software summary of pre-training  LLaMA2-13B: 
 
 
-|         Software          |   Version   |
-| :-----------------------: |:-----------:|
-|          Python           |   3.7.16    |
+|         Software          |                                                   Version                                                    |
+| :-----------------------: |:------------------------------------------------------------------------------------------------------------:|
+|          Python           |                                                    3.8.18                                                    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                     |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 ### Script
@@ -464,14 +464,14 @@ Here's a software summary of pre-training  LLaMA2-13B:
 2. Build environment
    
     ```bash
-    # python3.7
-    conda create -n test python=3.7
+    # python3.8
+    conda create -n test python=3.8
     conda activate test
     
-    # install torch and torch_npu
-    pip install torch-1.11.0-cp37-cp37m-manylinux2014_aarch64.whl
-    pip install torch_npu-1.11.0*-cp37-cp37m-linux_aarch64.whl
-    pip install apex-0.1_ascend*-cp37-cp37m-linux_aarch64.whl
+    # 安装 torch 和 torch_npu
+    pip install torch-2.1.0-cp38-cp38m-manylinux2014_aarch64.whl
+    pip install torch_npu-2.1.0*-cp38-cp38m-linux_aarch64.whl
+    pip install apex-0.1_ascend*-cp38-cp38m-linux_aarch64.whl
     
     # install megatron-core
     pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -486,19 +486,7 @@ Here's a software summary of pre-training  LLaMA2-13B:
     # install other packages
     pip install -r requirements.txt 
     ```
-     *Note that if you want to train with the weight from huggingface, please run fix a deepspeed loading checkpointing bug by modified `if zero_sd_list is None` as `if zero_sd_list is None or len(zero_sd_list) == 0` in the `_load_zero_checkpoint` function of `<deepspeed-installed-path>/runtime/engine.py`*
-    
-    ```text
-    # original deepspeed/runtime/engine.py, about #Lines2746-2748
-    zero_sd_list = self._get_all_zero_checkpoints(load_dir, tag)
-    if zero_sd_list is None:
-        return False
-    
-    # modified
-    zero_sd_list = self._get_all_zero_checkpoints(load_dir, tag)
-    if zero_sd_list is None or len(zero_sd_list) == 0:
-        return False
-    ```
+
 3. Prepare pretrained weights and tokenizer
     Download the LLaMA2-13B checkpoint from [here](https://huggingface.co/NousResearch/Llama-2-13b-hf/tree/main) 
     
@@ -513,8 +501,8 @@ Here's a software summary of pre-training  LLaMA2-13B:
     source /usr/local/Ascend/ascend-toolkit/set_env.sh
     
     # convert to deepspeed weights
-    python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir llama-2-13b-hf \
-                                                                        --output-model-dir ckpt \
+    python tools/ckpt_convert/llama/convert_weights_from_huggingface.py --input-model-dir ./llama-2-13b-hf \
+                                                                        --output-model-dir ./llama-2-13b_tp8_pp1 \
                                                                         --tensor-model-parallel-size 8 \
                                                                         --pipeline-model-parallel-size 1 \
                                                                         --type 13B \
@@ -546,6 +534,7 @@ Here's a software summary of pre-training  LLaMA2-13B:
     # modify script orign dataset path according to your own dataset path
     TOKENIZER_PATH=./llama-2-13b-hf/  #tokenizer path
     DATA_PATH=WORKSPACE/alpaca_preprocessed/alpaca   #processed dataset
+    LOAD_CHECKPOINT=./llama-2-13b_tp8_pp1/
     ```
 
 6. Launch LLaMA2-13B  pre-training script: examples/llama2/pretrain_llama2_13B_ptd_8p.sh
@@ -562,7 +551,7 @@ The performance of LLaMA2-13B in **Ascend NPU** and **Reference**:
 
 | Device |   Model    | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
 | :------: |:----------:|:----------------:|:-----------------------------:|:----------------------------:|:-------------------------:|:-----------------------------------:|
-| NPUs   | LLaMA2-13B |       5000       |             2.868             |           1468.416           |          89.275           |               126.73                |
+| NPUs   | LLaMA2-13B |       5000       |             2.736             |           1400.832           |           93.45           |               120.69                |
 | Reference   | LLaMA2-13B |        --        |              --               |             1750             |            --             |                 --                  |
 
 
@@ -625,10 +614,27 @@ We use boolq benchmark to evaluate our model. Benchmark Download [here](https://
            --fp16  \
            --micro-batch-size 1  \
            --seed 42 | tee logs/train.log
-    # start evaluation
-    bash tasks/evaluation/eval.sh
 ```
-
+<table>
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th>Subset</th>
+      <th>Model</th>
+      <th>NPU</th>
+      <th>OpenSource</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://huggingface.co/datasets/boolq">Boolq</a></td>
+      <td>Test</td>
+      <th>Llama2 13B</th>
+      <td>0.824</td>
+      <td><a href="https://opencompass.org.cn/dataset-detail/BoolQ">0.824</a></td>
+    </tr>
+  </tbody>
+</table>
 
 # LLaMA2-70B
 

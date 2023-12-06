@@ -1,5 +1,6 @@
 #!/bin/bash
 export TOKENIZERS_PARALLELISM=false
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 NNODES=1
 NPUS_PER_NODE=8
@@ -7,7 +8,7 @@ NPUS_PER_NODE=8
 CHECKPOINT="your origin deepspeed checkpoint path (TP=1, PP=1)"
 VOCAB_FILE="your vocab path"
 
-ZERO_STAGE=0
+ZERO_STAGE=2
 MICRO_BATCH_SIZE=1
 config_json="./ds_config.json"
 

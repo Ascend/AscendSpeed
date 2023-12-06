@@ -96,7 +96,7 @@ def generate_ascendspeed_weights(parallelism_config, make_vocab_size_divisible_b
 
             if pp_rank == 0:
                 emb_w = get_weight_from_name("word_embeddings.weight")
-                emb_w = pad_embed(emb_w, make_vocab_size_divisible_by, tp_size)
+                emb_w = pad_embed(emb_w, make_vocab_size_divisible_by, tp_size, 0)
                 rank_model['tied_modules.embed.word_embeddings.weight'] = row_split(emb_w, tp_size, tp_rank)
 
                 emb_layernorm_w = get_weight_from_name("word_embeddings_layernorm.weight")
@@ -106,8 +106,8 @@ def generate_ascendspeed_weights(parallelism_config, make_vocab_size_divisible_b
 
             if pp_rank == pp_size - 1:
                 layer_id = 3 + num_layers + 1 + 1 - 1
-                rank_model['{}.final_layernorm.weight'.format(layer_id)] = get_weight_from_name('ln_f.weight').clone()
-                rank_model['{}.final_layernorm.bias'.format(layer_id)] = get_weight_from_name('ln_f.bias').clone()
+                rank_model['{}.weight'.format(layer_id)] = get_weight_from_name('ln_f.weight').clone()
+                rank_model['{}.bias'.format(layer_id)] = get_weight_from_name('ln_f.bias').clone()
 
             for i in range(pp_layers[pp_rank]):
                 layer_id = sum(pp_layers[:pp_rank]) + i

@@ -11,7 +11,7 @@
 
 > Cui, Yang, and Yao, et al. "Efficient and Effective Text Encoding for Chinese LLaMA and Alpaca." arXiv preprint arXiv:2304.08177 (2023).
 
-
+这里有Llama-alpaca的[实战教程](https://gitee.com/ascend/AscendSpeed/wikis/AscendSpeed%20Guide/AscendSpeed%20%E4%B8%AD%E6%96%87%E6%95%99%E7%A8%8B)
 
 # 目录
 
@@ -30,6 +30,8 @@
 
 - [推理](#推理)
   - [脚本](#脚本)
+
+- [评估](#评估)
 
   - [举例](#举例)
 
@@ -149,7 +151,7 @@ Chinese LLaMA Alpaca-13B 微调的软件配置：
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    2.0.1                                                     |
+|           torch           |                                                    2.1.0                                                     |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 
@@ -175,8 +177,8 @@ conda create -n test python=3.8
 conda activate test
 
 # 安装 torch 和 torch_npu
-pip install torch-2.0.1-cp38-cp38-manylinux2014_aarch64.whl
-pip install torch_npu-2.0.1rc1.post_XXXXXX-cp38-cp38-linux_aarch64.whl
+pip install torch-2.1.0-cp38-cp38-manylinux2014_aarch64.whl
+pip install torch_npu-2.1.0rc1.post_XXXXXX-cp38-cp38-linux_aarch64.whl
 
 # 安装 megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -228,12 +230,12 @@ bash examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp1_pp1_deepspeed.sh
 
 ### 吞吐
 
-以下是 Chinese LLaMA Alpaca-13B 在昇腾芯片和参考芯片上的吞吐对比：
+以下是 Chinese LLaMA Alpaca-13B 在昇腾芯片和参考芯片上的吞吐对比，参数配置参考:finetune_chinese_llama_alpaca_7_13_33b_tp1_pp1_deepspeed.sh：
 
-|  芯片  |            模型            | 迭代次数 | 样本吞吐 (samples/s/p) | token吞吐 (tokens/s/p) | 单步时间 (s/step) | 浮点计算次数 (TFLOPs/s) |
-|:----:|:------------------------:|:----:|:------------------:|:--------------------:|:-------------:|:-----------------:|
-| GPUs | Chinese LLaMA Alpaca-13B | 3000 |        5.83        |       1493.73        |     5.48      |      153.91       |
-| NPUs | Chinese LLaMA Alpaca-13B | 3000 |        6.08        |       1556.77        |     5.26      |      160.41       |
+|  芯片  |            模型            | 迭代次数 | 样本吞吐 (samples/s/p) | token吞吐 (tokens/s/p) | 浮点计算次数 (TFLOPs/s) |
+|:----:|:------------------------:|:----:|:------------------:|:--------------------:|:-----------------:|
+| GPUs | Chinese LLaMA Alpaca-13B | 3000 |        5.83        |       1493.73        |      153.91       |
+| NPUs | Chinese LLaMA Alpaca-13B | 3000 |        6.59         |       1687.04        |      183.81       |
 
 
 
@@ -255,7 +257,7 @@ AscendSpeed 当前支持 Chinese LLaMA Alpaca-13B 的文本生成推理
 
 ### 脚本
 
-推理脚本中配置路径参数：[examples/alpaca/generate_alpaca_13B_tp8_pp1.sh](examples/alpaca/generate_alpaca_13B_tp8_pp1.sh)
+推理脚本中配置路径参数：[examples/alpaca/generate_alpaca_13B_deepspeed.sh](examples/alpaca/generate_alpaca_13B_deepspeed.sh)
 
 ```shell
 # 修改模型权重和tokenizer词表路径
@@ -264,8 +266,63 @@ VOCAB_FILE=<vocabfile-path>
 ```
 
 ```shell
-bash examples/alpaca/generate_alpaca_13B_tp8_pp1.sh
+bash examples/alpaca/generate_alpaca_13B_deepspeed.sh
 ```
+
+## 评估
+
+CEVAL评估举例，数据集[下载](https://cevalbenchmark.com/)。
+
+```shell
+    CHECKPOINT=./ckpt/
+    VOCAB_FILE=./alpaca-plus-13b/
+    # 配置任务和数据集路径
+    DATA_PATH="./ceval/data/test/"
+    TASK="ceval"
+    # configure generation parameters 
+    python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
+       --task-data-path $DATA_PATH \
+       --task $TASK\
+       --seq-length 2048 \
+       --max-new-tokens 2 \
+       --max-position-embeddings 2048 \
+       --tensor-model-parallel-size 4  \
+       --pipeline-model-parallel-size 2  \
+       --num-layers 40  \
+       --hidden-size 5120  \
+       --ffn-hidden-size 13824 \
+       --load ${CHECKPOINT}  \
+       --num-attention-heads 40  \
+       --tokenizer-type PretrainedFromHF  \
+       --tokenizer-name-or-path $VOCAB_FILE \
+       --tokenizer-not-use-fast \
+       --fp16  \
+       --micro-batch-size 1  \
+       --position-embedding-type rope \
+       --normalization RMSNorm \
+       --seed 42 | tee logs/eval_alpaca-13b.log
+```
+<table>
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th>Subset</th>
+      <th>Model</th>
+      <th>NPU</th>
+      <th>OpenSource</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://cevalbenchmark.com/">Ceval</a></td>
+      <td>Val</td>
+      <th>alpaca plus 13B</th>
+      <td>0.408</td>
+      <td><a href="https://github.com/ymcui/Chinese-LLaMA-Alpaca">0.415</a></td>
+    </tr>
+  </tbody>
+</table>
+
 
 ## 举例
 Chinese LLaMA Alpaca-13B:

@@ -196,7 +196,7 @@ The performance of Bloom-7B in **Ascend NPU** and **Reference**:
 
 | Device | Model    | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
 | ------ |----------|------------------|-------------------------------|------------------------------|---------------------------|-------------------------------------|
-| NPUs   | Bloom-7B | 1000             | 10.289                        | 2603                         | 18.67                     | 115.55                              |
+| NPUs   | Bloom-7B | 1000             | 9.779                         | 2503                         | 19.63                     | 109.85                              |
 | Reference   | Bloom-7B | 1000             | 9.894                         | 2525                         | 19.40                     | 111.19                              |
 
 
@@ -218,7 +218,11 @@ NPU vs GPU loss relative error.
 We support AscendSpeed Inference for text generation with BLOOM 7B (deepspeed or megatron).
 
 ### deepspeed pipeline
-
+```text
+    # Note that, a deepspeed bug needs to be fixed during evaluation：
+    # Comment out line 671 in the file `<deepspeed-installed-path>/runtime/pipe/engine.py`：
+    # self.total_loss += self.loss.detach()
+```
 ```shell
 # modify the model weight path and tokenizer path
 CHECKPOINT=/home/model/bloom_7B
@@ -275,6 +279,12 @@ In addition, you need to set the corresponding parameters according to the model
 --num-attention-heads 32 
 ```
 
+```text
+    # Note that, a deepspeed bug needs to be fixed during evaluation：
+    # Comment out line 671 in the file `<deepspeed-installed-path>/runtime/pipe/engine.py`：
+    # self.total_loss += self.loss.detach()
+```
+
 ```shell
 bash ./tasks/evaluation/eval_bloom.sh
 ```
@@ -282,11 +292,11 @@ bash ./tasks/evaluation/eval_bloom.sh
 <table>
   <thead>
     <tr>
-      <th>任务</th>
-      <th>验证集</th>
-      <th>模型</th>
-      <th>昇腾值</th>
-      <th>社区值</th>
+      <th>Task</th>
+      <th>Subset</th>
+      <th>Model</th>
+      <th>NPU</th>
+      <th>OpenSource</th>
     </tr>
   </thead>
   <tbody>
@@ -475,7 +485,11 @@ and GPU on a single-node system. The average relative error is 0.1%, less than 2
 We support AscendSpeed Inference for text generation with BLOOM 176B (deepspeed or megatron).
 
 ### deepspeed pipeline
-
+```text
+    # Note that, a deepspeed bug needs to be fixed during evaluation：
+    # Comment out line 671 in the file `<deepspeed-installed-path>/runtime/pipe/engine.py`：
+    # self.total_loss += self.loss.detach()
+```
 ```shell
 # modify the model weight path and tokenizer path
 CHECKPOINT=/home/model/bloom_176B
@@ -552,11 +566,11 @@ bash ./tasks/evaluation/eval_bloom.sh
 <table>
   <thead>
     <tr>
-      <th>任务</th>
-      <th>验证集</th>
-      <th>模型</th>
-      <th>昇腾值</th>
-      <th>社区值</th>
+      <th>Task</th>
+      <th>Subset</th>
+      <th>Model</th>
+      <th>NPU</th>
+      <th>OpenSource</th>
     </tr>
   </thead>
   <tbody>
