@@ -209,13 +209,13 @@ Here's a software summary of pre-training  LLAMA2-7B:
    5.3 Lora Fine-Tuning
    The Lora fine-tuning script is configured by adding the following lora parameters to the pretrain_llama2_7b_ptd.sh script:
    ```bash
-       --lora-target-modules query_key_value dense gate_proj up_proj down_proj \
+       --lora-target-modules query_key_value dense gate_proj dense_4h_to_h \
        --lora-r 16 \
        --lora-alpha 32 \
    ```
    If the vocabulary is changed, add the following parameters:
    ```bash
-     --lora-modules-to-save word_embeddings lm_head.lm_head \
+     --lora-modules-to-save word_embeddings output_layer \
    ```
    The following parameters are added to the resumable training capability of Lora:
    ```bash

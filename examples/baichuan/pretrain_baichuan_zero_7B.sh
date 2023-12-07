@@ -104,6 +104,6 @@ deepspeed  pretrain_baichuan.py \
   --checkpoint-activations \
   --recompute-method uniform \
   --recompute-num-layers 30 \
-  --triangle-attn \
+  --use-flash-attn \
   $ds_args \
   --fp16 | tee logs/train.log

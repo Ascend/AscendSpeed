@@ -345,12 +345,12 @@ class CoreAttention(MegatronModule):
         if alibi is None:
             matmul_result = None
         else:
-            matmul_result = alibi[:, :output_size[3]]
+            matmul_result = alibi[:, :, :output_size[3]].repeat(output_size[0], 1, 1)
 
         if self.use_flash_attn:
             if alibi is not None:
-                # [1, sq] ==> [b * np, 1, sq]
-                matmul_result = matmul_result.unsqueeze(0).repeat(output_size[0], output_size[1], 1, 1)
+                # [b*np, 1, sq] ==> [b, np, 1, sq]
+                matmul_result = matmul_result.unsqueeze(0).reshape(output_size[0], output_size[1], 1, output_size[2])
             q, k, v = [rearrange(x, 's b h d -> s b (h d)').contiguous() for x in (query_layer, key_layer, value_layer)]
             context_layer = self.core_flash_attn((q, k, v, self.num_attention_heads_per_partition), matmul_result,
                                                  attention_mask)
@@ -400,8 +400,8 @@ class CoreAttention(MegatronModule):
                            value_layer.size(3))
 
             # change view [sk, b * np, hn]
-            value_layer = value_layer.view(value_layer.size(0),
-                                           output_size[0] * output_size[1], -1)
+            value_layer = value_layer.reshape(value_layer.size(0),
+                                              output_size[0] * output_size[1], -1)
 
             # change view [b * np, sq, sk]
             attention_probs = attention_probs.view(output_size[0] * output_size[1],
@@ -1245,7 +1245,7 @@ class ParallelTransformerLayer(MegatronModule):
         tp_index = parallel_state.get_tensor_model_parallel_rank()
         alibi = alibi.reshape((tp_world_size, -1, *alibi.shape[1:]))[tp_index]
 
-        return alibi[0]
+        return alibi
 
 
 class NoopTransformerLayer(MegatronModule):
