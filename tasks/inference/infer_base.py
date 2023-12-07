@@ -22,6 +22,8 @@ def add_text_generate_args(parser):
     group.add_argument("--temperature", type=float, default=0.7, help='Sampling temperature.')
     group.add_argument("--max-length", type=int, default=256, help='Total length of text.')
     group.add_argument("--max-new-tokens", type=int, default=128, help='Size of the output generated text.')
+    group.add_argument("--row-col-parallel-linear-bias", action="store_true", default=False, 
+                       help='Configuration for the InternLM model.')
     return parser
 
 

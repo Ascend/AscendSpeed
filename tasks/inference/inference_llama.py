@@ -10,6 +10,13 @@ from tasks.inference.infer_base import task_beam_search_with_sampling, task_retu
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
     config = core_transformer_config_from_args(get_args())
+
+    if get_args().row_col_parallel_linear_bias:
+        # internlm模型配置
+        config.column_parallel_linear_bias = True
+        config.row_parallel_linear_bias = True
+        config.row_parallel_linear_skip_bias_add = False
+
     init_model = GPTModel(
         config,
         parallel_output=False,
