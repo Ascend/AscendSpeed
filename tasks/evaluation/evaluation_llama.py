@@ -20,7 +20,7 @@ import logging
 from torch import distributed as dist
 from transformers import LlamaTokenizer
 from ascendspeed import get_args
-from ascendspeed.model import GPTModel
+from ascendspeed.model.gpt_model import GPTModel
 from ascendspeed.initialize import initialize_megatron
 from ascendspeed.arguments import core_transformer_config_from_args
 from tasks.evaluation.eval_api.chat import Chat
@@ -223,29 +223,29 @@ if __name__ == "__main__":
     if 'mmlu' in args.task:
         a = time.time()
         mmlu(args, LLMChat(args))
-        logger.info('MMLU Running Time: ', time.time() - a)
+        logger.info(f'MMLU Running Time:, {time.time() - a}')
     if 'gsm8k' in args.task:
         a = time.time()
         gsm8k(args, LLMChat(args))
-        logger.info('GSM8k Running Time: ', time.time() - a)
+        logger.info(f'GSM8k Running Time: {time.time() - a}')
     if 'boolq' in args.task:
         a = time.time()
         boolq(args, LLMChat(args))
-        logger.info('Boolq Running Time: ', time.time() - a)
+        logger.info(f'Boolq Running Time: {time.time() - a}')
     if 'ceval' in args.task:
         a = time.time()
         ceval(args, LLMChat(args))
-        logger.info('Ceval Running Time: ', time.time() - a)
+        logger.info(f'Ceval Running Time: {time.time() - a}')
     if 'bbh' in args.task:
         a = time.time()
         bbh_eval(args, LLMChat(args))
-        logger.info('bbh Running Time: ', time.time() - a)
+        logger.info(f'bbh Running Time: {time.time() - a}')
     if 'agieval' in args.task:
         a = time.time()
         agi_eval(args, LLMChat(args))
-        logger.info('agi_eval Running Time: ', time.time() - a)
+        logger.info(f'agi_eval Running Time: {time.time() - a}')
     if 'human_eval' in args.task:
         a = time.time()
         human_eval(args, LLMChat(args))
-        logger.info('Human_eval Running Time: ', time.time() - a)
+        logger.info(f'Human_eval Running Time: {time.time() - a}')
 

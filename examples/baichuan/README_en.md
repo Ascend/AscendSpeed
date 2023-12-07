@@ -21,6 +21,8 @@
   - [Performance](#performance)
     - [Machine performance](#machine-performance)
     - [Accuracy of the loss](#accuracy-of-the-loss)
+  - [Inference](#inference)
+  - [Lora](#lora)
 
 # Baichuan-7B
 
@@ -37,12 +39,12 @@ Here's a software summary of pre-training Baichuan-7B:
 
 |         Software          |   Version   |
 | :-----------------------: |:-----------:|
-|          Python           |   3.7.16    |
+|          Python           |   3.8.18    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                    |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 |           apex            |       [package](https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/Daily/v1.11.0/20230915.2/pytorch_v1.11.0_py37.tar.gz)       |
 
@@ -61,13 +63,14 @@ mkdir ckpt
 2. Build environment
 
 ```bash
-# python3.7
-conda create -n test python=3.7
+# python3.8
+conda create -n test python=3.8
 conda activate test
 
 # install torch and torch_npu 
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
-pip install torch_npu-1.11.0.XXX-cp37-cp37m-linux_XXX.whl
+pip install torch-2.1.0-cp38-cp38m-linux_aarch64.whl
+pip install torch_npu-2.1.0.XXX-cp38-cp38m-linux_aarch64.whl
+pip install apex-0.1_ascend*-cp38-cp38m-linux_aarch64.whl
 
 # install megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -182,7 +185,7 @@ The performance of Baichuan-7B in **Ascend NPU** and **Reference**:
 
 | Device | Model       | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
 | ------ | ----------- | ---------------- | ----------------------------- | ---------------------------- | ------------------------- | ----------------------------------- |
-| NPUs   | Baichuan-7B | 1024      | 3.722                      | 1905                         | 2.14                      | 102.69                              |
+| NPUs   | Baichuan-7B | 1024      | 4.590                      | 2350                         | 1.74                      | 144.95                              |
 | Reference   | Baichuan-7B | 1024             | 3.978                         | 2036                         | 1.98                      | 125.66                              |
 
 
@@ -216,12 +219,12 @@ Here's a software summary of pre-training Baichuan-13B:
 
 |         Software          |   Version   |
 | :-----------------------: |:-----------:|
-|          Python           |   3.7.16    |
+|          Python           |   3.8.18    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                    |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 
@@ -238,13 +241,14 @@ mkdir ckpt
 2. Build environment
 
 ```bash
-# python3.7
-conda create -n test python=3.7
+# python3.8
+conda create -n test python=3.8
 conda activate test
 
 # install torch and torch_npu
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
-pip install torch_npu-1.11.0.XXX-cp37-cp37m-linux_XXX.whl
+pip install torch-2.1.0-cp37-cp37m-linux_aarch64.whl
+pip install torch_npu-2.1.0.XXX-cp37-cp37m-linux_aarch64.whl
+pip install apex-0.1_ascend*-cp38-cp38m-linux_aarch64.whl
 
 #install megatron
 git clone https://github.com/NVIDIA/Megatron-LM.git -b 23.05
@@ -296,7 +300,6 @@ python $SCRIPT_PATH \
     --output-model-dir ./weight \
     --tensor-model-parallel-size 8 \
     --pipeline-model-parallel-size 1 \
-    --make-vocab-size-divisible-by 8 \
     --type 13B \
     --pse     
 ```
@@ -351,7 +354,7 @@ The performance of the Baichuan-13B in **Ascend NPU** and **Reference**:
 
 | Device |    Model     | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
 | :----: | :----------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
-|  NPUs  | Baichuan-13B |       1000       |             1.928             |             1024             |          16.067           |                89.37                |
+|  NPUs  | Baichuan-13B |       1000       |             2.250             |             1152             |          14.220           |                100.30                |
 |  Reference  | Baichuan-13B |       1000       |             1.535             |             862              |          19.852           |                72.39                |
 
 
@@ -375,4 +378,59 @@ The relative error between NPU and Reference Loss is less than 0.02 throughout, 
 
 
 
+### Inference
+We support AscendSpeed Inference for text generation with LLaMA-33B.
+Inference different from pre-training, such as we need to Load pre-training checkpoint and the length of the output samples:
 
+Config Baichuan-13B inference script `examples/baichuan/generate_baichuan_13B_tp8_pp1.sh`.
+
+```shell
+# config the model weight path and tokenizer path
+CHECKPOINT=<checkpoint-path>
+VOCAB_FILE=<vocabfile-path>
+```
+
+Baichuan-13B:
+```shell
+bash ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh
+```
+
+Some inference samples are as follows:
+![13B-inference.png](../../sources/images/baichuan/13B-inference.png)
+
+ If the program raises the problem that "'BaichuanTokenizer' object has no attribute 'sp_model'" ，please refer to[huggingface link to solve](https://huggingface.co/baichuan-inc/Baichuan2-13B-Base/discussions)，or you can update the version of transformers under torch==2.1.
+
+
+
+### Lora
+We support AscendSpeed Lora fine-tuning with Baichuan-13B.
+
+Configure Baichuan-13B lora script `examples/baichuan/tune_baichuan_ptd_13B.sh`
+
+```shell
+# configure the dataset path, initial megatron weight, tokenizer path and the path to save the lora weights
+DATA_PATH=<data-path>
+LOAD_CHECKPOINT_PATH=<origin-ckpt-path>
+SAVE_CHECKPOINT_PATH=<ckpt-path>
+TOKENIZER_PATH=<tokenizer-path>
+```
+
+Baichuan-13B:
+```shell
+bash ./examples/baichuan/tune_baichuan_ptd_13B.sh
+```
+
+```shell
+# Then use the fine-tuned weights for inference
+CHECKPOINT=<origin-ckpt-path>
+LORA_CHECKPOINT=<tune-weight-path>
+VOCAB_FILE=<tokenizer-path>
+```
+
+Baichuan-13B:
+```shell
+bash ./examples/baichuan/generate_baichuan_lora_13B.sh
+```
+
+FineTune with lora and operate inference
+![13B-lora-inference.png](../../sources/images/baichuan/13B-lora-inference.png)

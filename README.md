@@ -101,7 +101,7 @@ Baichuan2-7B/13B 等模型即将上线...
       <td>7B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 1905 </td>
+      <td> 2350 </td>
       <td> 2036 </td>
       <td> <a href="./sources/images/baichuan/7B_loss_compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_zero_7B.sh">训练</a> </td>
@@ -110,7 +110,7 @@ Baichuan2-7B/13B 等模型即将上线...
       <td>13B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 1024 </td>
+      <td> 1152 </td>
       <td> 824 </td>
       <td> <a href="./sources/images/baichuan/13B-loss-compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">训练</a> </td>
@@ -336,12 +336,19 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
   </thead>
   <tbody>
     <tr>
-      <td> <a href="examples/baichuan/README.md">Baichuan</a> </td>
-      <td> 13B </td>
+      <td rowspan="2"> <a href="examples/baichuan/README.md">Baichuan</a> </td>
+      <td> 7B </td>
       <td> -- </td>
+      <td> -- </td>
+      <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
+    </tr>
+    <tr>
+      <td> 13B </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/tune_baichuan_ptd_13B.sh">lora</a> </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/generate_baichuan_13B_tp8_pp1.sh">对话</a> </td>
       <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>

@@ -19,7 +19,7 @@ import logging
 import json
 import pandas as pd
 import tqdm
-
+from ascendspeed.error_utils import check_divisible_by_zero
 from tasks.evaluation.eval_api.dataset_eval import DatasetEval
 from tasks.evaluation.eval_api.chat import Chat
 from tasks.evaluation.eval_impl.template import GSM8K_TEMPLATE_DIR
@@ -64,7 +64,6 @@ class Gsm8kEval(DatasetEval):
                         logger.info(instruction)
                         final_answer = re.findall(self.output_template, answer_result)
                         final_answer = [final_answer[0][::-1].replace('.', '', 1)[::-1]]
-                        logger.info("correct: %s, answer : %s, reason: %s", item['answer'], final_answer, answer)
                         subject_result[str(index)] = final_answer
                         if subject_result[str(index)] == item['answer']:
                             acc_n += 1
@@ -73,13 +72,12 @@ class Gsm8kEval(DatasetEval):
                         logger.info(e)
                     subject_result[str(index)] = str(e) + ". AI answer:" + answer
             if rank == 0:
-                logger.info("Gsm8k dataset acc = %d/%d=%e", acc_n, len(gsm8k_list), acc_n / len(gsm8k_list))
                 total_n += len(gsm8k_list)
                 total_acc_n += acc_n
                 answer_result['Gsm8k_dataset'] = subject_result
                 score_datas.append(['Gsm8k_dataset', len(gsm8k_list), acc_n / len(gsm8k_list)])
         if rank == 0:
-            logger.info("Gsm8k acc = %d/%d=%e", total_acc_n, total_n, total_acc_n / total_n)
+            logger.info(f"gsm8k acc = {total_acc_n}/{total_n}={check_divisible_by_zero(total_acc_n, total_n)}")
             score_datas.append(["total", total_n, total_acc_n / total_n])
         score_df = pd.DataFrame(columns=['subject', 'question_n', 'acc'], data=score_datas)
         return answer_result, score_df

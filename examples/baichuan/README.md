@@ -22,6 +22,8 @@
   - [性能](#性能)
     - [吞吐](#吞吐)
     - [精度](#精度)
+  - [推理](#推理)
+  - [lora微调](#lora微调)
 
 # Baichuan-7B
 
@@ -36,12 +38,12 @@ Baichuan-7B 训练的软件配置如下：
 
 |            软件             |                                                              配置                                                              |
 |:-------------------------:|:----------------------------------------------------------------------------------------------------------------------------:|
-|          python           |                                                            3.7.16                                                            |
+|          python           |                                                            3.8.18                                                            |
 |          driver           |         [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software)         |
 |         firmware          |         [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software)         |
 |           CANN            |               [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)               |
 | binary arithmetic package |               [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)               |
-|           torch           |                                                            1.11.0                                                            |
+|           torch           |                                                            2.1.0                                                            |
 |         torch_npu         |                                     [package](https://gitee.com/ascend/pytorch/releases)                                     |
 |           apex            | [package](https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta/Daily/v1.11.0/20230915.2/pytorch_v1.11.0_py37.tar.gz) |
 
@@ -60,13 +62,14 @@ mkdir ckpt
 2. 搭建环境
 
 ```bash
-# python3.7
-conda create -n test python=3.7
+# python3.8
+conda create -n test python=3.8
 conda activate test
 
 # 安装 torch 和 torch_npu 
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
-pip install torch_npu-1.11.0.XXX-cp37-cp37m-linux_XXX.whl
+pip install torch-2.1.0-cp37-cp37m-linux_aarch64.whl
+pip install torch_npu-2.1.0.XXX-cp37-cp37m-linux_aarch64.whl
+pip install apex-0.1_ascend*-cp38-cp38m-linux_aarch64.whl
 
 # 安装 megatron-core
 pip3 install --no-use-pep517 -e git+https://github.com/NVIDIA/Megatron-LM.git@23.05#egg=megatron-core
@@ -185,7 +188,7 @@ Baichuan-7B 使用 **昇腾芯片** 和 **参考芯片** 的吞吐对比:
 
 | 设备 | 模型     | 迭代 | 样本吞吐 (samples/p/s) | tokens吞吐 (tokens/p/s) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
 |----|--------|----|--------------------|-----------------------|-----------------|------------------|
-| NPUs | Baichuan-7B | 1024 | 3.722              | 1905                  | 2.14            | 102.69           |
+| NPUs | Baichuan-7B | 1024 | 4.590              | 2350                  | 1.74            | 144.95           |
 | 参考 | Baichuan-7B | 1024 | 3.978              | 2036                  | 1.98            | 125.66           |
 
 
@@ -216,12 +219,12 @@ Baichuan-13B 训练的软件配置如下:
 
 |            软件             |                                                      配置                                                      |
 |:-------------------------:|:------------------------------------------------------------------------------------------------------------:|
-|          python           |                                                    3.7.16                                                    |
+|          python           |                                                    3.8.18                                                    |
 |          driver           | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |         firmware          | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software) |
 |           CANN            |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
 | binary arithmetic package |       [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)       |
-|           torch           |                                                    1.11.0                                                    |
+|           torch           |                                                    2.1.0                                                    |
 |         torch_npu         |                             [package](https://gitee.com/ascend/pytorch/releases)                             |
 
 
@@ -238,13 +241,14 @@ mkdir ckpt
 2. 搭建环境
 
 ```bash
-# python3.7
-conda create -n test python=3.7
+# python3.8
+conda create -n test python=3.8
 conda activate test
 
 # 安装 torch 和 torch_npu
-pip install torch-1.11.0-cp37-cp37m-linux_aarch64.whl
-pip install torch_npu-1.11.0.XXX-cp37-cp37m-linux_XXX.whl
+pip install torch-2.1.0-cp37-cp37m-linux_aarch64.whl
+pip install torch_npu-2.1.0.XXX-cp37-cp37m-linux_aarch64.whl
+pip install apex-0.1_ascend*-cp38-cp38m-linux_aarch64.whl
 
 # 安装 megatron
 git clone https://github.com/NVIDIA/Megatron-LM.git -b 23.05
@@ -295,7 +299,6 @@ python $SCRIPT_PATH \
     --output-model-dir ./weight \
     --tensor-model-parallel-size 8 \
     --pipeline-model-parallel-size 1 \
-    --make-vocab-size-divisible-by 8 \
     --type 13B \
     --pse     
 ```
@@ -348,7 +351,7 @@ Baichuan-13B 在 **昇腾芯片** 和 **参考芯片** 上的性能对比:
 
 |  设备  |      模型      | 迭代数  | 样本吞吐 (samples/p/s) | token吞吐 (tokens/p/s) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
 |:----:|:------------:|:----:|:------------------:|:--------------------:|:---------------:|:----------------:|
-| NPUs | Baichuan-13B | 1000 |       1.928        |         1024         |     16.067      |      89.37       |
+| NPUs | Baichuan-13B | 1000 |       2.250        |         1152         |     14.220      |      100.30       |
 |  参考  | Baichuan-13B | 1000 |       1.535        |         862          |     19.852      |      72.39       |
 
 
@@ -366,4 +369,57 @@ NPU vs 参考 loss 相对误差.
 
 
 
+### 推理
+我们支持使用 Baichuan-13B 进行文本生成的推理。
+推理与预训练不同，比如我们需要加载预训练权重和输出样本的长度：
 
+配置Baichuan-13B推理脚本`examples/baichuan/generate_baichuan_13B_tp8_pp1.sh`。
+
+```shell
+# 配置模型权重路径和分词器路径
+CHECKPOINT=<checkpoint-path>
+VOCAB_FILE=<vocabfile-path>
+```
+
+Baichuan-13B:
+```shell
+bash ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh
+```
+
+部分推理样本如下：
+![13B-inference](../../sources/images/baichuan/13B-inference.png)
+
+ 如果在运行脚本的过程中遇到 "'BaichuanTokenizer' object has no attribute 'sp_model'" 的问题，请参考[huggingface链接解决](https://huggingface.co/baichuan-inc/Baichuan2-13B-Base/discussions)，或者更新transformers的版本.
+
+
+
+### Lora微调
+我们支持使用 Baichuan-13B 进行lora微调。
+配置 Baichuan-13B 的lora脚本`examples/baichuan/tune_baichuan_ptd_13B.sh`
+
+```shell
+# 配置数据集路径、初始megatron权重路径、词表路径以及保存权重的路径
+DATA_PATH=<data-path>
+LOAD_CHECKPOINT_PATH=<origin-ckpt-path>
+SAVE_CHECKPOINT_PATH=<ckpt-path>
+TOKENIZER_PATH=<tokenizer-path>
+```
+
+Baichuan-13B:
+```shell
+bash ./examples/baichuan/tune_baichuan_ptd_13B.sh
+```
+
+```shell
+# 再使用微调后的权重进行推理
+CHECKPOINT=<origin-ckpt-path>
+LORA_CHECKPOINT=<tune-weight-path>
+VOCAB_FILE=<tokenizer-path>
+```
+
+```shell
+bash ./examples/baichuan/generate_baichuan_lora_13B.sh
+```
+
+使用lora进行微调后的推理功能：
+![13B-lora-inference.png](../../sources/images/baichuan/13B-lora-inference.png)
