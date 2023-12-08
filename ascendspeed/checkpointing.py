@@ -137,6 +137,11 @@ def get_checkpoint_tracker_filename(checkpoints_path):
     return os.path.join(checkpoints_path, 'latest_checkpointed_iteration.txt')
 
 
+def get_distributed_optimizer_checkpoint_name(model_checkpoint_name):
+    return os.path.join(os.path.dirname(model_checkpoint_name),
+                        "distrib_optim.pt")
+
+
 def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
     args = get_args()
@@ -150,6 +155,16 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
     print_rank_0('saving checkpoint at iteration {:7d} to {}'.format(
         iteration, args.save))
+
+    checkpoint_name = get_checkpoint_name(args.save, iteration)
+
+    # Save distributed optimizer's custom parameter state.
+    if args.use_distributed_optimizer:
+        optim_checkpoint_name = \
+            get_distributed_optimizer_checkpoint_name(checkpoint_name)
+        if parallel_state.get_data_parallel_rank() == 0:
+            ensure_directory_exists(optim_checkpoint_name)
+        optimizer.save_parameter_state(optim_checkpoint_name)
 
     if not torch.distributed.is_initialized() or parallel_state.get_data_parallel_rank() == 0 \
             or args.deepspeed:
@@ -182,7 +197,6 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
                 = tensor_parallel.get_cuda_rng_tracker().get_states()
 
         # Save.
-        checkpoint_name = get_checkpoint_name(args.save, iteration)
         if not args.deepspeed:
             ensure_directory_exists(checkpoint_name)
             with cpu_tensor_reduce_context(args.save_to_cpu):
@@ -230,6 +244,47 @@ def get_model_state_dict(model, state_dict):
             state_dict['model%d' % i] = model[i].state_dict_for_save_checkpoint()
             if is_enable_lora():
                 state_dict['model%d' % i] = get_lora_state_dict(state_dict['model%d' % i])
+
+
+def read_metadata(tracker_filename):
+    # Read the tracker file and either set the iteration or
+    # mark it as a release checkpoint.
+    iteration = 0
+    release = False
+    with open(tracker_filename, 'r') as f:
+        metastring = f.read().strip()
+        try:
+            iteration = int(metastring)
+        except ValueError:
+            release = metastring == 'release'
+            if not release:
+                print_rank_0('ERROR: Invalid metadata file {}. Exiting'.format(
+                    tracker_filename))
+                sys.exit()
+    ensure_valid(iteration > 0 or release, 'error parsing metadata file {}'.format(
+        tracker_filename))
+
+    # Get the max iteration retrieved across the ranks.
+    if torch.distributed.is_initialized():
+        iters_cuda = torch.cuda.LongTensor([iteration])
+        torch.distributed.all_reduce(iters_cuda, op=torch.distributed.ReduceOp.MAX)
+        max_iter = iters_cuda[0].item()
+
+        # We should now have all the same iteration.
+        # If not, print a warning and chose the maximum
+        # iteration across all ranks.
+        if iteration != max_iter:
+            rank = torch.distributed.get_rank()
+            print('WARNING: on rank {} found iteration {} in the '
+                  'metadata while max iteration across the ranks '
+                  'is {}, replacing it with max iteration.'.format(
+                      rank, iteration, max_iter), flush=True)
+    else:
+        # When loading a checkpoint outside of training (for example,
+        # when editing it), we might not have torch distributed
+        # initialized, in this case, just assume we have the latest
+        max_iter = iteration
+    return max_iter, release
 
 
 def save_checkpoint_post_process(iteration):
@@ -355,7 +410,6 @@ def read_tracker(load_dir):
     if not args.mos and not args.kd:
         error_message = 'error parsing metadata file {}'.format(tracker_filename)
         ensure_valid(iteration > 0 or release, error_message)
-
     return True, iteration, release
 
 
@@ -506,6 +560,17 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load', strict=True
     # rng states.
     if not release and not args.finetune and not args.no_load_rng:
         try:
+            # Load distributed optimizer's custom parameter state.
+            if args.use_distributed_optimizer:
+                tracker_filename = get_checkpoint_tracker_filename(load_dir)
+                iteration, release = read_metadata(tracker_filename)
+                model_checkpoint_name = \
+                    get_checkpoint_name(load_dir, iteration, release)
+                optim_checkpoint_name = \
+                    get_distributed_optimizer_checkpoint_name(
+                        model_checkpoint_name)
+                optimizer.load_parameter_state(optim_checkpoint_name, iteration)
+
             random.setstate(state_dict['random_rng_state'])
             np.random.set_state(state_dict['np_rng_state'])
             torch.set_rng_state(state_dict['torch_rng_state'])

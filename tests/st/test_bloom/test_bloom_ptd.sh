@@ -6,7 +6,7 @@ export HCCL_CONNECT_TIMEOUT=1200
 export HCCL_OP_BASE_FFTS_MODE_ENABLE=TRUE
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
-CHECKPOINT_PATH='./ckpt'
+CHECKPOINT_PATH='./ckpt_bloom'
 TENSORBOARD_PATH='./tensorboard/'
 LOGS_PATH='./logs/'
 mkdir -p $LOGS_PATH

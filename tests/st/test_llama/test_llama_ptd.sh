@@ -13,7 +13,7 @@ NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
 DATA_PATH=/home/dataset/enwiki-gpt/gpt_text_sentence
-CHECKPOINT_PATH=./ckpt_llama
+CHECKPOINT_PATH=./ckpt_llama_ptd
 
 DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE --nnodes $NNODES --node_rank $NODE_RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT"
 basepath=$(cd `dirname $0`; pwd)
@@ -25,14 +25,14 @@ python3 -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --use-distributed-optimizer \
        --tensor-model-parallel-size 2 \
        --pipeline-model-parallel-size 2 \
-       --num-layers 8 \
-       --hidden-size 4096 \
+       --num-layers 2 \
+       --hidden-size 2048 \
        --num-attention-heads 32 \
        --micro-batch-size 2 \
        --global-batch-size 16 \
-       --seq-length 2048 \
-       --max-position-embeddings 2048 \
-       --train-iters 5 \
+       --seq-length 1024 \
+       --max-position-embeddings 1024 \
+       --train-iters 20 \
        --lr-decay-iters 320000 \
        --save $CHECKPOINT_PATH \
        --load $CHECKPOINT_PATH \
