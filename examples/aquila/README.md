@@ -30,11 +30,11 @@ Aquila-7B 训练的软件配置如下:
 |    软件           |          配置              |
 |:-----------------:|:--------------------------:|
 |    python         | 3.8.18                     |
-|    driver         | Ascend HDK 23.0.0.B050     |
-|    firmware       | Ascend HDK 23.0.0.B050     |
-|    CANN           | CANN 7.0.0.B050            |
-|    torch          | 2.1.0                      |
-|    torch_npu      | 2.1.0.post20231124         |
+|    driver         |  [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software)                 |
+|    firmware       | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software)                  |
+|    CANN           |  [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)                             |
+|    torch          |                      2.1.0                                                                                                    |
+|    torch_npu      |  [package](https://gitee.com/ascend/pytorch/releases)                                                                         |
 
 ### 脚本
 
@@ -210,44 +210,11 @@ Aquila-7B:
 
 我们使用 BoolQ benchmark 来评估我们的模型。在[Benchmark下载页面](https://github.com/google-research-datasets/boolean-questions)找到[数据集](https://storage.cloud.google.com/boolq/dev.jsonl)下载后保存。例如，保存在AscendSpeed/boolq/test目录下。
 
-评估与推理类似，也需要加载转换后的权重。我们配置Aquila-7B评估脚本，例如下面代码所示：
-
-```shell
-    CHECKPOINT="./model_weights/aquila/"
-    VOCAB_FILE="./HF_Aquila7B_downloaded/"
-    DATA_PATH="./boolq/test"
-    TASK="boolq"
-    # Different task needs different max_new_tokens value, please follow the instruction in readme.
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS tasks/evaluation/evaluation_llama.py \
-        --task-data-path $DATA_PATH \
-        --task $TASK \
-        --seq-length 2048 \
-        --max-new-tokens 1 \
-        --max-position-embeddings 2048 \
-        --tensor-model-parallel-size 1  \
-        --pipeline-model-parallel-size 1  \
-        --num-layers 32  \
-        --hidden-size 4096  \
-        --ffn-hidden-size 11008 \
-        --load ${CHECKPOINT}  \
-        --num-attention-heads 32  \
-        --tokenizer-type PretrainedFromHF  \
-        --tokenizer-name-or-path $VOCAB_FILE \
-        --tokenizer-not-use-fast \
-        --fp16  \
-        --micro-batch-size 1  \
-        --position-embedding-type rope \
-        --normalization RMSNorm \
-        --layernorm-epsilon 1e-6 \
-        --make-vocab-size-divisible-by 8 \
-        --use-flash-attn \
-        --pad-vocab-size-to 100008 \
-        --seed 42 | tee logs/train.log
-```
+评估与推理类似，也需要加载转换后的权重。如下使用Aquila-7B推理脚本`tasks/evaluation/eval_aquila_7B.sh`：
 
 ```shell
 # 开始评估
-bash examples/aquila/eval_aquila_7B.sh
+bash tasks/evaluation/eval_aquila_7B.sh
 ```
 
 Aquila-7B在**Ascend NPU**中的评测表现：

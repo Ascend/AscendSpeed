@@ -29,11 +29,11 @@ Here's a software summary of pre-training Aquila-7B:
 |  Software         |       Version              |
 |:-----------------:|:--------------------------:|
 |    python         | 3.8.18                     |
-|    driver         | Ascend HDK 23.0.0.B050     |
-|    firmware       | Ascend HDK 23.0.0.B050     |
-|    CANN           | CANN 7.0.0.B050            |
-|    torch          | 2.1.0                      |
-|    torch_npu      | 2.1.0.post20231124         |
+|    driver         |  [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software)                 |
+|    firmware       | [package](https://support.huawei.com/enterprise/zh/ascend-computing/atlas-900-pod-a2-pid-254184911/software)                  |
+|    CANN           |  [package](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software)                             |
+|    torch          |                      2.1.0                                                                                                    |
+|    torch_npu      |  [package](https://gitee.com/ascend/pytorch/releases)                                                                         |
 
 ### Script
 
@@ -201,39 +201,7 @@ Sample results of Aquila-7B Inference:
 
 We use BoolQ benchmark to evaluate our model. You can [go to the BoolQ Benchmark page](https://github.com/google-research-datasets/boolean-questions) and find the [dataset](https://storage.cloud.google.com/boolq/dev.jsonl), download it and save it. For example, save to "AscendSpeed/boolq/test" directory
 
-Evaluation task is similar to inference task，it also requires loading the pre-trained model weights. You can configure Aquila-7B evaluation script as the following example code shows：
-
-```shell
-    CHECKPOINT="./model_weights/aquila/"
-    VOCAB_FILE="./HF_Aquila7B_downloaded/"
-    DATA_PATH="./boolq/test"
-    TASK="boolq"
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS tasks/evaluation/evaluation_llama.py \
-        --task-data-path $DATA_PATH \
-        --task $TASK \
-        --seq-length 2048 \
-        --max-new-tokens 1 \
-        --max-position-embeddings 2048 \
-        --tensor-model-parallel-size 1  \
-        --pipeline-model-parallel-size 1  \
-        --num-layers 32  \
-        --hidden-size 4096  \
-        --ffn-hidden-size 11008 \
-        --load ${CHECKPOINT}  \
-        --num-attention-heads 32  \
-        --tokenizer-type PretrainedFromHF  \
-        --tokenizer-name-or-path $VOCAB_FILE \
-        --tokenizer-not-use-fast \
-        --fp16  \
-        --micro-batch-size 1  \
-        --position-embedding-type rope \
-        --normalization RMSNorm \
-        --layernorm-epsilon 1e-6 \
-        --make-vocab-size-divisible-by 8 \
-        --use-flash-attn \
-        --pad-vocab-size-to 100008 \
-        --seed 42 | tee logs/train.log
-```
+Evaluation task is similar to inference task，it also requires loading the pre-trained model weights. You can use the Aquila-7B evaluation script `examples/aquila/generate_aquila_7B.sh` as below:
 
 ```shell
 # Start evaluation task
