@@ -15,6 +15,7 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
 
 DATA=./dataset/aquila_text_document
 CHECKPOINT=./ckpt
+TOKENIZER_PATH=./HF_Aquila7B_downloaded/
 
 DS_CONFIG=deepspeed_config_7B.json
 ZERO_STAGE=2
@@ -75,9 +76,9 @@ deepspeed pretrain_llama.py \
        --position-embedding-type rope \
        --normalization RMSNorm \
        --train-iters 1024 \
-       --save $CHECKPOINT \
+       --load $CHECKPOINT \
        --data-path $DATA \
-       --tokenizer-name-or-path ./dataset/aquila/ \
+       --tokenizer-name-or-path $TOKENIZER_PATH \
        --tokenizer-not-use-fast \
        --attention-dropout 0.0 \
        --hidden-dropout 0.0 \
