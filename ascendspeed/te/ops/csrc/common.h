@@ -57,4 +57,18 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor, at::Tensor> npu_flash_attention_g
     bool gen_mask_parallel,
     bool sync);
 
+std::tuple<at::Tensor, at::Tensor, at::Tensor> npu_dropout_add_layer_norm(
+    const at::Tensor &x0,
+    const at::Tensor &weight,
+    const c10::optional<at::Tensor> &residual_opt,
+    const c10::optional<at::Tensor> &bias_opt,
+    const c10::optional<at::Tensor> &rowscale_opt,
+    const c10::optional<at::Tensor> &layerscale_opt,
+    double p,
+    double eps,
+    bool prenorm,
+    bool residual_in_fp32,
+    bool is_rms_norm,
+    bool return_dropout_mask);
+
 #endif
