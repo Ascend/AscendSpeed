@@ -15,8 +15,8 @@
 // limitations under the License.
 
 #include "torch_npu/csrc/aten/NPUNativeFunctions.h"
-#include "common.h"
-#include "aclnn_common.h"
+#include "../ops_interface.h"
+#include "inc/aclnn_common.h"
 
 inline void npu_dropout_add_layer_norm_check(
     const at::Tensor &x0, // BxSxhidden_size

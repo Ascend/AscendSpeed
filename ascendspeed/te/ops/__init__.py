@@ -1,1 +1,1 @@
-from .flash_attention import ascend_flash_attention
+from .fusion_attention import ascend_fusion_attention

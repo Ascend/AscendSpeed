@@ -58,7 +58,9 @@ try:
     from torch.utils.cpp_extension import BuildExtension
 
     ASCEND_TOOLKIT_HOME = os.environ.get("ASCEND_TOOLKIT_HOME")
-    op_files = glob.glob("ascendspeed/te/ops/csrc/*.cpp")
+    op_files = []
+    op_files += glob.glob("ascendspeed/te/ops/csrc/*.cpp")
+    op_files += glob.glob("ascendspeed/te/ops/csrc/cann/*.cpp")
     ext_ops = cpp_extension.NpuExtension(
         name="ascendspeed_te_ops",
         sources=op_files,

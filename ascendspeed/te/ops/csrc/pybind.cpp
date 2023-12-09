@@ -15,7 +15,7 @@
 
 #include <torch/extension.h>
 #include <torch_npu/csrc/aten/NPUNativeFunctions.h>
-#include "common.h"
+#include "ops_interface.h"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("npu_fusion_attention", &npu_flash_attention, "fusion attention forward");
