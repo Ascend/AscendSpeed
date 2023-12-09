@@ -90,7 +90,7 @@ Coming soon ...
       <td>7B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 3644 </td>
+      <td> 3394 </td>
       <td> 4078 </td>
       <td> <a href="./sources/images/aquila/aquila_comp1130.png">Loss</a> </td>
       <td> <a href="examples/aquila/pretrain_aquila_7B.sh">Train</a> </td>
@@ -335,6 +335,14 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
     </tr>
   </thead>
   <tbody>
+    <tr>
+      <td rowspan="1"> <a href="examples/aquila/README.md">Aquila</a> </td>
+      <td> 7B </td>
+      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/aquila/generate_aquila_7B.sh">对话</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/eval_aquila_7B.sh">评估</a> </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
+    </tr>
     <tr>
       <td rowspan="2"> <a href="examples/baichuan/README.md">Baichuan</a> </td>
       <td> 7B </td>
@@ -748,7 +756,6 @@ pretrained_model_name_or_path(`str`, *optional*, defaults to None):
       <th>Benchmark</th>
     </tr>
   </thead>
-
   <tbody>
     <tr>
       <td><a href="https://huggingface.co/datasets/lukaemon/bbh">BBH</a></td>
