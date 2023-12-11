@@ -17,8 +17,8 @@
 #include "torch_npu/csrc/framework/utils/RandomOpAdapter.h"
 #include "torch_npu/csrc/framework/utils/OpAdapter.h"
 #include "torch_npu/csrc/aten/NPUNativeFunctions.h"
-#include "common.h"
-#include "aclnn_common.h"
+#include "../ops_interface.h"
+#include "inc/aclnn_common.h"
 
 const static int FLASH_THRESHOLD = 512;
 const static int N = 32;
