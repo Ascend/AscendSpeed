@@ -74,7 +74,7 @@ deepspeed pretrain_llama.py \
        --max-position-embeddings 2048 \
        --position-embedding-type rope \
        --normalization RMSNorm \
-       --train-iters 500000 \
+       --train-iters 5000 \
        --load $CHECKPOINT \
        --data-path $DATA \
        --split 900,50,50 \
