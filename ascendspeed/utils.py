@@ -344,16 +344,27 @@ def checkpoint_throughput_calculator(model, latency_second):
 
 
 def get_tune_attention_mask(attention_mask_1d, reset_attention_mask=True):
+    args = get_args()
     micro_batch_size, seq_length = attention_mask_1d.size()
     if reset_attention_mask:
         att_mask_batch = micro_batch_size
     else:
         att_mask_batch = 1
-    attention_mask = torch.tril(torch.ones(
-        (att_mask_batch, seq_length, seq_length), device=attention_mask_1d.device)).view(
-        att_mask_batch, 1, seq_length, seq_length)
-    attention_mask = attention_mask.masked_fill((attention_mask_1d < 0.5).view(-1, 1, 1, seq_length), value=0)
-    attention_mask = (attention_mask < 0.5)
+
+    if args.padding_attention_mask:
+        expanded_mask = torch.logical_not(torch.tril(
+            torch.gt(attention_mask_1d[:, :, None] * attention_mask_1d[:, None, :], 0)
+        ) * torch.eq(attention_mask_1d[:, :, None] - attention_mask_1d[:, None, :], 0))
+        attention_mask = (
+            expanded_mask.unsqueeze(1)
+            .expand(-1, 1, seq_length, seq_length)
+        )
+    else:
+        attention_mask = torch.tril(torch.ones(
+            (att_mask_batch, seq_length, seq_length), device=attention_mask_1d.device)).view(
+            att_mask_batch, 1, seq_length, seq_length)
+        attention_mask = attention_mask.masked_fill((attention_mask_1d < 0.5).view(-1, 1, 1, seq_length), value=0)
+        attention_mask = (attention_mask < 0.5)
     return attention_mask
 
 

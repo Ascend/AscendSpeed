@@ -115,6 +115,16 @@ Coming soon ...
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
     </tr>
     <tr>
+      <td rowspan="1"><a href="examples/baichuan2/README.md">Baichaun2</a></td>
+      <td>13B</td>
+      <td> 2x8</td>
+      <td> BF16 </td>
+      <td> 1318 </td>
+      <td> 2062 </td>
+      <td> <a href="./sources/images/baichuan2/13B-loss-compare.png">Loss</a> </td>
+      <td> <a href="examples/baichuan2/pretrain_baichuan2_ptd_13B.sh">Train</a> </td>
+    </tr>
+    <tr>
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
       <td>7B1</td>
       <td> 1x8</td>

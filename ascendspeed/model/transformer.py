@@ -274,6 +274,7 @@ class CoreAttention(MegatronModule):
     def __init__(self, layer_number, config,
                  attn_mask_type=AttnMaskType.padding):
         super(CoreAttention, self).__init__()
+        args = get_args()
         self.fp16 = config.fp16
         self.bf16 = config.bf16
         self.apply_query_key_layer_scaling = config.apply_query_key_layer_scaling
@@ -317,8 +318,13 @@ class CoreAttention(MegatronModule):
 
         self.use_flash_attn = config.use_flash_attn
         if self.use_flash_attn:
-            self.core_flash_attn = FlashSelfAttention(causal=True, softmax_scale=(1.0 / self.norm_factor),
+            softmax_scale = (1.0 / self.norm_factor)
+            if coeff is not None:
+                softmax_scale = (1.0 / self.norm_factor) * coeff
+            self.core_flash_attn = FlashSelfAttention(causal=True, softmax_scale=softmax_scale,
                                                       attention_dropout=config.attention_dropout)
+        self.square_alibi_mask = args.square_alibi_mask
+        self.max_seq_length = args.seq_length
 
     def forward(self, query_layer, key_layer,
                 value_layer, attention_mask, alibi=None):
@@ -349,20 +355,22 @@ class CoreAttention(MegatronModule):
 
         if self.use_flash_attn:
             if alibi is not None:
-                # [b*np, 1, sq] ==> [b, np, 1, sq]
-                matmul_result = matmul_result.unsqueeze(0).reshape(output_size[0], output_size[1], 1, output_size[2])
+                ensure_valid(self.square_alibi_mask, "Current FlashAttention only support square alibi mask!")
+
+                # [b*np, sq, sq] ==> [b, np, sq, sq]
+                matmul_result = matmul_result.reshape(output_size[0], output_size[1], output_size[2],
+                                                     output_size[2]) * self.beta * self.norm_factor
             q, k, v = [rearrange(x, 's b h d -> s b (h d)').contiguous() for x in (query_layer, key_layer, value_layer)]
             context_layer = self.core_flash_attn((q, k, v, self.num_attention_heads_per_partition), matmul_result,
                                                  attention_mask)
         else:
             # Raw attention scores. [b * np, sq, sk]
+            q_trans = query_layer.transpose(0, 1).contiguous()
+            k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
+
             if alibi is None:
-                q_trans = query_layer.transpose(0, 1).contiguous()
-                k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
                 matmul_result = torch.bmm(q_trans, k_trans) * (1.0 / self.norm_factor)
             else:
-                q_trans = query_layer.transpose(0, 1).contiguous()
-                k_trans = key_layer.transpose(0, 1).transpose(1, 2).contiguous()
                 matmul_result = self.beta * matmul_result + torch.bmm(q_trans, k_trans) * (1.0 / self.norm_factor)
 
             # change view to [b, np, sq, sk]
@@ -375,6 +383,7 @@ class CoreAttention(MegatronModule):
             # attention scores and attention mask [b, np, sq, sk]
             attention_probs = self.scale_mask_softmax(attention_scores,
                                                       attention_mask)
+
             if self.bf16:
                 attention_probs = attention_probs.bfloat16()
 
@@ -878,7 +887,7 @@ class ParallelTransformerLayer(MegatronModule):
         # Alibi
         if args.position_embedding_type == PositionEmbeddingType.alibi:
             self.alibi = self._build_alibi_tensor(args.seq_length, args.num_attention_heads,
-                                                  args.micro_batch_size).to(torch.cuda.current_device())
+                                                  args.micro_batch_size, args.square_alibi_mask).to(torch.cuda.current_device())
             if args.params_dtype == torch.float16:
                 self.alibi = self.alibi.to(torch.float16)
             elif args.params_dtype == torch.bfloat16:
@@ -1220,7 +1229,7 @@ class ParallelTransformerLayer(MegatronModule):
             return output, moe_loss
 
     @staticmethod
-    def _build_alibi_tensor(max_seq_len, num_attention_heads, batch_size):
+    def _build_alibi_tensor(max_seq_len, num_attention_heads, batch_size, square_alibi_mask):
         """Returns tensor shaped (batch_size * num_attention_heads, 1, max_seq_len)"""
 
         def get_slopes(n):
@@ -1237,8 +1246,16 @@ class ParallelTransformerLayer(MegatronModule):
                                                                    :n - closest_power_of_2]
 
         slopes = torch.Tensor(get_slopes(num_attention_heads))
-        alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(max_seq_len).unsqueeze(0).unsqueeze(0).expand(
-            num_attention_heads, -1, -1)
+
+        if square_alibi_mask:
+            position_point = torch.arange(max_seq_len) - max_seq_len + 1
+            position_point = position_point.unsqueeze(0).unsqueeze(0).expand(num_attention_heads, max_seq_len, -1)
+            diag = torch.diag(position_point[0])
+            position_point = position_point - diag.unsqueeze(0).unsqueeze(0).transpose(-1, -2)
+            alibi = slopes.unsqueeze(1).unsqueeze(1) * position_point
+        else:
+            alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(max_seq_len).unsqueeze(0).unsqueeze(0).expand(
+                num_attention_heads, -1, -1)
 
         # Select the part of the tensor that corresponds to our tensor parallel index.
         tp_world_size = parallel_state.get_tensor_model_parallel_world_size()

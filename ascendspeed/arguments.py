@@ -371,6 +371,13 @@ def validate_args(args, defaults={}):
                   'Defaulting to no_persist_layer_norm=True')
     else:
         args.no_persist_layer_norm = False
+    # Check Alibi-Mask.
+    if args.position_embedding_type == PositionEmbeddingType.alibi and args.use_flash_attn:
+        ensure_valid(not args.padding_attention_mask, 'FlashAttention of Alibi do not support' +
+                        'padding attention mask!')
+        ensure_valid(not args.is_instruction_dataset, 'FlashAttention of Alibi do not support' +
+                        'is_instruction_dataset!')
+    
     # Activation recomputing.
     if args.distribute_saved_activations:
         ensure_valid(args.tensor_model_parallel_size > 1, 'can distribute ' +
@@ -821,6 +828,21 @@ def _add_training_args(parser):
                        help='The profiling step for auto selective recompute strategy. '
                             'The default is 10. If activate auto selective recompute, '
                             'will solve graph after step 10. ')
+    group.add_argument('--z-loss-weight',
+                       type=float, default=None,
+                       help='add penalty item for loss function')
+    group.add_argument('--lm-norm-weight',
+                       action='store_true',
+                       default=False,
+                       help='normalize the weight of lm head before matmul')
+    group.add_argument('--padding-attention-mask',
+                       action='store_true',
+                       default=False,
+                       help='padding attention_mask')
+    group.add_argument('--square-alibi-mask',
+                       action='store_true',
+                       default=False,
+                       help='attention mask of alibi is squared')
     return parser
 
 
@@ -1160,6 +1182,8 @@ def _add_data_args(parser):
                     '"NAME_CDE: 0.6 0.6:0.8 C, 0.3 0:1 D, 0.1 0:1 E" '
                     'test will be run on each of those groups independently',
                     action=ParseDataPaths)
+    group.add_argument('--keep-last-token', action='store_true', default=False,
+                        help="keep last token of input_ids, attention_mask and labels during data processing")
 
     group.add_argument('--train-weighted-split-paths-path', type=str, action=ParseDataPathsPath, default=None)
     group.add_argument('--valid-weighted-split-paths-path', type=str, action=ParseDataPathsPath, default=None)
