@@ -33,8 +33,9 @@ AscendSpeed旨在为华为 [昇腾芯片](https://open.codehub.huawei.com/OpenBa
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[使用说明: 7B/65B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[使用说明: 7B/13B/33B/65B]](examples/llama/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[使用说明: 7B/13B/34B/70B]](examples/llama2/README.md)
+* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan2</a>-[[使用说明: 13B]](examples/baichuan2/README.md)
 
-Baichuan2-7B/13B 等模型即将上线...
+Baichuan2-7B 等模型即将上线...
 
 ### 下游任务
 当前AscendSpeed为大模型提供以下周边应用:
@@ -114,6 +115,16 @@ Baichuan2-7B/13B 等模型即将上线...
       <td> 824 </td>
       <td> <a href="./sources/images/baichuan/13B-loss-compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">训练</a> </td>
+    </tr>
+    <tr>
+      <td rowspan="1"><a href="examples/baichuan2/README.md">Baichaun2</a></td>
+      <td>13B</td>
+      <td> 2x8</td>
+      <td> BF16 </td>
+      <td> 1318 </td>
+      <td> 2062 </td>
+      <td> <a href="./sources/images/baichuan2/13B-loss-compare.png">Loss</a> </td>
+      <td> <a href="examples/baichuan2/pretrain_baichuan2_ptd_13B.sh">训练</a> </td>
     </tr>
     <tr>
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
