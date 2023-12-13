@@ -66,5 +66,4 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --save-interval 1000 \
        --eval-interval 1000 \
        --eval-iters 10 \
-       --use-flash-attn \
        --fp16 | tee logs/loss_${logfile}.log

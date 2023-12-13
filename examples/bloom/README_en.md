@@ -458,6 +458,11 @@ Run the examples/bloom/pretrain_bloom_176b.sh on all nodes in the cluster.
 bash examples/bloom/pretrain_bloom_176b.sh
 ```
 
+```text
+When enable the FA, add '--use-flash-attn' and '--square-alibion-mask' to the script, and do not 
+use '--is-instruction-dataset'.
+```
+
 ## Performance
 
 ### Machine Performance
@@ -466,7 +471,7 @@ The performance of Bloom-176B in **Ascend NPU** and **Reference**:
 
 | Devices | Model | total iterations | throughput rate (tokens/s/p) |
 | ------- | ----- |-----------------| ---------------------------- |
-| NPUs    | Bloom-176B | 1000            | 112                          |
+| NPUs    | Bloom-176B | 1000            | 108                          |
 | Reference | Bloom-176B | NA              | 107                          |
 
 ### Accuracy of the loss
