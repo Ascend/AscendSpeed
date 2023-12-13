@@ -203,7 +203,7 @@ LLAMA2-7B 训练的软件配置:
    Lora微调的脚本配置是在预训练脚本pretrain_llama2_7b_ptd.sh基础上加上lora参数，如下所示:
 
    ```bash
-       --lora-target-modules query_key_value dense gate_proj dense_4h_to_h \
+       --lora-target-modules query_key_value dense proj dense_4h_to_h \
        --lora-r 16 \
        --lora-alpha 32 \
    ```

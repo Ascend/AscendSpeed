@@ -342,8 +342,10 @@ DATA_PATH=./dataset_baichuan13B/aplaca_text_document
 bash examples/baichuan/pretrain_baichuan_ptd_13B.sh
 ```
 
-There is an hourly pulse checking script running that checks that the training is either running or scheduled.
-
+```text
+When enable the FA, add '--use-flash-attn' and '--square-alibion-mask' to the script, and do not 
+use '--is-instruction-dataset'.
+```
 
 
 ### Performance
@@ -354,7 +356,7 @@ The performance of the Baichuan-13B in **Ascend NPU** and **Reference**:
 
 | Device |    Model     | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
 | :----: | :----------: | :--------------: | :---------------------------: | :--------------------------: | :-----------------------: | :---------------------------------: |
-|  NPUs  | Baichuan-13B |       1000       |             2.250             |             1152             |          14.220           |                100.30                |
+|  NPUs  | Baichuan-13B |       1000       |             1.985             |             1016             |          16.121           |                88.47                |
 |  Reference  | Baichuan-13B |       1000       |             1.535             |             862              |          19.852           |                72.39                |
 
 
@@ -434,3 +436,42 @@ bash ./examples/baichuan/generate_baichuan_lora_13B.sh
 
 FineTune with lora and operate inference
 ![13B-lora-inference.png](../../sources/images/baichuan/13B-lora-inference.png)
+
+
+
+### Evaluation
+We use the boolq benchmark to evaluate our model. Benchmark[Download](https://huggingface.co/datasets/boolq).
+
+```shell
+# config origin weight and vocab file path
+CHECKPOINT=<origin-ckpt-path>
+VOCAB_FILE=<tokenizer-path>
+# config tasks and dataset path
+DATA_PATH="./boolq/test/"
+TASK="boolq"
+```
+
+```shell
+bash ./tasks/evaluation/eval_baichuan_13B.sh
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th>Subset</th>
+      <th>Model</th>
+      <th>NPU</th>
+      <th>OpenSource</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://huggingface.co/datasets/boolq">Boolq</a></td>
+      <td>Test</td>
+      <th>Baichuan 13B</th>
+      <td>0.747</td>
+      <td><a href="https://opencompass.org.cn/dataset-detail/BoolQ">0.736</a></td>
+    </tr>
+  </tbody>
+</table>

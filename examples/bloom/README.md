@@ -444,6 +444,10 @@ DATA_PATH=/home/bloom_data/enwiki_100k/enwiki-100k_text_document
 bash examples/bloom/pretrain_bloom_176b.sh
 ```
 
+```text
+当要开启FA时，在脚本中添加`--use-flash-attn`与`--square-alibi-mask`来使能，同时不要使用`--is-instruction-dataset`.
+```
+
 ## 性能
 
 ### 吞吐
@@ -452,7 +456,7 @@ Bloom-176B 在 **昇腾芯片** 和 **参考芯片** 上的性能对比:
 
 | 设备 | 模型         | 总迭代数 | tokens吞吐 (tokens/p/s) |
 |----|------------|------|-----------------------|
-| NPUs | Bloom-176B | 1000 | 112                   |
+| NPUs | Bloom-176B | 1000 | 108                   |
 | 参考 | Bloom-176B | NA   | 107                   |
 
 ### 精度

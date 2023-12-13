@@ -341,7 +341,9 @@ DATA_PATH=./dataset_baichuan13B/alpaca_text_document
 bash examples/baichuan/pretrain_baichuan_ptd_13B.sh
 ```
 
-
+```text
+当要开启FA时，在脚本中添加`--use-flash-attn`与`--square-alibi-mask`来使能，同时不要使用`--is-instruction-dataset`.
+```
 
 ### 性能
 
@@ -351,7 +353,7 @@ Baichuan-13B 在 **昇腾芯片** 和 **参考芯片** 上的性能对比:
 
 |  设备  |      模型      | 迭代数  | 样本吞吐 (samples/p/s) | token吞吐 (tokens/p/s) | 单步迭代时间 (s/step) | 浮点计算数 (TFLOPs/s) |
 |:----:|:------------:|:----:|:------------------:|:--------------------:|:---------------:|:----------------:|
-| NPUs | Baichuan-13B | 1000 |       2.250        |         1152         |     14.220      |      100.30       |
+| NPUs | Baichuan-13B | 1000 |       1.985        |         1016         |     16.121      |      88.47       |
 |  参考  | Baichuan-13B | 1000 |       1.535        |         862          |     19.852      |      72.39       |
 
 
@@ -423,3 +425,42 @@ bash ./examples/baichuan/generate_baichuan_lora_13B.sh
 
 使用lora进行微调后的推理功能：
 ![13B-lora-inference.png](../../sources/images/baichuan/13B-lora-inference.png)
+
+
+
+### 评估
+我们使用boolq基准来评估我们的模型。基准[下载](https://huggingface.co/datasets/boolq).
+
+```shell
+# 配置原始权重与词表的路径
+CHECKPOINT=<origin-ckpt-path>
+VOCAB_FILE=<tokenizer-path>
+# 配置任务以及数据路径
+DATA_PATH="./boolq/test/"
+TASK="boolq"
+```
+
+```shell
+bash ./tasks/evaluation/eval_baichuan_13B.sh
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>任务</th>
+      <th>验证集</th>
+      <th>模型</th>
+      <th>昇腾值</th>
+      <th>社区值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="https://huggingface.co/datasets/boolq">Boolq</a></td>
+      <td>Test</td>
+      <th>Baichuan 13B</th>
+      <td>0.747</td>
+      <td><a href="https://opencompass.org.cn/dataset-detail/BoolQ">0.736</a></td>
+    </tr>
+  </tbody>
+</table>

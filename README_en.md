@@ -96,7 +96,7 @@ Coming soon ...
       <td> <a href="examples/aquila/pretrain_aquila_7B.sh">Train</a> </td>
     </tr>
     <tr>
-      <td rowspan="2"><a href="examples/baichuan/README.md">Baichaun</a></td>
+      <td rowspan="2"><a href="examples/baichuan/README.md">Baichuan</a></td>
       <td>7B</td>
       <td> 1x8</td>
       <td> FP16 </td>
@@ -109,7 +109,7 @@ Coming soon ...
       <td>13B</td>
       <td> 1x8</td>
       <td> FP16 </td>
-      <td> 1152 </td>
+      <td> 1016 </td>
       <td> 824  </td>
       <td> <a href="./sources/images/baichuan/13B-loss-compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
@@ -119,7 +119,7 @@ Coming soon ...
       <td>13B</td>
       <td> 2x8</td>
       <td> BF16 </td>
-      <td> 1318 </td>
+      <td> 1350 </td>
       <td> 2062 </td>
       <td> <a href="./sources/images/baichuan2/13B-loss-compare.png">Loss</a> </td>
       <td> <a href="examples/baichuan2/pretrain_baichuan2_ptd_13B.sh">Train</a> </td>
@@ -365,7 +365,7 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td> 13B </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/tune_baichuan_ptd_13B.sh">lora</a> </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/generate_baichuan_13B_tp8_pp1.sh">inference</a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/eval_baichuan.sh">evaluation</a> </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>

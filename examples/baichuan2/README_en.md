@@ -193,7 +193,7 @@ With FA operator, the performance of the Baichuan2-13B in **Ascend NPU** and **R
 
 | Device |     Model     | total Iterations | throughput rate (samples/s/p) | throughput rate (tokens/s/p) | single-step time (s/step) | floating point operation (TFLOPs/s) |
 |:----:|:-------------------------:|:----:|:------------------:|:--------------------:|:---------------:|:----------------:|
-| NPUs | Baichuan2-13B | 1000 |        5.149        |         1318         |     49.716      |      116.61      |
+| NPUs | Baichuan2-13B | 1000 |        5.149        |         1350         |     49.716      |      116.61      |
 |  Reference  |               |      |                    |         2062         |                 |                  |
 
 
