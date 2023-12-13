@@ -81,7 +81,7 @@ cd ..
 pip install -r requirements.txt 
 ```
 
-3. 下载 LLaMA-7B/13B [词表文件](https://huggingface.co/yahma/llama-7b-hf/tree/main) 
+3. 下载 LLaMA-7B/13B [词表文件](https://huggingface.co/ruibin-wang/llama-7b-hf/tree/main) 
 
 
 ```shell
@@ -139,12 +139,21 @@ if zero_sd_list is None or len(zero_sd_list) == 0:
 ```
 
 
-下载 LLaMA-7B [权重](https://huggingface.co/yahma/llama-7b-hf/tree/main) 或 LLaMA-13B [权重](https://huggingface.co/yahma/llama-13b-hf/tree/main)
+下载 LLaMA-7B [权重](https://huggingface.co/ruibin-wang/llama-7b-hf/tree/main) 或 LLaMA-13B [权重](https://huggingface.co/ruibin-wang/llama-13b-hf/tree/main)
 ```shell
   mkdir model_from_hf
   cd ./model_from_hf
   # 需要安装 git-lfs
-  git clone https://huggingface.co/yahma/llama-7b-hf
+  git clone https://huggingface.co/ruibin-wang/llama-7b-hf
+  cd ..
+```
+or 
+
+```shell
+  mkdir model_from_hf
+  cd ./model_from_hf
+  # 需要安装 git-lfs
+  git clone https://huggingface.co/ruibin-wang/llama-13b-hf
   cd ..
 ```
 

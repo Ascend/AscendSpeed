@@ -372,17 +372,17 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
     <tr>
       <td rowspan="2"><a href="examples/bloom/README.md">Bloom</a></td>
       <td> 7B1 </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/tune_bloom_7b1.sh">lora</a> </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_bloom_7B_tp8_pp1.sh">对话</a> </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_bloom_7b1.sh">评估</a> </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json </a> </td>
     </tr>
     <tr>
       <td> 176B </td>
       <td> -- </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/bloom/generate_176b_2nodes.sh">对话</a> </td>
-      <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_bloom_176b.sh">评估</a> </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a>  </td>
     </tr>
     <tr>
       <td><a href="examples/intern/README.md">InternLM</a></td>
@@ -411,7 +411,7 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td>33B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_33B_ptd.sh">对话 </a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/evaluate_llama_33B_ptd.sh">评估 </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_llama_33B_ptd.sh">评估 </a> </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
@@ -419,29 +419,36 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td > -- </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_65B_tp8_pp1.sh">对话 </a> </td>
       <td> -- </td>
-      <td> -- </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a>  </td>
     </tr>
     <tr>
-      <td rowspan="3"><a href="examples/llama2/README.md">LLaMA2</a></td>
+      <td rowspan="4"><a href="examples/llama2/README.md">LLaMA2</a></td>
       <td>7B</td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/tune_llama2_7b_ptd.sh">lora</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/tune_llama2_7b_ptd.sh">lora </a> </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_7b_ptd.sh">对话 </a> </td>
       <td> -- </td>
-      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json </a> </td>
+    </tr>
+    <tr>
+      <td>13B</td>
+      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_13B_tp8_pp1.sh">对话 </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_llama2_13B_ptd.sh">评估 </a> </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a>  </td>
     </tr>
     <tr>
       <td > 34B </td>
       <td > -- </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_34B_ptd.sh">对话 </a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/evaluate_llama2_34B_ptd.sh">评估 </a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_llama2_34B_ptd.sh">评估 </a> </td>
+      <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a>  </td>
     </tr>
     <tr>
       <td > 70B </td>
       <td > -- </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/generate_llama2_70B_ptd.sh">对话 </a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama2/evaluate_llama2_70B_ptd.sh">评估 </a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_llama2_70B_ptd.sh">评估 </a> </td>
+      <td>  <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a>  </td>
     </tr>
   </tbody>
 </table>
@@ -534,7 +541,8 @@ python tools/preprocess_data.py --input WORKSPACE/alpaca/train-00000-of-00001-a0
                                 --tokenizer-type PretrainedFromHF \
                                 --tokenizer-name-or-path WORKSPACE/llama-7b-hf \
                                 --tokenizer-not-use-fast \
-                                --handler-name GeneralInstructionHandler
+                                --handler-name GeneralInstructionHandler \
+                                --append-eod
 ```
 
 在处理后，`WORKSPACE/alpaca_preprocessed` 文件夹下会有3个 `bin` 文件 和 3个 `idx` 文件，我们便可以通过添加 `--data-path WORKSPACE/alpaca_preprocessed/alpaca` 和 `--is-instruction-dataset` 标志来进行指令微调。
@@ -557,7 +565,7 @@ pip install peft==0.4.0
 
 ```shell
 # Llama example
---lora-target-modules query_key_value dense gate_proj up_proj down_proj \
+--lora-target-modules query_key_value dense gate_proj dense_h_to_4h dense_4h_to_h  \
 ```
 
 Lora有一些相关参数，在 [PEFT](https://github.com/huggingface/peft) 仓库中有详细介绍，比如：
@@ -655,23 +663,24 @@ initialize_megatron(args_defaults={'no_load_rng': True, 'no_load_optim': True})
 ##### 初始化模型和权重
 ```python
 from ascendspeed import get_args
-from ascendspeed.model import LlamaModel
+from ascendspeed.model import GPTModel
 from ascendspeed.arguments import core_transformer_config_from_args
 
 def model_provider(pre_process=True, post_process=True):
     """Build the model."""
     config = core_transformer_config_from_args(get_args())
-    init_model = LlamaModel(
+    init_model = GPTModel(
         config,
+        num_tokentypes=0,
         parallel_output=False,
-        add_pooler=False,
+        return_moe_loss=False,
         pre_process=pre_process,
         post_process=post_process
     )
     return init_model
 
 
-model = LlamaModel.from_pretrained(
+model = GPTModel.from_pretrained(
     model_provider=model_provider,
     pretrained_model_name_or_path="your model weight path"
 )

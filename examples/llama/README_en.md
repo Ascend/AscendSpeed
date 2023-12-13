@@ -93,7 +93,7 @@ pip install -r requirements.txt
     if zero_sd_list is None or len(zero_sd_list) == 0:
         return False
 ```
-3. Download the LLaMA-7B/13B tokenizer model and file from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main) 
+3. Download the LLaMA-7B/13B tokenizer model and file from [here](https://huggingface.co/ruibin-wang/llama-7b-hf/tree/main) 
 
 
 ```shell
@@ -134,21 +134,21 @@ python ./tools/preprocess_data.py \
 
 5. Weights convert
 
-Download the LLaMA-7B checkpoint from [here](https://huggingface.co/yahma/llama-7b-hf/tree/main) 
+Download the LLaMA-7B checkpoint from [here](https://huggingface.co/ruibin-wang/llama-7b-hf/tree/main) 
 ```shell
   mkdir model_from_hf
   cd ./model_from_hf
   # you must install git-lfs
-  git clone https://huggingface.co/yahma/llama-7b-hf
+  git clone https://huggingface.co/ruibin-wang/llama-7b-hf
   cd ..
 ```
 
-Download the LLaMA-13B checkpoint from [here](https://huggingface.co/yahma/llama-13b-hf/tree/main) 
+Download the LLaMA-13B checkpoint from [here](https://huggingface.co/ruibin-wang/llama-13b-hf/tree/main) 
 ```shell
   mkdir model_from_hf
   cd ./model_from_hf
   # you must install git-lfs
-  git clone https://huggingface.co/yahma/llama-13b-hf
+  git clone https://huggingface.co/ruibin-wang/llama-13b-hf
   cd ..
 ```
 

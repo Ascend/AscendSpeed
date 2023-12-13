@@ -589,32 +589,15 @@ Some inference samples are as follows:
 We use boolq benchmark to evaluate our model. Benchmark Download [here](https://huggingface.co/datasets/boolq).
 
 ```shell
+    # modify the model weight path and tokenizer path
     CHECKPOINT=./llama2-13b-tp8-pp1/
     VOCAB_FILE=./llama2-13b-hf/
-    # configure task and data path
-    DATA_PATH="./boolq/data/test/"
-    TASK="boolq"
-    # configure generation parameters 
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
-           --task-data-path $DATA_PATH \
-           --task $TASK\
-           --seq-length 4096 \
-           --max-new-tokens 32 \
-           --max-position-embeddings 4096 \
-           --tensor-model-parallel-size 8  \
-           --pipeline-model-parallel-size 1  \
-           --num-layers 40  \
-           --hidden-size 5120  \
-           --ffn-hidden-size 13824 \
-           --load ${CHECKPOINT}  \
-           --num-attention-heads 40 \
-           --tokenizer-type PretrainedFromHF  \
-           --tokenizer-name-or-path $VOCAB_FILE \
-           --tokenizer-not-use-fast \
-           --fp16  \
-           --micro-batch-size 1  \
-           --seed 42 | tee logs/train.log
 ```
+
+```shell
+bash tasks/evaluation/evaluate_llama2_13B_ptd.sh
+```
+
 <table>
   <thead>
     <tr>
@@ -1121,9 +1104,9 @@ Download dev part[here](https://storage.googleapis.com/boolq/dev.jsonl) and put 
 
 Config evaluation script:
 
-LLaMA2-34B:`examples/llama2/evaluate_llama2_34B_ptd.sh`.
+LLaMA2-34B:`tasks/evaluation/evaluate_llama2_34B_ptd.sh`.
 
-LLaMA2-70B:`examples/llama2/evaluate_llama2_70B_ptd.sh`.
+LLaMA2-70B:`tasks/evaluation/evaluate_llama2_70B_ptd.sh`.
 
 ```shell
 # Modify checkpoint path and vocabfile path.
@@ -1133,11 +1116,11 @@ VOCAB_FILE=<vocabfile-path>
 
 Launch LLaMA2-34B evaluation:
 ```shell
-bash ./examples/llama2/evaluate_llama2_34B_ptd.sh
+bash tasks/evaluation/evaluate_llama2_34B_ptd.sh
 ```
 Launch LLaMA2-70B evaluation:
 ```shell
-bash ./examples/llama2/evaluate_llama2_70B_ptd.sh
+bash tasks/evaluation/evaluate_llama2_70B_ptd.sh
 ```
 
 Evaluation results with BoolQ dataset:

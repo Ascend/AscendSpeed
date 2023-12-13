@@ -595,32 +595,15 @@ bash ./examples/llama2/generate_llama2_13B_tp8_pp1.sh
 我们使用boolq基准来评估我们的模型。基准[下载](https://huggingface.co/datasets/boolq).
 
 ```shell
+    # 配置权重以及词表路径
     CHECKPOINT=./llama2-13b-tp8-pp1/
     VOCAB_FILE=./llama2-13b-hf/
-    # 配置任务以及数据路径
-    DATA_PATH="./boolq/data/test/"
-    TASK="boolq"
-    # 配置生成参数 
-    python -m torch.distributed.launch $DISTRIBUTED_ARGS evaluation.py   \
-           --task-data-path $DATA_PATH \
-           --task $TASK\
-           --seq-length 4096 \
-           --max-new-tokens 32 \
-           --max-position-embeddings 4096 \
-           --tensor-model-parallel-size 8  \
-           --pipeline-model-parallel-size 1  \
-           --num-layers 40  \
-           --hidden-size 5120  \
-           --ffn-hidden-size 13824 \
-           --load ${CHECKPOINT}  \
-           --num-attention-heads 40 \
-           --tokenizer-type PretrainedFromHF  \
-           --tokenizer-name-or-path $VOCAB_FILE \
-           --tokenizer-not-use-fast \
-           --fp16  \
-           --micro-batch-size 1  \
-           --seed 42 | tee logs/train.log
 ```
+
+```shell
+bash tasks/evaluation/evaluate_llama2_13B_ptd.sh
+```
+
 <table>
   <thead>
     <tr>
@@ -1123,9 +1106,9 @@ BoolQ数据集评估样例. 数据集[here](https://huggingface.co/datasets/bool
 
 配置评估脚本:
 
-LLaMA2-34B:`examples/llama2/evaluate_llama2_34B_ptd.sh`.
+LLaMA2-34B:`tasks/evaluation/evaluate_llama2_34B_ptd.sh`.
 
-LLaMA2-70B:`examples/llama2/evaluate_llama2_70B_ptd.sh`.
+LLaMA2-70B:`tasks/evaluation/evaluate_llama2_70B_ptd.sh`.
 
 ```shell
 # 修改模型权重路径和分词器路径
@@ -1135,11 +1118,11 @@ VOCAB_FILE=<vocabfile-path>
 
 LLaMA2-34B评估:
 ```shell
-bash ./examples/llama2/evaluate_llama2_34B_ptd.sh
+bash tasks/evaluation/evaluate_llama2_34B_ptd.sh
 ```
 LLaMA2-70B评估:
 ```shell
-bash ./examples/llama2/evaluate_llama2_70B_ptd.sh
+bash tasks/evaluation/evaluate_llama2_70B_ptd.sh
 ```
 
 BoolQ 数据集评估结果:

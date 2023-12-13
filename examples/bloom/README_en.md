@@ -177,15 +177,19 @@ CHECKPOINT_PATH='./ckpt'
 
 ### LORA fine-tuning
 
-The execution process is consistent with the pre-training, and the parameters are modified as follows:
+Launch Bloom-7B pre-training script: examples/bloom/tune_bloom_7b1.sh
 
 ```shell
 # modify the model weight path
 CHECKPOINT_PATH='./ckpt'
 
-# Add configuration parameters
-pretrain_bloom.py
---lora-target-modules query_key_value dense 
+# modify the datasets path and tokenizer path
+TOKENIZER_NAME_OR_PATH=/home/bloom_data/vocab_file/
+DATA_PATH=/home/bloom_data/alpaca/alpaca
+```
+
+```shell
+bash examples/bloom/tune_bloom_7b1.sh
 ```
 
 ## Performance
@@ -262,7 +266,7 @@ bash ./examples/bloom/generate_bloom_7B_tp8_pp1.sh
 ```
 
 ## Evaluation 
-Config Bloom-7B evaluation script: tasks/evaluation/eval_bloom.sh
+Config Bloom-7B evaluation script: tasks/evaluation/evaluate_bloom_7b1.sh
 
 ```shell
 # modify the model weight path and tokenizer path
@@ -272,13 +276,6 @@ DATA_PATH="/dataset/boolq/test"
 TASK="boolq"
 ```
 
-In addition, you need to set the corresponding parameters according to the model size, bloom_7B parameters are:
-```shell
---num-layers 30 
---hidden-size 4096 
---num-attention-heads 32 
-```
-
 ```text
     # Note that, a deepspeed bug needs to be fixed during evaluation：
     # Comment out line 671 in the file `<deepspeed-installed-path>/runtime/pipe/engine.py`：
@@ -286,7 +283,7 @@ In addition, you need to set the corresponding parameters according to the model
 ```
 
 ```shell
-bash ./tasks/evaluation/eval_bloom.sh
+bash tasks/evaluation/evaluate_bloom_7b1.sh
 ```
 
 <table>
@@ -537,7 +534,7 @@ bash ./examples/bloom/generate_bloom_176b_2nodes.sh
 ```
 
 ## Evaluation 
-Config Bloom-7B evaluation script: tasks/evaluation/eval_bloom.sh
+Config Bloom-7B evaluation script: tasks/evaluation/evaluate_bloom_176b.sh
 
 ```shell
 # modify the model weight path and tokenizer path
@@ -547,13 +544,6 @@ DATA_PATH="/dataset/boolq/test"
 TASK="boolq"
 ```
 
-In addition, you need to set the corresponding parameters according to the model size, bloom_7B parameters are:
-```shell
---num-layers 70 
---hidden-size 14336 
---num-attention-heads 112 
-```
-
 ```text
     # Note that, a deepspeed bug needs to be fixed during evaluation：
     # Comment out line 671 in the file `<deepspeed-installed-path>/runtime/pipe/engine.py`：
@@ -561,7 +551,7 @@ In addition, you need to set the corresponding parameters according to the model
 ```
 
 ```shell
-bash ./tasks/evaluation/eval_bloom.sh
+bash tasks/evaluation/evaluate_bloom_176b.sh
 ```
 <table>
   <thead>

@@ -168,14 +168,18 @@ CHECKPOINT_PATH='./ckpt'
 ```
 
 ### 低参微调
-执行流程与预训练一致，参数修改配置如下：
+启动 Bloom-7B 低参微调脚本: examples/bloom/tune_bloom_7b1.sh
+
 ```shell
 # 修改预训练权重路径
 CHECKPOINT_PATH='./ckpt'
+# 修改数据集和词表路径
+TOKENIZER_NAME_OR_PATH=/home/bloom_data/vocab_file/
+DATA_PATH=/home/bloom_data/alpaca/alpaca
+```
 
-# 增加配置参数
-pretrain_bloom.py
---lora-target-modules query_key_value dense \
+```shell
+bash examples/bloom/tune_bloom_7b1.sh
 ```
 
 ## 性能
@@ -250,7 +254,7 @@ bash ./examples/bloom/generate_bloom_7B_tp8_pp1.sh
 ```
 
 ## 评估 
-配置 Bloom-7B 评估脚本: tasks/evaluation/eval_bloom.sh
+配置 Bloom-7B 评估脚本: tasks/evaluation/evaluate_bloom_7b1.sh
 
 ```shell
 # 修改 model weight 路径和 tokenizer 路径和数据集任务路径
@@ -260,13 +264,6 @@ DATA_PATH="/dataset/boolq/test"
 TASK="boolq"
 ```
 
-除此之外你还需要根据模型大小设置参数:
-```shell
---num-layers 30 
---hidden-size 4096 
---num-attention-heads 32 
-```
-
 ```text
     # 请注意，评估时需要修改一个deepspeed的bug：
     # 将 `<deepspeed-installed-path>/runtime/pipe/engine.py` 文件里的第671行注释掉：
@@ -274,7 +271,7 @@ TASK="boolq"
 ```
 
 ```shell
-bash ./tasks/evaluation/eval_bloom.sh
+bash tasks/evaluation/evaluate_bloom_7b1.sh
 ```
 
 <table>
@@ -525,7 +522,7 @@ bash ./examples/bloom/generate_bloom_176b_2nodes.sh
 
 ## 评估 
 
-配置 Bloom-176B 评估脚本: tasks/evaluation/eval_bloom.sh
+配置 Bloom-176B 评估脚本: tasks/evaluation/evaluate_bloom_176b.sh
 
 ```shell
 # 修改 model weight 路径和 tokenizer 路径和数据集任务路径
@@ -535,14 +532,6 @@ DATA_PATH="/dataset/boolq/test"
 TASK="boolq"
 ```
 
-除此之外你还需要根据模型大小设置参数:
-
-```shell
---num-layers 70 
---hidden-size 14336 
---num-attention-heads 112 
-```
-
 ```text
     # 请注意，评估时需要修改一个deepspeed的bug：
     # 将 `<deepspeed-installed-path>/runtime/pipe/engine.py` 文件里的第671行注释掉：
@@ -550,7 +539,7 @@ TASK="boolq"
 ```
 
 ```shell
-bash ./tasks/evaluation/eval_bloom.sh
+bash tasks/evaluation/evaluate_bloom_176b.sh
 ```
 <table>
   <thead>
