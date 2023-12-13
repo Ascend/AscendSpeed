@@ -63,7 +63,7 @@ mkdir ckpt
 2. Build environment
 
 ```bash
-# python3.7
+# python3.8
 conda create -n test python=3.8
 conda activate test
 # install torch and torch_npu
@@ -201,6 +201,7 @@ DATA=./dataset/llama_text_document  #processed dataset
 CHECKPOINT=./model_weights/
 ```
 *Note that if you do not load weights for pre-training, remove the `--load` parameter from the training script*
+*Note that if you use the instruction dataset, add the `--is-instruction-dataset` parameter from the training script, otherwise please remove the parameter*
 
 7. Launch LLaMA-7B/13B pre-training script.
 
@@ -280,10 +281,11 @@ LLaMA-13B:
 
 We use bbh benchmark to evaluate our model. Benchmark Download [here](https://huggingface.co/datasets/lukaemon/bbh).
 
-Config LLaMA-7B/13B evaluation script `tasks/evaluation/eval_llama.sh`:
+Config LLaMA-7B evaluation script `tasks/evaluation/evaluate_llama_7b_ptd.sh` and LLaMA-13B evaluation script `tasks/evaluation/evaluate_llama_13b_ptd.sh`:
+
+Modify checkpoint path, vocab path, dataset path and task:
 
 ```shell
-# modify model weight path, tokenizer path, dataset path and task
 CHECKPOINT=<checkpoint-path>
 VOCAB_FILE=<vocabfile-path>
 DATA_PATH="./bbh/data/test/"
@@ -294,41 +296,16 @@ Change the max new tokens:
 --max-new-tokens 32 
 ```
 
-LLaMA-7B:
-
-Correspondingly modify the configuration of tensor-model-parallel-size and pipeline-model-parallel-size:
-```shell
---tensor-model-parallel-size 4  
---pipeline-model-parallel-size 2  
+```text
+# Note that, a deepspeed bug needs to be fixed during evaluation：
+# Comment out line 671 in the file `<deepspeed-installed-path>/runtime/pipe/engine.py`：
+# self.total_loss += self.loss.detach()
 ```
 
-In addition, you need to set the corresponding parameters according to the model size, LLaMA-7B parameters are:
+Start evaluation:
 ```shell
---num-layers 32  
---hidden-size 4096  
---ffn-hidden-size 11008 
---num-attention-heads 32
-```
-
-LLaMA-13B:
-
-Correspondingly modify the configuration of tensor-model-parallel-size and pipeline-model-parallel-size:
-```shell
---tensor-model-parallel-size 1  
---pipeline-model-parallel-size 8  
-```
-
-In addition, you need to set the corresponding parameters according to the model size, LLaMA-13B parameters are:
-```shell
---num-layers 40  
---hidden-size 5120  
---ffn-hidden-size 13824 
---num-attention-heads 40
-```
-
-start evaluation
-```shell
-bash tasks/evaluation/eval_llama.sh
+bash tasks/evaluation/evaluate_llama_7b_ptd.sh
+bash tasks/evaluation/evaluate_llama_13b_ptd.sh
 ```
 
 The evaluation performance of LLaMA-7B/13B in **Ascend NPU**:

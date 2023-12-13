@@ -395,15 +395,15 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td rowspan="4"><a href="examples/llama/README.md">LLaMA</a></td>
       <td>7B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_tp2_pp2.sh">inference </a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_7B_deepspeed.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_llama_7b_ptd.sh">evaluation</a>  </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
       <td>13B</td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/alpaca/finetune_chinese_llama_alpaca_7_13_33b_tp4_pp2.sh">lora</a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_13B_tp8_pp1.sh">inference </a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_13B_tp1_pp8.sh">inference </a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_llama_13b_ptd.sh">evaluation</a> </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>

@@ -63,7 +63,7 @@ mkdir ckpt
 2. 搭建环境
 
 ```bash
-# python3.7
+# python3.8
 conda create -n test python=3.8
 conda activate test
 # 安装 torch 和 torch_npu
@@ -206,6 +206,7 @@ DATA=./dataset/llama_text_document  #数据集 路径
 CHECKPOINT=./model_weights/
 
 # 如果不需要加载权重，就移除 `--load` 参数
+# 如果是指令数据集，请添加 `--is-instruction-dataset` 参数，否则请移除该参数
 ```
 
 7. 启动 LLaMA-7B/13B 预训练脚本
@@ -288,10 +289,11 @@ LLaMA-13B:
 
 我们使用 BBH benchmark 来评估我们的模型。Benchmark下载[此处](https://huggingface.co/datasets/lukaemon/bbh)。
 
-配置LLaMA-7B/13B评估脚本 `tasks/evaluation/eval_llama.sh`：
 
+配置LLaMA-7B评估脚本 `tasks/evaluation/evaluate_llama_7b_ptd.sh` 和 LLaMA-13B评估脚本 `tasks/evaluation/evaluate_llama_13b_ptd.sh`：
+
+修改权重路径, 词表路径和数据集任务路径：
 ```shell
-# 修改 model weight 路径和 tokenizer 路径和数据集任务路径
 CHECKPOINT=<checkpoint-path>
 VOCAB_FILE=<vocabfile-path>
 DATA_PATH="./bbh/data/test/"
@@ -303,41 +305,16 @@ TASK="bbh"
 --max-new-tokens 32 
 ```
 
-LLaMA-7B:
-
-对应修改tp和pp的配置：
-```shell
---tensor-model-parallel-size 4  
---pipeline-model-parallel-size 2  
+```text
+# 请注意，评估时需要修改一个deepspeed的bug：
+# 将 `<deepspeed-installed-path>/runtime/pipe/engine.py` 文件里的第671行注释掉：
+# self.total_loss += self.loss.detach()
 ```
 
-除此之外你还需要根据模型大小设置参数：
+开始评估：
 ```shell
---num-layers 32  
---hidden-size 4096  
---ffn-hidden-size 11008 
---num-attention-heads 32
-```
-
-LLaMA-13B:
-
-对应修改tp和pp的配置：
-```shell
---tensor-model-parallel-size 1  
---pipeline-model-parallel-size 8  
-```
-
-除此之外你还需要根据模型大小设置参数：
-```shell
---num-layers 40  
---hidden-size 5120  
---ffn-hidden-size 13824 
---num-attention-heads 40
-```
-
-开始评估
-```shell
-bash tasks/evaluation/eval_llama.sh
+bash tasks/evaluation/evaluate_llama_7b_ptd.sh
+bash tasks/evaluation/evaluate_llama_13b_ptd.sh
 ```
 
 LLaMA-7B/13B在**Ascend NPU**中的评测表现：
