@@ -199,8 +199,8 @@ Baichuan2-7B 等模型即将上线...
     </tr>
     <tr>
       <td>BF16 </td>
-      <td> 309 </td>
-      <td> 260 </td>
+      <td> 348 </td>
+      <td> 426 </td>
       <td> <a href="sources/images/llama65b_bf_loss.png">Loss</a> </td>
       <td> <a href="examples/llama/pretrain_llama_65B_ptd_32p.sh">训练</a> </td>
     </tr>
@@ -418,7 +418,7 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td > 65B </td>
       <td > -- </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/llama/generate_llama_65B_tp8_pp1.sh">对话 </a> </td>
-      <td> -- </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/evaluate_llama_65B_tp8_pp1.sh">评估 </a> </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a>  </td>
     </tr>
     <tr>
