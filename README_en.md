@@ -33,8 +33,8 @@ Currently, the following models has been supported:
 * <a href="https://internlm.intern-ai.org.cn/" style="color:green">InternLM</a>-[[README: 7B/65B]](examples/intern/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama" style="color:green">LLaMA</a>-[[README: 7B/13B/33B/65B]](examples/llama/README.md)
 * <a href="https://huggingface.co/docs/transformers/main/model_doc/llama2" style="color:green">LLaMA2</a>-[[README: 7B/13B/34B/70B]](examples/llama2/README.md)
+* <a href="https://github.com/baichuan-inc" style="color:green">Baichuan2</a>-[[README: 7B/13B]](examples/baichuan2/README.md)
 
-Baichuan2-7B/13B are coming soon ...
 
 ### Downstream Tasks
 Currently, the following downstream tasks have been supported:
@@ -115,7 +115,16 @@ Coming soon ...
       <td> <a href="examples/baichuan/pretrain_baichuan_ptd_13B.sh">Train</a> </td>
     </tr>
     <tr>
-      <td rowspan="1"><a href="examples/baichuan2/README.md">Baichaun2</a></td>
+      <td rowspan="2"><a href="examples/baichuan2/README.md">Baichuan2</a></td>
+      <td>7B</td>
+      <td> 1x8</td>
+      <td> BF16 </td>
+      <td> 2607 </td>
+      <td> 3936 </td>
+      <td> <a href="./sources/images/baichuan2/7B_loss_compare.png">Loss</a> </td>
+      <td> <a href="examples/baichuan2/pretrain_baichuan2_ptd_7B.sh">Train</a> </td>
+    </tr>
+    <tr>
       <td>13B</td>
       <td> 2x8</td>
       <td> BF16 </td>
