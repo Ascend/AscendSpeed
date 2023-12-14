@@ -24,6 +24,7 @@
     - [精度](#精度)
   - [推理](#推理)
   - [lora微调](#lora微调)
+  - [评估](#评估)
 
 # Baichuan-7B
 
@@ -397,6 +398,19 @@ bash ./examples/baichuan/generate_baichuan_13B_tp8_pp1.sh
 
 ### Lora微调
 我们支持使用 Baichuan-13B 进行lora微调。
+微调时使用`指令微调数据集`，制作过程如下，注意添加`--handler-name GeneralInstructionHandler`
+
+```shell
+mkdir alpaca_preprocessed
+python tools/preprocess_data.py \
+    --input ./dataset_baichuan13B/train-00000-of-00001-a09b74b3ef9c3b56.parquet \
+    --output-prefix ./alpaca_preprocessed/alpaca \
+    --tokenizer-type PretrainedFromHF \
+    --tokenizer-name-or-path ./baichuan-13B-hf \
+    --tokenizer-not-use-fast \
+    --handler-name GeneralInstructionHandler \
+    --append-eod
+```
 配置 Baichuan-13B 的lora脚本`examples/baichuan/tune_baichuan_ptd_13B.sh`
 
 ```shell

@@ -23,6 +23,7 @@
     - [Accuracy of the loss](#accuracy-of-the-loss)
   - [Inference](#inference)
   - [Lora](#lora)
+  - [Evaluation](#evaluation)
 
 # Baichuan-7B
 
@@ -406,7 +407,20 @@ Some inference samples are as follows:
 
 ### Lora
 We support AscendSpeed Lora fine-tuning with Baichuan-13B.
+When Fine-tuning using `instruction fine-tuning data set`, the production process is as follows, 
+pay attention to add ` --handler-name GeneralInstructionHandler `
 
+```shell
+mkdir alpaca_preprocessed
+python tools/preprocess_data.py \
+    --input ./dataset_baichuan13B/train-00000-of-00001-a09b74b3ef9c3b56.parquet \
+    --output-prefix ./alpaca_preprocessed/alpaca \
+    --tokenizer-type PretrainedFromHF \
+    --tokenizer-name-or-path ./baichuan-13B-hf \
+    --tokenizer-not-use-fast \
+    --handler-name GeneralInstructionHandler \
+    --append-eod
+```
 Configure Baichuan-13B lora script `examples/baichuan/tune_baichuan_ptd_13B.sh`
 
 ```shell

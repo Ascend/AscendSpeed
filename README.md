@@ -366,7 +366,7 @@ sh examples/llama/pretrain_llama_7B_zero_8p.sh
       <td> 13B </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/tune_baichuan_ptd_13B.sh">lora</a> </td>
       <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/examples/baichuan/generate_baichuan_13B_tp8_pp1.sh">对话</a> </td>
-      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/eval_baichuan.sh">评估</a> </td>
+      <td> <a href="https://gitee.com/ascend/AscendSpeed/tree/master/tasks/evaluation/eval_baichuan_13B.sh">评估</a> </td>
       <td> <a href="https://github.com/tatsu-lab/stanford_alpaca/blob/main/alpaca_data.json">alpaca_data.json</a> </td>
     </tr>
     <tr>
