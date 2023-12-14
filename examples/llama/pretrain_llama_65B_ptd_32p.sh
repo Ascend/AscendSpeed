@@ -4,6 +4,7 @@
 export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib:/root/miniconda3/lib:$LD_LIBRARY_PATH
 export HCCL_CONNECT_TIMEOUT=1200
 export COMBINED_ENABLE=1
+export MULTI_STREAM_MEMORY_REUSE=1
 
 # Change for multinode config
 MASTER_ADDR=localhost
@@ -29,7 +30,7 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --ffn-hidden-size 22016 \
        --num-attention-heads 64 \
        --micro-batch-size 2 \
-       --global-batch-size 512 \
+       --global-batch-size 128 \
        --seq-length 2048 \
        --position-embedding-type rope \
        --normalization RMSNorm \
@@ -54,8 +55,11 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS \
        --save-interval 10000 \
        --eval-interval 1000 \
        --eval-iters 10 \
-       --auto-recompute-device-size 55296 \
+       --auto-recompute-device-size -1 \
        --initial-loss-scale 524288.0 \
        --sequence-parallel \
-       --mlp-layer-fusion \
+       --swiglu \
+       --no-add-gate \
+       --use-flash-attn \
+       --use-fused-rmsnorm \
        --bf16 | tee logs/train.log

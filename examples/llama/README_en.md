@@ -509,8 +509,8 @@ The performance of the NPUs in **Ascend** and Reference:
 |:---------:|:---------:|:----------------------------:|
 | Reference | llama-33B |             776              |
 |   NPUs    | llama-33B |             621              |
-| Reference | llama-65B |             260              |
-|   NPUs    | llama-65B |             234              |
+| Reference | llama-65B |             426              |
+|   NPUs    | llama-65B |             348              |
 
 
 #### Accuracy of the loss
@@ -541,10 +541,12 @@ The relative error between NPU and GPU Loss is less than 0.02 throughout, as exp
 
 ## Inference
 
-We support AscendSpeed Inference for text generation with LLaMA-33B.
+We support AscendSpeed Inference for text generation with LLaMA-33B and LLaMA-65B.
 Inference different from pre-training, such as we need to Load pre-training checkpoint and the length of the output samples:
 
 Config LLaMA-33B inference script `examples/llama/generate_llama_33B_ptd.sh`.
+
+Config LLaMA-65B inference script `examples/llama/generate_llama_65B_tp8_pp1.sh`.
 
 ```shell
 # modify the model weight path and tokenizer path
@@ -556,12 +558,20 @@ LLaMA-33B:
 ```shell
 bash ./examples/llama/generate_llama_33B_ptd.sh
 ```
+LLaMA-65B:
+```shell
+bash ./examples/llama/generate_llama_65B_tp8_pp1.sh
+```
 
 Some inference samples are as follows:
 
 LLaMA-33B:
 
 ![llama-13B_generate.png](../../sources/images/llama/llama33B_generate.png)
+
+LLaMA-65B:
+
+![llama-65B_generate.png](../../sources/images/llama/llama65B_generate.png)
 
 
 ## Evaluation with Numerous Benchmarks
@@ -603,7 +613,8 @@ Config LLaMA-33B evaluation script:
 
 ```shell
 # start evaluation
-bash tasks/evaluation/eval.sh
+# evaluate llama-65B
+bash tasks/evaluation/evaluate_llama_65B_tp8_pp1.sh
 ```
 
 The evaluation performance of LLaMA-7B/13B in **Ascend NPU**:
@@ -611,7 +622,7 @@ The evaluation performance of LLaMA-7B/13B in **Ascend NPU**:
 | Task                                           | Model     | NPU  | Benchmark |
 |------------------------------------------------|-----------|------|-----------|
 | [Boolq](https://huggingface.co/datasets/boolq) | LLaMA-33B | 83.2 | [83.1](https://paperswithcode.com/sota/question-answering-on-boolq) |
-
+| [Boolq](https://huggingface.co/datasets/boolq) | LLaMA-65B | 85.7 | [86.6](https://paperswithcode.com/sota/question-answering-on-boolq) |
 
 ## Citation
 

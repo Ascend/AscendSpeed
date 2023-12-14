@@ -520,8 +520,8 @@ LLaMA-33B/65B在 **昇腾芯片** 和 **参考芯片** 上的性能对比:
 |:----:|:---------:|:---------------------:|
 |  参考  | llama-33B |          776          |
 | NPUs | llama-33B |          621          |
-|  参考  | llama-65B |          260          |
-| NPUs | llama-65B |          234          |
+|  参考  | llama-65B |          426          |
+| NPUs | llama-65B |          348          |
 
 
 #### 精度
@@ -546,10 +546,12 @@ LLaMa-65B
 
 ## 推理
 
-我们支持使用 LLaMA-33B 进行文本生成的推理。
+我们支持使用 LLaMA-33B 和 LLaMA-65B 进行文本生成的推理。
 推理与预训练不同，比如我们需要加载预训练权重和输出样本的长度：
 
 配置LLaMA-33B推理脚本`examples/llama/generate_llama_33B_ptd.sh`。
+
+配置LLaMA-65B推理脚本`examples/llama/generate_llama_65B_tp8_pp1.sh`。
 
 ```shell
 # 修改模型权重路径和分词器路径
@@ -561,6 +563,10 @@ LLaMA-33B:
 ```shell
 bash ./examples/llama/generate_llama_33B_ptd.sh
 ```
+LLaMA-65B:
+```shell
+bash ./examples/llama/generate_llama_65B_tp8_pp1.sh
+```
 
 部分推理样本如下：
 
@@ -568,6 +574,9 @@ LLaMA-33B:
 
 ![llama-13B_generate.png](../../sources/images/llama/llama33B_generate.png)
 
+LLaMA-65B:
+
+![llama-65B_generate.png](../../sources/images/llama/llama65B_generate.png)
 
 ## 使用基线数据集进行评估
 
@@ -608,14 +617,16 @@ LLaMA-33B:
 
 ```shell
 # 开始评估
-bash tasks/evaluation/eval.sh
+# llama-65B评估
+bash tasks/evaluation/evaluate_llama_65B_tp8_pp1.sh
 ```
 
-LLaMA-33B在**Ascend NPU**中的评测表现：
+LLaMA-33B和LLaMA-65B在**Ascend NPU**中的评测表现：
 
 | 任务                                             | 模型        | 昇腾值  | 社区值                                                                 |
 |------------------------------------------------|-----------|------|---------------------------------------------------------------------|
 | [Boolq](https://huggingface.co/datasets/boolq) | LLaMA-33B | 83.2 | [83.1](https://paperswithcode.com/sota/question-answering-on-boolq) |
+| [Boolq](https://huggingface.co/datasets/boolq) | LLaMA-65B | 85.7 | [86.6](https://paperswithcode.com/sota/question-answering-on-boolq) |
 
 ## 引用
 
